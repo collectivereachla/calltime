@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { respondToCall } from "./actions";
+import { useRouter } from "next/navigation";
 
 interface Props {
   eventCallId: string;
@@ -15,6 +16,7 @@ export function ResponseButtons({ eventCallId, currentStatus }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [activeStatus, setActiveStatus] = useState<string | null>(currentStatus);
   const [saved, setSaved] = useState(false);
+  const router = useRouter();
 
   async function handleRespond(status: "confirmed" | "tentative" | "conflict") {
     if (status === "conflict" && !showConflictInput) {
@@ -38,12 +40,15 @@ export function ResponseButtons({ eventCallId, currentStatus }: Props) {
       return;
     }
 
-    // Immediate local update — don't wait for page refresh
+    // Immediate local update for instant feedback
     setActiveStatus(status);
     setShowConflictInput(false);
     setConflictReason("");
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+
+    // Background refresh to update counts and persist across navigation
+    router.refresh();
   }
 
   return (
