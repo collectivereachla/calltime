@@ -127,6 +127,33 @@ export default async function CallboardPage() {
     }
   }
 
+  // Get all company members for call management
+  let companyMembers: { id: string; name: string; role: string; department: string }[] = [];
+  if (canManage && productionIds.length > 0) {
+    const { data: allAssignments } = await supabase
+      .from("production_assignments")
+      .select("person_id, role_title, department, people(id, full_name, preferred_name)")
+      .in("production_id", productionIds)
+      .eq("active", true);
+
+    if (allAssignments) {
+      const seen = new Set<string>();
+      companyMembers = allAssignments
+        .map((a) => {
+          const p = a.people as unknown as { id: string; full_name: string; preferred_name: string | null };
+          if (seen.has(p.id)) return null;
+          seen.add(p.id);
+          return {
+            id: p.id,
+            name: p.preferred_name || p.full_name,
+            role: a.role_title,
+            department: a.department || "other",
+          };
+        })
+        .filter(Boolean) as typeof companyMembers;
+    }
+  }
+
   // Group events by date
   const eventsByDate = new Map<string, typeof events>();
   for (const event of events) {
@@ -260,16 +287,23 @@ export default async function CallboardPage() {
                         {/* Response summary + Edit */}
                         <div className="text-right shrink-0 flex items-start gap-3">
                           {canManage && (
-                            <EditEventButton event={{
-                              id: event.id,
-                              event_type: event.event_type,
-                              title: event.title,
-                              event_date: event.event_date,
-                              start_time: event.start_time,
-                              end_time: event.end_time,
-                              location: event.location,
-                              notes: event.notes,
-                            }} />
+                            <EditEventButton
+                              event={{
+                                id: event.id,
+                                event_type: event.event_type,
+                                title: event.title,
+                                event_date: event.event_date,
+                                start_time: event.start_time,
+                                end_time: event.end_time,
+                                location: event.location,
+                                notes: event.notes,
+                              }}
+                              calledPersonIds={calls.map((c) => {
+                                const p = c.people as unknown as { id: string };
+                                return p.id;
+                              })}
+                              companyMembers={companyMembers}
+                            />
                           )}
                           {total > 0 && (
                             <div>

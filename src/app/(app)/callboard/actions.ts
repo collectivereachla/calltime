@@ -134,6 +134,36 @@ export async function deleteScheduleEvent(eventId: string) {
   return { success: true };
 }
 
+export async function updateEventCalls(eventId: string, personIds: string[]): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  // Get current calls
+  const { data: currentCalls } = await supabase
+    .from("event_calls")
+    .select("id, person_id")
+    .eq("event_id", eventId);
+
+  const currentPersonIds = new Set(currentCalls?.map((c) => c.person_id) || []);
+  const targetPersonIds = new Set(personIds);
+
+  // Add new calls
+  const toAdd = personIds.filter((id) => !currentPersonIds.has(id));
+  if (toAdd.length > 0) {
+    await supabase.from("event_calls").insert(
+      toAdd.map((person_id) => ({ event_id: eventId, person_id }))
+    );
+  }
+
+  // Remove unchecked calls
+  const toRemove = currentCalls?.filter((c) => !targetPersonIds.has(c.person_id)).map((c) => c.id) || [];
+  if (toRemove.length > 0) {
+    await supabase.from("event_calls").delete().in("id", toRemove);
+  }
+
+  revalidatePath("/callboard");
+  return { success: true };
+}
+
 export async function respondToCall(
   eventCallId: string,
   status: "confirmed" | "tentative" | "conflict",
