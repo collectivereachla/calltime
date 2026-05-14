@@ -316,10 +316,23 @@ export default async function CallboardPage() {
                         </div>
                       </div>
 
-                      {/* Called people (visible to owner/production) */}
-                      {canManage && calls.length > 0 && (
+                      {/* My response (if I'm called) — always first */}
+                      {myCall && (
                         <div className="mt-3 pt-3 border-t border-bone">
-                          <div className="flex flex-wrap gap-2">
+                          <ResponseButtons
+                            eventCallId={myCall.id}
+                            currentStatus={myResponse?.status || null}
+                          />
+                        </div>
+                      )}
+
+                      {/* Called people (visible to owner/production, collapsed by default) */}
+                      {canManage && calls.length > 0 && (
+                        <details className="mt-3 pt-3 border-t border-bone">
+                          <summary className="text-body-xs text-muted cursor-pointer hover:text-ash transition-colors">
+                            {confirmed}/{total} confirmed &middot; {total} called &middot; tap to view
+                          </summary>
+                          <div className="flex flex-wrap gap-2 mt-2">
                             {calls.map((call) => {
                               const p = call.people as unknown as {
                                 full_name: string;
@@ -358,17 +371,7 @@ export default async function CallboardPage() {
                               );
                             })}
                           </div>
-                        </div>
-                      )}
-
-                      {/* My response (if I'm called) */}
-                      {myCall && (
-                        <div className="mt-3 pt-3 border-t border-bone">
-                          <ResponseButtons
-                            eventCallId={myCall.id}
-                            currentStatus={myResponse?.status || null}
-                          />
-                        </div>
+                        </details>
                       )}
                     </div>
                   );
