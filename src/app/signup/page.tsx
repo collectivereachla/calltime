@@ -34,18 +34,15 @@ export default function SignupPage() {
       return;
     }
 
-    // Create person record
+    // Create person record via server function (bypasses RLS)
     if (authData.user) {
-      const { error: personError } = await supabase.from("people").insert({
-        user_id: authData.user.id,
-        full_name: fullName,
-        email,
+      const { error: personError } = await supabase.rpc("ensure_person_profile", {
+        p_full_name: fullName,
+        p_email: email,
       });
 
       if (personError) {
-        // If person record fails, the user can still proceed — 
-        // onboarding will handle profile completion
-        console.error("Person record creation failed:", personError);
+        console.error("Person profile creation failed:", personError);
       }
     }
 
