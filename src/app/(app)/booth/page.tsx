@@ -105,6 +105,14 @@ export default async function BoothPage() {
     .select("*")
     .eq("production_id", activeProduction.id);
 
+  // Get costume inventory for this org
+  const orgId = (membership.organizations as unknown as { id: string }).id;
+  const { data: inventoryData } = await supabase
+    .from("costume_inventory")
+    .select("*")
+    .eq("org_id", orgId)
+    .order("category", { ascending: true });
+
   return (
     <div className="max-w-full mx-auto px-4 md:px-8 py-6 md:py-10">
       {/* Header */}
@@ -138,6 +146,7 @@ export default async function BoothPage() {
         costumeEntries={entries}
         paradeEntries={(paradeData || []) as any}
         measurementEntries={(measurementData || []) as any}
+        inventoryItems={(inventoryData || []) as any}
         canManage={canManage}
       />
     </div>
