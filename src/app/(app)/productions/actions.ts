@@ -99,72 +99,19 @@ export async function addPersonToProduction(formData: FormData) {
   const accessTier = formData.get("access_tier") as string;
   const castingStructure = (formData.get("casting_structure") as string) || null;
 
-  // Check if person already exists in this org by email
-  let personId: string | null = null;
+  const { error } = await supabase.rpc("invite_person_to_production", {
+    p_production_id: productionId,
+    p_full_name: fullName,
+    p_email: email,
+    p_phone: phone,
+    p_role_title: roleTitle,
+    p_department: department,
+    p_access_tier: accessTier,
+    p_casting_structure: castingStructure,
+  });
 
-  if (email) {
-    const { data: existing } = await supabase
-      .from("people")
-      .select("id")
-      .eq("email", email)
-      .limit(1)
-      .single();
-
-    if (existing) {
-      personId = existing.id;
-    }
-  }
-
-  // If person doesn't exist, create them
-  if (!personId) {
-    const { data: newPerson, error: personError } = await supabase
-      .from("people")
-      .insert({
-        full_name: fullName,
-        email,
-        phone,
-      })
-      .select("id")
-      .single();
-
-    if (personError) {
-      return { error: personError.message };
-    }
-    personId = newPerson.id;
-
-    // Also add them to the org
-    const { data: production } = await supabase
-      .from("productions")
-      .select("org_id")
-      .eq("id", productionId)
-      .single();
-
-    if (production) {
-      await supabase.from("org_memberships").upsert(
-        {
-          org_id: production.org_id,
-          person_id: personId,
-          role: "member",
-        },
-        { onConflict: "org_id,person_id" }
-      );
-    }
-  }
-
-  // Create the assignment
-  const { error: assignError } = await supabase
-    .from("production_assignments")
-    .insert({
-      production_id: productionId,
-      person_id: personId,
-      role_title: roleTitle,
-      department,
-      access_tier: accessTier,
-      casting_structure: castingStructure || null,
-    });
-
-  if (assignError) {
-    return { error: assignError.message };
+  if (error) {
+    return { error: error.message };
   }
 
   revalidatePath(`/productions/${productionId}`);
