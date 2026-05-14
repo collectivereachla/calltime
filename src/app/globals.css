@@ -1,0 +1,56 @@
+@import url("https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #FAF7F1;
+  --color-card: #FFFFFF;
+  --color-ink: #1A1A1B;
+  --color-brick: #C4522D;
+  --color-ash: #7A726A;
+  --color-bone: #E8E1D2;
+  --color-confirmed: #1A6D4A;
+  --color-tentative: #B5772A;
+  --color-conflict: #C4522D;
+  --color-muted: #A39E96;
+
+  --font-display: "Newsreader", Georgia, serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+/*
+ * Calltime base styles
+ * "Bright, present, precise. Like working light on a clean stage."
+ */
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: rgba(196, 82, 45, 0.15);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-brick);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-bone);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ash);
+}
