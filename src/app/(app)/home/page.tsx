@@ -67,7 +67,7 @@ export default async function HomePage() {
     .eq("person_id", person!.id);
 
   const canCreate = memberships?.some(
-    (m) => m.role === "owner" || m.role === "admin"
+    (m) => m.role === "owner" || m.role === "production"
   );
 
   return (

@@ -76,10 +76,8 @@ export default async function ProductionPage({ params }: Props) {
     .single();
 
   const canManage =
-    userAssignment?.access_tier === "director" ||
-    userAssignment?.access_tier === "production_team" ||
     membership?.role === "owner" ||
-    membership?.role === "admin";
+    membership?.role === "production";
 
   // Group assignments by department
   const departments = new Map<string, typeof assignments>();

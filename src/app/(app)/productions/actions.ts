@@ -27,8 +27,8 @@ export async function createProduction(formData: FormData) {
     .limit(1)
     .single();
   if (!membership) return { error: "No organization found" };
-  if (membership.role !== "owner" && membership.role !== "admin") {
-    return { error: "Only admins can create productions" };
+  if (membership.role !== "owner" && membership.role !== "production") {
+    return { error: "Only owners and production staff can create productions" };
   }
 
   const title = formData.get("title") as string;
@@ -62,7 +62,7 @@ export async function createProduction(formData: FormData) {
     return { error: prodError.message };
   }
 
-  // Auto-assign creator — determine role from form or default to director
+  // Auto-assign creator with their org-level access tier
   const creatorRole = (formData.get("creator_role") as string) || "Director";
   const { error: assignError } = await supabase
     .from("production_assignments")
@@ -71,7 +71,7 @@ export async function createProduction(formData: FormData) {
       person_id: person.id,
       role_title: creatorRole,
       department: "directing",
-      access_tier: "director",
+      access_tier: membership.role, // owner stays owner, production stays production
     });
 
   if (assignError) {

@@ -66,7 +66,7 @@ export default async function CompanyPage() {
     .eq("org_id", org.id)
     .neq("status", "archived");
 
-  const isAdmin = membership.role === "owner" || membership.role === "admin";
+  const isAdmin = membership.role === "owner" || membership.role === "production";
 
   return (
     <div className="max-w-4xl mx-auto px-8 py-10">

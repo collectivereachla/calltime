@@ -16,14 +16,9 @@ const departments = [
 ];
 
 const accessTiers = [
-  { value: "director", label: "Director", description: "Full access to all rooms" },
-  { value: "production_team", label: "Production Team", description: "SM, PM — access to Callboard, Run, Booth" },
-  { value: "designer", label: "Designer", description: "Access to Booth (own department)" },
-  { value: "crew", label: "Crew", description: "Access to Booth (own department)" },
-  { value: "cast", label: "Cast", description: "Callboard, Run (own track)" },
-  { value: "musician", label: "Musician", description: "Callboard, Run (own part)" },
-  { value: "marketing", label: "Marketing", description: "Press room" },
-  { value: "guest", label: "Guest", description: "View-only access" },
+  { value: "production", label: "Production", description: "All rooms, own docs in Ledger" },
+  { value: "member", label: "Member", description: "Callboard, Run, Spine, Press, own Ledger docs" },
+  { value: "guest", label: "Guest", description: "Open Call only" },
 ];
 
 const castingOptions = [
@@ -158,7 +153,7 @@ export function AddPersonForm({ productionId }: { productionId: string }) {
               id="access_tier"
               name="access_tier"
               required
-              defaultValue="cast"
+              defaultValue="member"
               className="w-full px-3 py-2 bg-paper border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none transition-colors"
             >
               {accessTiers.map((t) => (
