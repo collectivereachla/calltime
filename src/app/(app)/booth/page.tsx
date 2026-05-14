@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { CostumePlot } from "./costume-plot";
+import { CostumeBible } from "./costume-bible";
 
 export default async function BoothPage() {
   const supabase = await createClient();
@@ -64,18 +64,20 @@ export default async function BoothPage() {
   // Get cast for this production
   const { data: castData } = await supabase
     .from("production_assignments")
-    .select("person_id, role_title, people(id, full_name, preferred_name)")
+    .select("person_id, role_title, people(id, full_name, preferred_name, email, phone)")
     .eq("production_id", activeProduction.id)
     .eq("department", "cast")
     .eq("active", true)
     .order("role_title", { ascending: true });
 
   const cast = (castData || []).map((a) => {
-    const p = a.people as unknown as { id: string; full_name: string; preferred_name: string | null };
+    const p = a.people as unknown as { id: string; full_name: string; preferred_name: string | null; email: string | null; phone: string | null };
     return {
       person_id: p.id,
       name: p.preferred_name || p.full_name,
       role_title: a.role_title,
+      email: p.email,
+      phone: p.phone,
     };
   });
 
@@ -90,6 +92,19 @@ export default async function BoothPage() {
     change_location: string | null; status: string; image_url: string | null;
   }[]) || [];
 
+  // Get costume parade entries
+  const { data: paradeData } = await supabase
+    .from("costume_parade")
+    .select("*")
+    .eq("production_id", activeProduction.id)
+    .order("parade_order", { ascending: true });
+
+  // Get measurements
+  const { data: measurementData } = await supabase
+    .from("measurements")
+    .select("*")
+    .eq("production_id", activeProduction.id);
+
   return (
     <div className="max-w-full mx-auto px-4 md:px-8 py-6 md:py-10">
       {/* Header */}
@@ -101,11 +116,6 @@ export default async function BoothPage() {
             <span className="text-muted"> · {activeProduction.status.replace(/_/g, " ")}</span>
           </p>
         </div>
-        {productions && productions.length > 1 && (
-          <div className="text-body-xs text-muted">
-            {productions.length} active productions
-          </div>
-        )}
       </div>
 
       {/* Department tabs */}
@@ -116,42 +126,20 @@ export default async function BoothPage() {
         <span className="px-4 py-2 text-body-sm text-muted cursor-default" title="Coming soon">
           Stage Management
         </span>
-        <span className="px-4 py-2 text-body-sm text-muted cursor-default" title="Coming soon">
-          Lighting
-        </span>
-        <span className="px-4 py-2 text-body-sm text-muted cursor-default" title="Coming soon">
-          Sound
-        </span>
       </div>
 
-      {/* Costume Design */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-body-md font-medium text-ink">Costume Plot</h2>
-            <p className="text-body-xs text-ash mt-0.5">
-              {cast.length} cast · {scenes.length} scenes · Click any cell to add or edit a costume
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-body-xs text-muted">
-              {entries.filter((e) => e.status === "ready").length}/{entries.length} ready
-            </span>
-          </div>
-        </div>
-
-        <CostumePlot
-          productionId={activeProduction.id}
-          scenes={scenes.map((s) => ({
-            id: s.id,
-            act: s.act,
-            scene_number: s.scene_number,
-            title: s.title,
-          }))}
-          cast={cast}
-          entries={entries}
-        />
-      </div>
+      {/* Costume Bible */}
+      <CostumeBible
+        productionId={activeProduction.id}
+        scenes={scenes.map((s) => ({
+          id: s.id, act: s.act, scene_number: s.scene_number, title: s.title,
+        }))}
+        cast={cast}
+        costumeEntries={entries}
+        paradeEntries={(paradeData || []) as any}
+        measurementEntries={(measurementData || []) as any}
+        canManage={canManage}
+      />
     </div>
   );
 }
