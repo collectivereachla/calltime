@@ -17,6 +17,9 @@ export default async function AppLayout({
     redirect("/login");
   }
 
+  // Auto-update production statuses based on dates
+  supabase.rpc("refresh_production_statuses").then(() => {});
+
   // Check if user has a person record and org membership
   const { data: person } = await supabase
     .from("people")
