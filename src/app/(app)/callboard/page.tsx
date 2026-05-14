@@ -105,25 +105,20 @@ export default async function CallboardPage() {
   }
 
   // Get call responses for these events
-  const eventCallIds = events.flatMap((e) => e.event_calls.map((c) => c.id));
+  // Get call responses via RPC (bypasses RLS chain that was blocking reads)
   let responses: Record<string, { status: string; conflict_reason: string | null }> = {};
 
-  if (eventCallIds.length > 0) {
-    const { data: responseData } = await supabase
-      .from("call_responses")
-      .select("event_call_id, status, conflict_reason, responded_at")
-      .in("event_call_id", eventCallIds)
-      .order("responded_at", { ascending: false });
+  if (membership?.org_id) {
+    const { data: responseData } = await supabase.rpc("get_all_call_responses_for_org", {
+      p_org_id: membership.org_id,
+    });
 
     if (responseData) {
-      // Latest response per event_call_id
-      for (const r of responseData) {
-        if (!responses[r.event_call_id]) {
-          responses[r.event_call_id] = {
-            status: r.status,
-            conflict_reason: r.conflict_reason,
-          };
-        }
+      for (const r of responseData as { event_call_id: string; status: string; conflict_reason: string | null }[]) {
+        responses[r.event_call_id] = {
+          status: r.status,
+          conflict_reason: r.conflict_reason,
+        };
       }
     }
   }
