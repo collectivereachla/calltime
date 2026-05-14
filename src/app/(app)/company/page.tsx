@@ -94,7 +94,30 @@ export default async function CompanyPage() {
         </div>
       ) : (
         <div className="bg-card border border-bone rounded-card divide-y divide-bone">
-          {members.map((member) => {
+          {[...members].sort((a, b) => {
+            // Sort: owner first, then production, then by SM status, then alphabetical
+            const roleOrder: Record<string, number> = { owner: 0, production: 1, member: 2, guest: 3 };
+            const aOrder = roleOrder[a.role] ?? 2;
+            const bOrder = roleOrder[b.role] ?? 2;
+            if (aOrder !== bOrder) return aOrder - bOrder;
+
+            // Within same org role, check if SM (from assignments)
+            const aIsSM = productions?.some((prod) =>
+              (prod.production_assignments as unknown as { person_id: string; role_title: string; active: boolean }[])
+                .some((pa) => pa.person_id === (a.people as unknown as { id: string }).id && pa.active && pa.role_title.toLowerCase().includes("stage manager"))
+            );
+            const bIsSM = productions?.some((prod) =>
+              (prod.production_assignments as unknown as { person_id: string; role_title: string; active: boolean }[])
+                .some((pa) => pa.person_id === (b.people as unknown as { id: string }).id && pa.active && pa.role_title.toLowerCase().includes("stage manager"))
+            );
+            if (aIsSM && !bIsSM) return -1;
+            if (!aIsSM && bIsSM) return 1;
+
+            // Alphabetical by display name
+            const aName = (a.people as unknown as { preferred_name: string | null; full_name: string }).preferred_name || (a.people as unknown as { full_name: string }).full_name;
+            const bName = (b.people as unknown as { preferred_name: string | null; full_name: string }).preferred_name || (b.people as unknown as { full_name: string }).full_name;
+            return aName.localeCompare(bName);
+          }).map((member) => {
             const p = member.people as unknown as {
               id: string;
               full_name: string;
@@ -174,16 +197,16 @@ export default async function CompanyPage() {
 
                     {/* Contact info — inline on mobile */}
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 md:hidden">
-                      {p.email && <p className="text-body-xs text-ash">{p.email}</p>}
-                      {p.phone && <p className="font-mono text-data-sm text-ash">{p.phone}</p>}
+                      {p.email && <a href={`mailto:${p.email}`} className="text-body-xs text-ash hover:text-brick transition-colors">{p.email}</a>}
+                      {p.phone && <a href={`tel:${p.phone}`} className="font-mono text-data-sm text-ash hover:text-brick transition-colors">{p.phone}</a>}
                     </div>
                   </div>
 
                   <div className="flex items-start gap-3 shrink-0">
                     {/* Contact info — right side on desktop */}
                     <div className="text-right hidden md:block">
-                      {p.email && <p className="text-body-xs text-ash">{p.email}</p>}
-                      {p.phone && <p className="font-mono text-data-sm text-ash">{p.phone}</p>}
+                      {p.email && <a href={`mailto:${p.email}`} className="block text-body-xs text-ash hover:text-brick transition-colors">{p.email}</a>}
+                      {p.phone && <a href={`tel:${p.phone}`} className="block font-mono text-data-sm text-ash hover:text-brick transition-colors">{p.phone}</a>}
                     </div>
                     {canManage && (
                       <EditMemberButton
