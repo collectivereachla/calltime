@@ -182,7 +182,7 @@ export default async function CallboardPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-8 py-10">
+    <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="font-display text-display-md text-ink">Callboard</h1>

@@ -23,7 +23,7 @@ export default async function CompanyPage() {
 
   if (!membership) {
     return (
-      <div className="max-w-3xl mx-auto px-8 py-10">
+      <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
         <p className="text-body-md text-ash">No organization found.</p>
       </div>
     );
@@ -71,7 +71,7 @@ export default async function CompanyPage() {
     .neq("status", "archived");
 
   return (
-    <div className="max-w-4xl mx-auto px-8 py-10">
+    <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="font-display text-display-md text-ink">Company</h1>
@@ -131,10 +131,10 @@ export default async function CompanyPage() {
             const isCurrentUser = p.id === person!.id;
 
             return (
-              <div key={member.id} className="px-6 py-4">
-                <div className="flex items-start justify-between gap-4">
+              <div key={member.id} className="px-4 md:px-6 py-4">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 md:gap-4">
                   <div className="min-w-0">
-                    <div className="flex items-baseline gap-2">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <h3 className="text-body-md font-medium text-ink">
                         {p.preferred_name || p.full_name}
                       </h3>
@@ -159,20 +159,27 @@ export default async function CompanyPage() {
                     </div>
 
                     {personAssignments.length > 0 && (
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
+                      <div className="flex flex-col gap-0.5 mt-1.5">
                         {personAssignments.map((a, i) => (
                           <span key={i} className="text-body-sm text-ash">
-                            {a.role_title}
+                            <span className="font-medium text-ink">{a.role_title}</span>
                             <span className="text-muted"> in </span>
                             <span className="font-display italic">{a.production_title}</span>
                           </span>
                         ))}
                       </div>
                     )}
+
+                    {/* Contact info — inline on mobile */}
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 md:hidden">
+                      {p.email && <p className="text-body-xs text-ash">{p.email}</p>}
+                      {p.phone && <p className="font-mono text-data-sm text-ash">{p.phone}</p>}
+                    </div>
                   </div>
 
                   <div className="flex items-start gap-3 shrink-0">
-                    <div className="text-right">
+                    {/* Contact info — right side on desktop */}
+                    <div className="text-right hidden md:block">
                       {p.email && <p className="text-body-xs text-ash">{p.email}</p>}
                       {p.phone && <p className="font-mono text-data-sm text-ash">{p.phone}</p>}
                     </div>
@@ -191,8 +198,6 @@ export default async function CompanyPage() {
                     )}
                   </div>
                 </div>
-
-                {/* Edit form renders here when open */}
               </div>
             );
           })}

@@ -20,7 +20,7 @@ export default function NewProductionPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-8 py-10">
+    <div className="max-w-2xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="mb-8">
         <Link
           href="/home"

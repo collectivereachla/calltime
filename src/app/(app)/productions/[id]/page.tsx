@@ -111,7 +111,7 @@ export default async function ProductionPage({ params }: Props) {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-8 py-10">
+    <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
       {/* Header */}
       <div className="mb-8">
         <Link

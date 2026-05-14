@@ -50,7 +50,7 @@ export default async function AppLayout({
           role: m.role,
         }))}
       />
-      <main className="flex-1 min-w-0">
+      <main className="flex-1 min-w-0 pt-14 pb-16 md:pt-0 md:pb-0">
         {children}
       </main>
     </div>
