@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NewEventForm } from "./new-event-form";
 import { ResponseButtons } from "./response-buttons";
 import { EditEventButton } from "./edit-event";
+import { CallboardTabs } from "./callboard-tabs";
 
 function formatTime(time: string): string {
   const [h, m] = time.split(":").map(Number);
@@ -163,6 +164,21 @@ export default async function CallboardPage() {
     eventsByDate.get(event.event_date)!.push(event);
   }
 
+  // Fetch conflict responses for the Conflicts tab
+  let conflicts: {
+    event_id: string; event_title: string; event_type: string;
+    event_date: string; start_time: string | null; production_title: string;
+    person_name: string; person_id: string; conflict_reason: string | null;
+    responded_at: string;
+  }[] = [];
+
+  if (canManage && membership?.org_id) {
+    const { data: conflictData } = await supabase.rpc("get_conflict_responses", {
+      p_org_id: membership.org_id,
+    });
+    conflicts = (conflictData as typeof conflicts) || [];
+  }
+
   const typeColors: Record<string, string> = {
     rehearsal: "bg-ink/10 text-ink",
     tech: "bg-tentative/10 text-tentative",
@@ -194,12 +210,17 @@ export default async function CallboardPage() {
         </div>
       </div>
 
-      {/* New event form — owner and production only */}
-      {canManage && activeProductions.length > 0 && (
-        <div className="mb-8">
-          <NewEventForm productions={activeProductions} />
-        </div>
-      )}
+      <CallboardTabs
+        canManage={canManage}
+        conflicts={conflicts}
+        scheduleContent={
+          <>
+            {/* New event form — owner and production only */}
+            {canManage && activeProductions.length > 0 && (
+              <div className="mb-8">
+                <NewEventForm productions={activeProductions} />
+              </div>
+            )}
 
       {/* Events by date */}
       {events.length === 0 ? (
@@ -381,6 +402,9 @@ export default async function CallboardPage() {
           ))}
         </div>
       )}
+          </>
+        }
+      />
     </div>
   );
 }
