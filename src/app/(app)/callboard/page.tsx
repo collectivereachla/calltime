@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NewEventForm } from "./new-event-form";
-import { ResponseButtons } from "./response-buttons";
+import { EventCard } from "./event-card";
 import { EditEventButton } from "./edit-event";
 import { CallboardTabs } from "./callboard-tabs";
 
@@ -337,63 +337,27 @@ export default async function CallboardPage() {
                         </div>
                       </div>
 
-                      {/* My response (if I'm called) — always first */}
-                      {myCall && (
-                        <div className="mt-3 pt-3 border-t border-bone">
-                          <ResponseButtons
-                            eventCallId={myCall.id}
-                            currentStatus={myResponse?.status || null}
-                          />
-                        </div>
-                      )}
-
-                      {/* Called people (visible to owner/production, collapsed by default) */}
-                      {canManage && calls.length > 0 && (
-                        <details className="mt-3 pt-3 border-t border-bone">
-                          <summary className="text-body-xs text-muted cursor-pointer hover:text-ash transition-colors">
-                            {confirmed}/{total} confirmed &middot; {total} called &middot; tap to view
-                          </summary>
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {calls.map((call) => {
-                              const p = call.people as unknown as {
-                                full_name: string;
-                                preferred_name: string | null;
-                              };
-                              const resp = responses[call.id];
-                              return (
-                                <span
-                                  key={call.id}
-                                  className={`text-body-xs px-2 py-0.5 rounded-full border ${
-                                    resp
-                                      ? resp.status === "confirmed"
-                                        ? "border-confirmed/30 bg-confirmed/5 text-confirmed"
-                                        : resp.status === "tentative"
-                                          ? "border-tentative/30 bg-tentative/5 text-tentative"
-                                          : "border-conflict/30 bg-conflict/5 text-conflict"
-                                      : "border-bone bg-paper text-muted"
-                                  }`}
-                                  title={
-                                    resp?.conflict_reason
-                                      ? `Conflict: ${resp.conflict_reason}`
-                                      : undefined
-                                  }
-                                >
-                                  {p.preferred_name || p.full_name}
-                                  {resp && (
-                                    <span className="ml-1">
-                                      {resp.status === "confirmed"
-                                        ? "✓"
-                                        : resp.status === "tentative"
-                                          ? "?"
-                                          : "✕"}
-                                    </span>
-                                  )}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </details>
-                      )}
+                      <EventCard
+                        eventCallId={myCall?.id || null}
+                        currentStatus={myResponse?.status || null}
+                        currentPersonId={person!.id}
+                        canManage={canManage}
+                        calls={calls.map((call) => {
+                          const p = call.people as unknown as {
+                            id: string;
+                            full_name: string;
+                            preferred_name: string | null;
+                          };
+                          const resp = responses[call.id];
+                          return {
+                            id: call.id,
+                            person_id: p.id,
+                            person_name: p.preferred_name || p.full_name,
+                            response_status: resp?.status || null,
+                            conflict_reason: resp?.conflict_reason || null,
+                          };
+                        })}
+                      />
                     </div>
                   );
                 })}
