@@ -2,6 +2,13 @@ import { createClient } from "@/lib/supabase/server";
 import { NewEventForm } from "./new-event-form";
 import { ResponseButtons } from "./response-buttons";
 
+function formatTime(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
+}
+
 export default async function CallboardPage() {
   const supabase = await createClient();
 
@@ -231,9 +238,9 @@ export default async function CallboardPage() {
                           <div className="flex items-center gap-3 mt-1">
                             {event.start_time && (
                               <span className="font-mono text-data-sm text-ash">
-                                {event.start_time.slice(0, 5)}
+                                {formatTime(event.start_time)}
                                 {event.end_time &&
-                                  `–${event.end_time.slice(0, 5)}`}
+                                  `–${formatTime(event.end_time)}`}
                               </span>
                             )}
                             {event.location && (
