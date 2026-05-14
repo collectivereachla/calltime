@@ -57,6 +57,7 @@ export default async function CompanyPage() {
       id,
       title,
       status,
+      opening_date,
       production_assignments (
         id,
         person_id,
@@ -68,7 +69,8 @@ export default async function CompanyPage() {
       )
     `)
     .eq("org_id", org.id)
-    .neq("status", "archived");
+    .neq("status", "archived")
+    .order("opening_date", { ascending: true });
 
   return (
     <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">

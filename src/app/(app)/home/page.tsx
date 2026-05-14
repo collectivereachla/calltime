@@ -60,6 +60,13 @@ export default async function HomePage() {
     }
   ) || [];
 
+  // Sort chronologically by opening date
+  activeProductions.sort((a, b) => {
+    const aDate = (a.productions as unknown as { opening_date: string | null }).opening_date || "";
+    const bDate = (b.productions as unknown as { opening_date: string | null }).opening_date || "";
+    return aDate.localeCompare(bDate);
+  });
+
   // Check if user can create productions
   const { data: memberships } = await supabase
     .from("org_memberships")
