@@ -75,6 +75,34 @@ export async function updateAssignment(formData: FormData) {
   return { success: true };
 }
 
+export async function addAssignment(formData: FormData) {
+  const supabase = await createClient();
+
+  const personId = formData.get("person_id") as string;
+  const productionId = formData.get("production_id") as string;
+  const roleTitle = formData.get("role_title") as string;
+  const department = formData.get("department") as string;
+  const accessTier = formData.get("access_tier") as string;
+  const castingStructure = (formData.get("casting_structure") as string) || null;
+
+  const { error } = await supabase
+    .from("production_assignments")
+    .insert({
+      production_id: productionId,
+      person_id: personId,
+      role_title: roleTitle,
+      department,
+      access_tier: accessTier,
+      casting_structure: castingStructure || null,
+    });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/company");
+  revalidatePath("/home");
+  return { success: true };
+}
+
 export async function removeMember(orgId: string, personId: string) {
   const supabase = await createClient();
 

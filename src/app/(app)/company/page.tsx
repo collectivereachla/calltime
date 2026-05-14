@@ -182,6 +182,10 @@ export default async function CompanyPage() {
                         orgId={org.id}
                         orgRole={member.role}
                         assignments={personAssignments}
+                        productions={(productions || []).map((prod) => ({
+                          id: prod.id,
+                          title: prod.title,
+                        }))}
                         isCurrentUser={isCurrentUser}
                       />
                     )}

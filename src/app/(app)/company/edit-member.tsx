@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateMember, updateMemberRole, updateAssignment, removeMember } from "./actions";
+import { updateMember, updateMemberRole, updateAssignment, addAssignment, removeMember } from "./actions";
 import { useRouter } from "next/navigation";
 
 const orgRoles = [
@@ -56,17 +56,24 @@ interface Assignment {
   production_title: string;
 }
 
+interface Production {
+  id: string;
+  title: string;
+}
+
 interface Props {
   person: PersonData;
   orgId: string;
   orgRole: string;
   assignments: Assignment[];
+  productions: Production[];
   isCurrentUser: boolean;
 }
 
-export function EditMemberButton({ person, orgId, orgRole, assignments, isCurrentUser }: Props) {
+export function EditMemberButton({ person, orgId, orgRole, assignments, productions, isCurrentUser }: Props) {
   const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState<"profile" | "role" | "assignments">("profile");
+  const [addingRole, setAddingRole] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentRole, setCurrentRole] = useState(orgRole);
@@ -91,6 +98,17 @@ export function EditMemberButton({ person, orgId, orgRole, assignments, isCurren
     const result = await updateMemberRole(orgId, person.id, role);
     if (result?.error) { setError(result.error); setLoading(false); return; }
     setLoading(false);
+    router.refresh();
+  }
+
+  async function handleAddRole(formData: FormData) {
+    setError(null);
+    setLoading(true);
+    formData.set("person_id", person.id);
+    const result = await addAssignment(formData);
+    if (result?.error) { setError(result.error); setLoading(false); return; }
+    setLoading(false);
+    setAddingRole(false);
     router.refresh();
   }
 
@@ -298,6 +316,64 @@ export function EditMemberButton({ person, orgId, orgRole, assignments, isCurren
               </button>
             </form>
           ))}
+
+          {/* Add role */}
+          {!addingRole ? (
+            <button onClick={() => setAddingRole(true)}
+              className="w-full py-2.5 border border-dashed border-bone rounded-card text-body-xs text-ash hover:text-brick hover:border-brick/30 transition-colors">
+              + Add another role
+            </button>
+          ) : (
+            <form action={handleAddRole}
+              className="bg-brick/5 border border-dashed border-brick/20 rounded-card p-3">
+              <p className="text-body-xs font-medium text-ink mb-2">New role for {person.preferred_name || person.full_name}</p>
+              <div className="grid grid-cols-2 gap-3 mb-2">
+                <div>
+                  <label className="block text-body-xs text-ash mb-1">Production</label>
+                  <select name="production_id" required
+                    className="w-full px-3 py-1.5 bg-card border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none transition-colors">
+                    {productions.map((p) => (
+                      <option key={p.id} value={p.id}>{p.title}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-body-xs text-ash mb-1">Role / Title</label>
+                  <input name="role_title" type="text" required placeholder="e.g. Lincoln, Co-Director"
+                    className="w-full px-3 py-1.5 bg-card border border-bone rounded-card text-body-sm text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-body-xs text-ash mb-1">Department</label>
+                  <select name="department" defaultValue="cast"
+                    className="w-full px-3 py-1.5 bg-card border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none transition-colors">
+                    {departments.map((d) => (
+                      <option key={d.value} value={d.value}>{d.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-body-xs text-ash mb-1">Access tier</label>
+                  <select name="access_tier" defaultValue="member"
+                    className="w-full px-3 py-1.5 bg-card border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none transition-colors">
+                    {accessTiers.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" disabled={loading}
+                  className="px-4 py-1.5 bg-ink text-paper text-body-xs font-medium rounded-card hover:bg-ink/90 transition-colors disabled:opacity-50">
+                  {loading ? "Adding..." : "Add role"}
+                </button>
+                <button type="button" onClick={() => setAddingRole(false)}
+                  className="px-3 py-1.5 text-body-xs text-ash hover:text-ink transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+
           <button onClick={() => setEditing(false)}
             className="px-3 py-1.5 text-body-xs text-ash hover:text-ink transition-colors">
             Done
