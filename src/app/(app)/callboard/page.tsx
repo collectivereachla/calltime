@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NewEventForm } from "./new-event-form";
 import { ResponseButtons } from "./response-buttons";
+import { EditEventButton } from "./edit-event";
 
 function formatTime(time: string): string {
   const [h, m] = time.split(":").map(Number);
@@ -256,15 +257,29 @@ export default async function CallboardPage() {
                           )}
                         </div>
 
-                        {/* Response summary */}
-                        {total > 0 && (
-                          <div className="text-right shrink-0">
-                            <span className="font-mono text-data-sm text-ash">
-                              {confirmed}/{total}
-                            </span>
-                            <p className="text-body-xs text-muted">confirmed</p>
-                          </div>
-                        )}
+                        {/* Response summary + Edit */}
+                        <div className="text-right shrink-0 flex items-start gap-3">
+                          {canManage && (
+                            <EditEventButton event={{
+                              id: event.id,
+                              event_type: event.event_type,
+                              title: event.title,
+                              event_date: event.event_date,
+                              start_time: event.start_time,
+                              end_time: event.end_time,
+                              location: event.location,
+                              notes: event.notes,
+                            }} />
+                          )}
+                          {total > 0 && (
+                            <div>
+                              <span className="font-mono text-data-sm text-ash">
+                                {confirmed}/{total}
+                              </span>
+                              <p className="text-body-xs text-muted">confirmed</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {/* Called people (visible to owner/production) */}

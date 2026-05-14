@@ -84,6 +84,56 @@ export async function callPersonToEvent(eventId: string, personId: string) {
   return { success: true };
 }
 
+export async function updateScheduleEvent(formData: FormData) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const eventId = formData.get("event_id") as string;
+  const eventType = formData.get("event_type") as string;
+  const title = formData.get("title") as string;
+  const eventDate = formData.get("event_date") as string;
+  const startTime = (formData.get("start_time") as string) || null;
+  const endTime = (formData.get("end_time") as string) || null;
+  const location = (formData.get("location") as string) || null;
+  const notes = (formData.get("notes") as string) || null;
+
+  const { error } = await supabase
+    .from("schedule_events")
+    .update({
+      event_type: eventType,
+      title,
+      event_date: eventDate,
+      start_time: startTime || null,
+      end_time: endTime || null,
+      location,
+      notes,
+    })
+    .eq("id", eventId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/callboard");
+  return { success: true };
+}
+
+export async function deleteScheduleEvent(eventId: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("schedule_events")
+    .delete()
+    .eq("id", eventId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/callboard");
+  return { success: true };
+}
+
 export async function respondToCall(
   eventCallId: string,
   status: "confirmed" | "tentative" | "conflict",
