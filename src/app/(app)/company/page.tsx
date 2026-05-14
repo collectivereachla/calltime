@@ -44,7 +44,8 @@ export default async function CompanyPage() {
         preferred_name,
         email,
         phone,
-        pronouns
+        pronouns,
+        headshot_url
       )
     `)
     .eq("org_id", org.id)
@@ -125,6 +126,7 @@ export default async function CompanyPage() {
               email: string | null;
               phone: string | null;
               pronouns: string | null;
+              headshot_url: string | null;
             };
 
             // Find this person's active assignments with full details
@@ -154,11 +156,20 @@ export default async function CompanyPage() {
               .filter(Boolean) || [];
 
             const isCurrentUser = p.id === person!.id;
+            const initials = (p.preferred_name || p.full_name).split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
             return (
               <div key={member.id} className="px-4 md:px-6 py-4">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 md:gap-4">
-                  <div className="min-w-0">
+                  <div className="flex gap-3 min-w-0">
+                    {p.headshot_url ? (
+                      <img src={p.headshot_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 mt-0.5" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-brick/10 text-brick flex items-center justify-center text-body-xs font-medium shrink-0 mt-0.5">
+                        {initials}
+                      </div>
+                    )}
+                    <div className="min-w-0">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <h3 className="text-body-md font-medium text-ink">
                         {p.preferred_name || p.full_name}
@@ -200,6 +211,7 @@ export default async function CompanyPage() {
                       {p.email && <a href={`mailto:${p.email}`} className="text-body-xs text-ash hover:text-brick transition-colors">{p.email}</a>}
                       {p.phone && <a href={`tel:${p.phone}`} className="font-mono text-data-sm text-ash hover:text-brick transition-colors">{p.phone}</a>}
                     </div>
+                  </div>
                   </div>
 
                   <div className="flex items-start gap-3 shrink-0">
