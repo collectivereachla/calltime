@@ -87,6 +87,17 @@ export default async function HomePage() {
     (m) => m.role === "owner" || m.role === "production"
   );
 
+  // Get next upcoming call for this person
+  const { data: nextCallData } = await supabase.rpc("get_next_call", {
+    p_person_id: person!.id,
+  });
+  const nextCall = (nextCallData as unknown as {
+    event_id: string; event_call_id: string; event_title: string;
+    event_type: string; event_date: string; start_time: string | null;
+    end_time: string | null; location: string | null; notes: string | null;
+    production_title: string; response_status: string | null;
+  }[])?.[0] || null;
+
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
       {/* Page header */}
@@ -110,6 +121,58 @@ export default async function HomePage() {
           </a>
         )}
       </div>
+
+      {/* Next call — always visible */}
+      {nextCall && (
+        <div className="mb-8">
+          <p className="text-body-xs text-muted uppercase tracking-wider mb-2">Next call</p>
+          <a href="/callboard" className="block bg-card border border-brick/20 rounded-card px-5 py-4 hover:shadow-card-hover transition-shadow">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-body-xs font-medium px-1.5 py-0.5 rounded bg-brick/10 text-brick">
+                    {nextCall.event_type.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-body-xs text-muted">{nextCall.production_title}</span>
+                </div>
+                <h3 className="text-body-md font-medium text-ink">{nextCall.event_title}</h3>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="font-mono text-data-sm text-ink">
+                    {new Date(nextCall.event_date + "T00:00:00").toLocaleDateString("en-US", {
+                      weekday: "short", month: "short", day: "numeric",
+                    })}
+                    {nextCall.start_time && (() => {
+                      const [h, m] = nextCall.start_time!.split(":").map(Number);
+                      const period = h >= 12 ? "PM" : "AM";
+                      const hour = h % 12 || 12;
+                      return ` · ${hour}:${m.toString().padStart(2, "0")} ${period}`;
+                    })()}
+                  </span>
+                  {nextCall.location && (
+                    <span className="text-body-xs text-ash">{nextCall.location}</span>
+                  )}
+                </div>
+              </div>
+              <div className="shrink-0">
+                {nextCall.response_status ? (
+                  <span className={`text-body-xs font-medium px-2 py-1 rounded-full ${
+                    nextCall.response_status === "confirmed" ? "bg-confirmed/10 text-confirmed" :
+                    nextCall.response_status === "tentative" ? "bg-tentative/10 text-tentative" :
+                    "bg-conflict/10 text-conflict"
+                  }`}>
+                    {nextCall.response_status === "confirmed" ? "Confirmed ✓" :
+                     nextCall.response_status === "tentative" ? "Tentative ?" : "Conflict ✕"}
+                  </span>
+                ) : (
+                  <span className="text-body-xs font-medium px-2 py-1 rounded-full bg-brick/10 text-brick">
+                    Respond
+                  </span>
+                )}
+              </div>
+            </div>
+          </a>
+        </div>
+      )}
 
       {/* Productions */}
       {activeProductions.length === 0 ? (

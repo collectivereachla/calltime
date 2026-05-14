@@ -51,7 +51,8 @@ export default async function CallboardPage() {
       .map((a) => a.productions as unknown as { id: string; title: string }) || [];
 
   // Get upcoming events for all user's productions
-  const today = new Date().toISOString().split("T")[0];
+  // Use Central Time for "today" — UTC would hide today's events after 7PM CT
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
   const productionIds = activeProductions.map((p) => p.id);
 
   let events: {
