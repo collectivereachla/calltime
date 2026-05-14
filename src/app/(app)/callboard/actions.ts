@@ -176,11 +176,10 @@ export async function respondToCall(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  const { error } = await supabase.from("call_responses").insert({
-    event_call_id: eventCallId,
-    status,
-    conflict_reason: status === "conflict" ? conflictReason : null,
-    responded_by: user.id,
+  const { error } = await supabase.rpc("respond_to_call", {
+    p_event_call_id: eventCallId,
+    p_status: status,
+    p_conflict_reason: conflictReason || null,
   });
 
   if (error) return { error: error.message };

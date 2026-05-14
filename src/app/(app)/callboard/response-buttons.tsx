@@ -13,6 +13,7 @@ export function ResponseButtons({ eventCallId, currentStatus }: Props) {
   const [showConflictInput, setShowConflictInput] = useState(false);
   const [conflictReason, setConflictReason] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   async function handleRespond(status: "confirmed" | "tentative" | "conflict") {
@@ -21,12 +22,18 @@ export function ResponseButtons({ eventCallId, currentStatus }: Props) {
       return;
     }
 
+    setError(null);
     setLoading(true);
-    await respondToCall(
+    const result = await respondToCall(
       eventCallId,
       status,
       status === "conflict" ? conflictReason : undefined
     );
+    if (result?.error) {
+      setError(result.error);
+      setLoading(false);
+      return;
+    }
     setLoading(false);
     setShowConflictInput(false);
     setConflictReason("");
@@ -35,7 +42,10 @@ export function ResponseButtons({ eventCallId, currentStatus }: Props) {
 
   return (
     <div>
-      <div className="flex items-center gap-2">
+      {error && (
+        <p className="text-body-xs text-brick mb-2">{error}</p>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-body-xs text-muted mr-1">Respond:</span>
         <button
           onClick={() => handleRespond("confirmed")}
