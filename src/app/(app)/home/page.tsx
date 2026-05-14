@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { CalendarLink } from "@/components/calendar-link";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -11,7 +12,7 @@ export default async function HomePage() {
   // Get person record
   const { data: person } = await supabase
     .from("people")
-    .select("id, full_name, preferred_name")
+    .select("id, full_name, preferred_name, calendar_token")
     .eq("user_id", user!.id)
     .single();
 
@@ -178,6 +179,13 @@ export default async function HomePage() {
               </Link>
             );
           })}
+        </div>
+      )}
+
+      {/* Calendar subscription */}
+      {person?.calendar_token && (
+        <div className="mt-10 pt-6 border-t border-bone">
+          <CalendarLink token={person.calendar_token} />
         </div>
       )}
     </div>
