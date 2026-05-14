@@ -6,77 +6,17 @@ import { createClient } from "@/lib/supabase/server";
 export async function createScheduleEvent(formData: FormData) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
-
-  const productionId = formData.get("production_id") as string;
-  const eventType = formData.get("event_type") as string;
-  const title = formData.get("title") as string;
-  const eventDate = formData.get("event_date") as string;
-  const startTime = (formData.get("start_time") as string) || null;
-  const endTime = (formData.get("end_time") as string) || null;
-  const location = (formData.get("location") as string) || null;
-  const notes = (formData.get("notes") as string) || null;
-  const callEveryone = formData.get("call_everyone") === "on";
-
-  // Get the org_id from the production (needed for denormalized FK)
-  const { data: production } = await supabase
-    .from("productions")
-    .select("org_id")
-    .eq("id", productionId)
-    .single();
-
-  if (!production) return { error: "Production not found" };
-
-  const { data: event, error } = await supabase
-    .from("schedule_events")
-    .insert({
-      production_id: productionId,
-      org_id: production.org_id,
-      event_type: eventType,
-      title,
-      event_date: eventDate,
-      start_time: startTime || null,
-      end_time: endTime || null,
-      location,
-      notes,
-      created_by: user.id,
-    })
-    .select("id")
-    .single();
-
-  if (error) return { error: error.message };
-
-  // If "call everyone" is checked, add all active production assignments
-  if (callEveryone && event) {
-    const { data: assignments } = await supabase
-      .from("production_assignments")
-      .select("person_id")
-      .eq("production_id", productionId)
-      .eq("active", true);
-
-    if (assignments && assignments.length > 0) {
-      const calls = assignments.map((a) => ({
-        event_id: event.id,
-        person_id: a.person_id,
-      }));
-
-      await supabase.from("event_calls").insert(calls);
-    }
-  }
-
-  revalidatePath("/callboard");
-  return { success: true, eventId: event.id };
-}
-
-export async function callPersonToEvent(eventId: string, personId: string) {
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from("event_calls")
-    .insert({ event_id: eventId, person_id: personId });
+  const { error } = await supabase.rpc("create_schedule_event", {
+    p_production_id: formData.get("production_id") as string,
+    p_event_type: formData.get("event_type") as string,
+    p_title: formData.get("title") as string,
+    p_event_date: formData.get("event_date") as string,
+    p_start_time: (formData.get("start_time") as string) || null,
+    p_end_time: (formData.get("end_time") as string) || null,
+    p_location: (formData.get("location") as string) || null,
+    p_notes: (formData.get("notes") as string) || null,
+    p_call_everyone: formData.get("call_everyone") === "on",
+  });
 
   if (error) return { error: error.message };
 
@@ -87,32 +27,16 @@ export async function callPersonToEvent(eventId: string, personId: string) {
 export async function updateScheduleEvent(formData: FormData) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
-
-  const eventId = formData.get("event_id") as string;
-  const eventType = formData.get("event_type") as string;
-  const title = formData.get("title") as string;
-  const eventDate = formData.get("event_date") as string;
-  const startTime = (formData.get("start_time") as string) || null;
-  const endTime = (formData.get("end_time") as string) || null;
-  const location = (formData.get("location") as string) || null;
-  const notes = (formData.get("notes") as string) || null;
-
-  const { error } = await supabase
-    .from("schedule_events")
-    .update({
-      event_type: eventType,
-      title,
-      event_date: eventDate,
-      start_time: startTime || null,
-      end_time: endTime || null,
-      location,
-      notes,
-    })
-    .eq("id", eventId);
+  const { error } = await supabase.rpc("update_schedule_event", {
+    p_event_id: formData.get("event_id") as string,
+    p_event_type: formData.get("event_type") as string,
+    p_title: formData.get("title") as string,
+    p_event_date: formData.get("event_date") as string,
+    p_start_time: (formData.get("start_time") as string) || null,
+    p_end_time: (formData.get("end_time") as string) || null,
+    p_location: (formData.get("location") as string) || null,
+    p_notes: (formData.get("notes") as string) || null,
+  });
 
   if (error) return { error: error.message };
 
@@ -123,10 +47,9 @@ export async function updateScheduleEvent(formData: FormData) {
 export async function deleteScheduleEvent(eventId: string) {
   const supabase = await createClient();
 
-  const { error } = await supabase
-    .from("schedule_events")
-    .delete()
-    .eq("id", eventId);
+  const { error } = await supabase.rpc("delete_schedule_event", {
+    p_event_id: eventId,
+  });
 
   if (error) return { error: error.message };
 
@@ -134,31 +57,18 @@ export async function deleteScheduleEvent(eventId: string) {
   return { success: true };
 }
 
-export async function updateEventCalls(eventId: string, personIds: string[]): Promise<{ success?: boolean; error?: string }> {
+export async function updateEventCalls(
+  eventId: string,
+  personIds: string[]
+): Promise<{ success?: boolean; error?: string }> {
   const supabase = await createClient();
 
-  // Get current calls
-  const { data: currentCalls } = await supabase
-    .from("event_calls")
-    .select("id, person_id")
-    .eq("event_id", eventId);
+  const { error } = await supabase.rpc("update_event_calls", {
+    p_event_id: eventId,
+    p_person_ids: personIds,
+  });
 
-  const currentPersonIds = new Set(currentCalls?.map((c) => c.person_id) || []);
-  const targetPersonIds = new Set(personIds);
-
-  // Add new calls
-  const toAdd = personIds.filter((id) => !currentPersonIds.has(id));
-  if (toAdd.length > 0) {
-    await supabase.from("event_calls").insert(
-      toAdd.map((person_id) => ({ event_id: eventId, person_id }))
-    );
-  }
-
-  // Remove unchecked calls
-  const toRemove = currentCalls?.filter((c) => !targetPersonIds.has(c.person_id)).map((c) => c.id) || [];
-  if (toRemove.length > 0) {
-    await supabase.from("event_calls").delete().in("id", toRemove);
-  }
+  if (error) return { error: error.message };
 
   revalidatePath("/callboard");
   return { success: true };
@@ -170,11 +80,6 @@ export async function respondToCall(
   conflictReason?: string
 ) {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
 
   const { error } = await supabase.rpc("respond_to_call", {
     p_event_call_id: eventCallId,

@@ -43,29 +43,38 @@ export default async function HomePage() {
     .eq("active", true);
 
   const displayName = person?.preferred_name || person?.full_name || "there";
-  const activeProductions = assignments?.filter(
-    (a) => {
-      const prod = a.productions as unknown as {
-        id: string;
-        title: string;
-        status: string;
-        playwright: string | null;
-        venue: string | null;
-        first_rehearsal: string | null;
-        opening_date: string | null;
-        closing_date: string | null;
-        organizations: { id: string; name: string };
-      };
-      return prod.status !== "archived" && prod.status !== "closed";
-    }
-  ) || [];
 
-  // Sort chronologically by opening date
-  activeProductions.sort((a, b) => {
-    const aDate = (a.productions as unknown as { opening_date: string | null }).opening_date || "";
-    const bDate = (b.productions as unknown as { opening_date: string | null }).opening_date || "";
-    return aDate.localeCompare(bDate);
-  });
+  // Deduplicate by production — aggregate role titles for multi-role people
+  type ProdInfo = {
+    id: string; title: string; status: string;
+    playwright: string | null; venue: string | null;
+    first_rehearsal: string | null; opening_date: string | null;
+    closing_date: string | null; organizations: { id: string; name: string };
+  };
+
+  const prodMap = new Map<string, {
+    assignment_id: string;
+    role_titles: string[];
+    productions: ProdInfo;
+  }>();
+
+  for (const a of assignments || []) {
+    const prod = a.productions as unknown as ProdInfo;
+    if (prod.status === "archived" || prod.status === "closed") continue;
+    const existing = prodMap.get(prod.id);
+    if (existing) {
+      existing.role_titles.push(a.role_title);
+    } else {
+      prodMap.set(prod.id, {
+        assignment_id: a.id,
+        role_titles: [a.role_title],
+        productions: prod,
+      });
+    }
+  }
+
+  const activeProductions = Array.from(prodMap.values())
+    .sort((a, b) => (a.productions.opening_date || "").localeCompare(b.productions.opening_date || ""));
 
   // Check if user can create productions
   const { data: memberships } = await supabase
@@ -110,22 +119,12 @@ export default async function HomePage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {activeProductions.map((assignment) => {
-            const prod = assignment.productions as unknown as {
-              id: string;
-              title: string;
-              status: string;
-              playwright: string | null;
-              venue: string | null;
-              first_rehearsal: string | null;
-              opening_date: string | null;
-              closing_date: string | null;
-              organizations: { id: string; name: string };
-            };
+          {activeProductions.map((entry) => {
+            const prod = entry.productions;
             return (
               <Link
                 href={`/productions/${prod.id}`}
-                key={assignment.id}
+                key={prod.id}
                 className="block bg-card border border-bone rounded-card px-6 py-5 hover:shadow-card-hover transition-shadow"
               >
                 <div className="flex items-start justify-between gap-4">
@@ -144,25 +143,22 @@ export default async function HomePage() {
                   </div>
                   <div className="text-right shrink-0">
                     <span className="inline-block text-body-xs font-medium px-2 py-0.5 rounded-full bg-brick/10 text-brick">
-                      {assignment.role_title}
+                      {entry.role_titles.join(" / ")}
                     </span>
                     <p className="text-body-xs text-muted mt-1.5 font-mono">
-                      {prod.status.replace("_", " ")}
+                      {prod.status.replace(/_/g, " ")}
                     </p>
                   </div>
                 </div>
 
-                {/* Dates */}
                 {(prod.first_rehearsal || prod.opening_date) && (
-                  <div className="flex gap-6 mt-4 pt-4 border-t border-bone">
+                  <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 pt-4 border-t border-bone">
                     {prod.first_rehearsal && (
                       <div>
                         <p className="text-body-xs text-muted">First rehearsal</p>
                         <p className="font-mono text-data-sm text-ink">
                           {new Date(prod.first_rehearsal + "T00:00:00").toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
+                            month: "short", day: "numeric", year: "numeric",
                           })}
                         </p>
                       </div>
@@ -172,9 +168,7 @@ export default async function HomePage() {
                         <p className="text-body-xs text-muted">Opening</p>
                         <p className="font-mono text-data-sm text-ink">
                           {new Date(prod.opening_date + "T00:00:00").toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
+                            month: "short", day: "numeric", year: "numeric",
                           })}
                         </p>
                       </div>
