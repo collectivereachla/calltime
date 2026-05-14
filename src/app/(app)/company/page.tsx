@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { EditMemberButton } from "./edit-member";
 
 export default async function CompanyPage() {
   const supabase = await createClient();
@@ -7,7 +8,6 @@ export default async function CompanyPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Get person + their first org
   const { data: person } = await supabase
     .from("people")
     .select("id")
@@ -30,8 +30,9 @@ export default async function CompanyPage() {
   }
 
   const org = membership.organizations as unknown as { id: string; name: string };
+  const canManage = membership.role === "owner" || membership.role === "production";
 
-  // Get all members of this org
+  // Get all members with their org role
   const { data: members } = await supabase
     .from("org_memberships")
     .select(`
@@ -49,7 +50,7 @@ export default async function CompanyPage() {
     .eq("org_id", org.id)
     .order("created_at", { ascending: true });
 
-  // Get active production assignments for org members
+  // Get productions with assignments (including assignment IDs for editing)
   const { data: productions } = await supabase
     .from("productions")
     .select(`
@@ -57,37 +58,34 @@ export default async function CompanyPage() {
       title,
       status,
       production_assignments (
+        id,
         person_id,
         role_title,
+        department,
         access_tier,
+        casting_structure,
         active
       )
     `)
     .eq("org_id", org.id)
     .neq("status", "archived");
 
-  const isAdmin = membership.role === "owner" || membership.role === "production";
-
   return (
     <div className="max-w-4xl mx-auto px-8 py-10">
-      {/* Page header */}
       <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="font-display text-display-md text-ink">
-            Company
-          </h1>
+          <h1 className="font-display text-display-md text-ink">Company</h1>
           <p className="text-body-md text-ash mt-1">
             {org.name} &middot; {members?.length || 0} member{members?.length === 1 ? "" : "s"}
           </p>
         </div>
-        {isAdmin && (
+        {canManage && (
           <span className="text-body-xs text-muted bg-bone/50 px-2 py-0.5 rounded">
             {membership.role}
           </span>
         )}
       </div>
 
-      {/* Member list */}
       {!members || members.length === 0 ? (
         <div className="bg-card border border-bone rounded-card px-6 py-10 text-center">
           <p className="text-body-md text-ash">No members yet.</p>
@@ -104,24 +102,33 @@ export default async function CompanyPage() {
               pronouns: string | null;
             };
 
-            // Find this person's active assignments across org productions
+            // Find this person's active assignments with full details
             const personAssignments = productions
               ?.flatMap((prod) => {
                 const assignments = (
                   prod.production_assignments as unknown as {
+                    id: string;
                     person_id: string;
                     role_title: string;
+                    department: string | null;
                     access_tier: string;
+                    casting_structure: string | null;
                     active: boolean;
                   }[]
                 ).filter((a) => a.person_id === p.id && a.active);
 
                 return assignments.map((a) => ({
-                  production: prod.title,
-                  role: a.role_title,
+                  id: a.id,
+                  role_title: a.role_title,
+                  department: a.department,
+                  access_tier: a.access_tier,
+                  casting_structure: a.casting_structure,
+                  production_title: prod.title,
                 }));
               })
               .filter(Boolean) || [];
+
+            const isCurrentUser = p.id === person!.id;
 
             return (
               <div key={member.id} className="px-6 py-4">
@@ -141,32 +148,47 @@ export default async function CompanyPage() {
                           {p.pronouns}
                         </span>
                       )}
+                      <span className={`text-body-xs px-1.5 py-0.5 rounded ${
+                        member.role === "owner" ? "bg-brick/10 text-brick" :
+                        member.role === "production" ? "bg-confirmed/10 text-confirmed" :
+                        member.role === "guest" ? "bg-ash/10 text-ash" :
+                        "bg-ink/5 text-ash"
+                      }`}>
+                        {member.role}
+                      </span>
                     </div>
 
-                    {/* Current assignments */}
                     {personAssignments.length > 0 && (
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
                         {personAssignments.map((a, i) => (
                           <span key={i} className="text-body-sm text-ash">
-                            {a.role}
+                            {a.role_title}
                             <span className="text-muted"> in </span>
-                            <span className="font-display italic">{a.production}</span>
+                            <span className="font-display italic">{a.production_title}</span>
                           </span>
                         ))}
                       </div>
                     )}
                   </div>
 
-                  {/* Contact info — visible to admins or self */}
-                  <div className="text-right shrink-0">
-                    {p.email && (
-                      <p className="text-body-xs text-ash">{p.email}</p>
-                    )}
-                    {p.phone && (
-                      <p className="font-mono text-data-sm text-ash">{p.phone}</p>
+                  <div className="flex items-start gap-3 shrink-0">
+                    <div className="text-right">
+                      {p.email && <p className="text-body-xs text-ash">{p.email}</p>}
+                      {p.phone && <p className="font-mono text-data-sm text-ash">{p.phone}</p>}
+                    </div>
+                    {canManage && (
+                      <EditMemberButton
+                        person={p}
+                        orgId={org.id}
+                        orgRole={member.role}
+                        assignments={personAssignments}
+                        isCurrentUser={isCurrentUser}
+                      />
                     )}
                   </div>
                 </div>
+
+                {/* Edit form renders here when open */}
               </div>
             );
           })}
