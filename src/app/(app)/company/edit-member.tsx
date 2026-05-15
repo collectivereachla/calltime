@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { updateMember, updateMemberRole, updateAssignment, addAssignment, removeMember } from "./actions";
 import { useRouter } from "next/navigation";
+import { PhotoUpload } from "@/components/photo-upload";
 
 const orgRoles = [
   { value: "owner", label: "Owner" },
@@ -45,6 +46,7 @@ interface PersonData {
   pronouns: string | null;
   email: string | null;
   phone: string | null;
+  headshot_url: string | null;
 }
 
 interface Assignment {
@@ -164,6 +166,7 @@ export function EditMemberButton({ person, orgId, orgRole, assignments, producti
       {/* Profile tab */}
       {tab === "profile" && (
         <form action={handleProfileSave} className="space-y-3">
+          <PhotoUpload personId={person.id} currentUrl={person.headshot_url} size="md" />
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-body-xs text-ash mb-1">Full name</label>
