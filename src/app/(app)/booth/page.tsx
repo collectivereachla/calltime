@@ -167,6 +167,7 @@ export default async function BoothPage() {
             scenes={(smScenesData || []) as any}
             props={(propsData || []) as any}
             reports={(reportsData || []) as any}
+            productionId={activeProduction.id}
             productionTitle={activeProduction.title}
           />
         }
