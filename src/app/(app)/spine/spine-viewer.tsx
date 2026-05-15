@@ -283,8 +283,24 @@ export function SpineViewer({
 
   function getSceneLabel(key: string) {
     const [a, s] = key.split("-").map(Number);
-    if (a === 0) return "Front Matter";
+    if (a === 0) return "Title Page";
     return `Scene ${s}`;
+  }
+
+  // Page number: sequential index starting at 1
+  const pageNumber = sceneIdx + 1;
+
+  // Filter out character_name rows — we auto-generate headers from speaker changes
+  const renderableLines = currentLines.filter((l) => l.line_type !== "character_name");
+
+  // Compute scene-relative line numbers (only dialogue + stage_direction count)
+  const lineNumberMap = new Map<string, number>();
+  let sceneLineNum = 0;
+  for (const l of renderableLines) {
+    if (["dialogue", "stage_direction", "continued", "setting", "song_title", "lyric", "song_direction", "song"].includes(l.line_type)) {
+      sceneLineNum++;
+      lineNumberMap.set(l.id, sceneLineNum);
+    }
   }
 
   function getActLabel(act: number) {
@@ -499,15 +515,18 @@ export function SpineViewer({
       <div ref={contentRef} className="flex-1 min-w-0">
         {/* Scene header */}
         <div className="mb-6 pb-4 border-b border-bone">
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-data-sm text-muted">
-              {actNum > 0
-                ? `Act ${actNum === 1 ? "I" : "II"} \u00B7 Scene ${sceneNum}`
-                : scriptTitle}
-            </span>
-            {currentMeta?.title && (
-              <span className="text-body-sm text-ash">\u2014 {currentMeta.title}</span>
-            )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-data-sm text-muted">
+                {actNum > 0
+                  ? `Act ${actNum === 1 ? "I" : "II"} \u00B7 Scene ${sceneNum}`
+                  : scriptTitle}
+              </span>
+              {currentMeta?.title && (
+                <span className="text-body-sm text-ash">\u2014 {currentMeta.title}</span>
+              )}
+            </div>
+            <span className="font-mono text-data-sm text-muted">p. {pageNumber}</span>
           </div>
           {currentMeta?.setting && (
             <p className="text-body-sm text-ash mt-2 italic">{currentMeta.setting}</p>
@@ -525,29 +544,58 @@ export function SpineViewer({
 
         {/* Script lines */}
         <div className="space-y-0.5 pb-12">
-          {currentLines.map((line) => {
+          {renderableLines.map((line, idx) => {
             const lineAnnotations = annotationsByLine.get(line.id) || [];
             const hasAnnotations = lineAnnotations.length > 0;
             const isAnnotating = annotatingLineId === line.id;
             const canAddHere = canManage || (line.character && isMyCharacter(line.character || ""));
+            const sceneLineNo = lineNumberMap.get(line.id);
+
+            // Auto-detect speaker changes for character name headers
+            const prevLine = idx > 0 ? renderableLines[idx - 1] : null;
+            const showCharacterHeader =
+              line.line_type === "dialogue" &&
+              line.character &&
+              (!prevLine ||
+                prevLine.character !== line.character ||
+                prevLine.line_type === "stage_direction" ||
+                prevLine.line_type === "setting" ||
+                prevLine.line_type === "song_title" ||
+                prevLine.line_type === "song" ||
+                prevLine.line_type === "song_direction");
 
             return (
               <div key={line.id} className="group relative">
-                {/* The line itself */}
+                {/* Auto-generated character name header */}
+                {showCharacterHeader && (
+                  <p className={`font-mono text-data-sm uppercase tracking-wider mt-6 mb-0.5 ${
+                    isMyCharacter(line.character!) ? "text-brick font-bold" : "text-ink font-semibold"
+                  }`}>
+                    {line.character}
+                  </p>
+                )}
+
+                {/* The line itself with gutter line number */}
                 <div
-                  className={`relative ${canAddHere ? "cursor-pointer" : ""} ${
+                  className={`relative flex ${canAddHere ? "cursor-pointer" : ""} ${
                     hasAnnotations && noteView !== "none" ? "border-l-2 border-brick/30 pl-3" : ""
                   }`}
                   onClick={() => {
                     if (canAddHere && !isAnnotating) {
                       openAnnotationInput(line.id, !canManage);
-                      // Pre-fill tags with the line's character if available
                       if (line.character && !line.character.includes(" / ")) {
                         setAnnotationTags([line.character]);
                       }
                     }
                   }}
                 >
+                  {/* Line number gutter */}
+                  {sceneLineNo && (
+                    <span className="w-6 shrink-0 text-right mr-2 font-mono text-[10px] text-bone select-none leading-relaxed">
+                      {sceneLineNo}
+                    </span>
+                  )}
+
                   {/* Add note indicator */}
                   {canAddHere && (
                     <span className="absolute -left-6 top-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted text-body-xs select-none">
@@ -555,7 +603,9 @@ export function SpineViewer({
                     </span>
                   )}
 
-                  {renderLine(line, isMyCharacter)}
+                  <div className="flex-1 min-w-0">
+                    {renderLine(line, isMyCharacter)}
+                  </div>
                 </div>
 
                 {/* Annotations on this line */}
@@ -720,7 +770,7 @@ export function SpineViewer({
             \u2190 Previous
           </button>
           <span className="font-mono text-data-sm text-muted">
-            {sceneIdx + 1} / {sceneKeys.length}
+            p. {pageNumber} of {sceneKeys.length}
           </span>
           <button
             onClick={() => setActiveSceneKey(sceneKeys[Math.min(sceneKeys.length - 1, sceneIdx + 1)])}
@@ -738,13 +788,8 @@ export function SpineViewer({
 function renderLine(line: ScriptLine, isMyCharacter: (name: string) => boolean) {
   switch (line.line_type) {
     case "character_name":
-      return (
-        <p className={`font-mono text-data-sm uppercase tracking-wider mt-6 mb-0.5 ${
-          line.character && isMyCharacter(line.character) ? "text-brick font-bold" : "text-ink font-semibold"
-        }`}>
-          {line.character || line.content}
-        </p>
-      );
+      // Handled by auto-detection above — skip rendering
+      return null;
     case "stage_direction":
       return <p className="text-body-sm text-ash italic pl-4">{line.content}</p>;
     case "continued":
@@ -752,6 +797,7 @@ function renderLine(line: ScriptLine, isMyCharacter: (name: string) => boolean) 
     case "setting":
       return <p className="text-body-sm text-ash italic mt-4 mb-2">{line.content}</p>;
     case "song_title":
+    case "song":
       return <p className="text-body-md font-medium text-ink mt-6 mb-1 italic">{line.content}</p>;
     case "song_direction":
       return <p className="text-body-xs text-muted uppercase tracking-wider mt-3 mb-1">{line.content}</p>;

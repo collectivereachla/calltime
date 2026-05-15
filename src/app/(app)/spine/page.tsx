@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { SpineViewer } from "./spine-viewer";
+import { SpineLayout } from "./spine-layout";
 
 export default async function SpinePage() {
   const supabase = await createClient();
@@ -136,7 +136,7 @@ export default async function SpinePage() {
         <h1 className="font-display text-display-md text-ink">Spine</h1>
         <p className="text-body-md text-ash mt-1">
           {activeScript
-            ? `${activeScript.title} \u2014 ${(activeScript.productions as unknown as { title: string }).title}`
+            ? `${activeScript.title}`
             : "The interpretive layer."}
         </p>
       </div>
@@ -157,7 +157,7 @@ export default async function SpinePage() {
           </p>
         </div>
       ) : (
-        <SpineViewer
+        <SpineLayout
           lines={lines}
           sceneMeta={sceneMeta}
           annotations={annotations}
