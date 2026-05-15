@@ -70,7 +70,7 @@ export default async function BoothPage() {
     .eq("active", true)
     .order("role_title", { ascending: true });
 
-  const cast = (castData || []).map((a) => {
+  const cast = (castData || []).filter((a) => a.people != null).map((a) => {
     const p = a.people as unknown as { id: string; full_name: string; preferred_name: string | null; email: string | null; phone: string | null };
     return {
       person_id: p.id,

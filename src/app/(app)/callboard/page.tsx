@@ -136,6 +136,7 @@ export default async function CallboardPage() {
     if (allAssignments) {
       const seen = new Set<string>();
       companyMembers = allAssignments
+        .filter((a) => a.people != null)
         .map((a) => {
           const p = a.people as unknown as { id: string; full_name: string; preferred_name: string | null };
           if (seen.has(p.id)) return null;

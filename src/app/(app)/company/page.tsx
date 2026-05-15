@@ -95,7 +95,7 @@ export default async function CompanyPage() {
         </div>
       ) : (
         <div className="bg-card border border-bone rounded-card divide-y divide-bone">
-          {[...members].sort((a, b) => {
+          {[...members].filter((m) => m.people != null).sort((a, b) => {
             // Sort: owner first, then production, then by SM status, then alphabetical
             const roleOrder: Record<string, number> = { owner: 0, production: 1, member: 2, guest: 3 };
             const aOrder = roleOrder[a.role] ?? 2;
