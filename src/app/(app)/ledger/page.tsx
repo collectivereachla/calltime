@@ -117,6 +117,7 @@ export default async function LedgerPage() {
   // Build contract summaries with contract_type for budget
   const templateMap = new Map(templates.map((t) => [t.id, t]));
   const contractSummaries = contracts.map((c) => ({
+    id: c.id,
     person_name: c.person_name,
     role_title: c.role_title,
     compensation: c.compensation,

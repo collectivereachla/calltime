@@ -152,3 +152,68 @@ export async function deleteContract(id: string) {
   revalidatePath("/ledger");
   return { success: true };
 }
+
+export async function addStaffMember(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: person } = await supabase
+    .from("people").select("id").eq("user_id", user.id).single();
+  const { data: membership } = await supabase
+    .from("org_memberships").select("role, org_id").eq("person_id", person!.id).limit(1).single();
+
+  if (membership?.role !== "owner") return { error: "Only owners can add staff" };
+
+  const productionId = formData.get("production_id") as string;
+  const personName = formData.get("person_name") as string;
+  const roleTitle = formData.get("role_title") as string;
+  const compensation = formData.get("compensation") as string;
+
+  if (!personName || !roleTitle) return { error: "Name and role are required" };
+
+  // Find or create person record
+  let { data: existingPerson } = await supabase
+    .from("people").select("id").eq("full_name", personName).limit(1).single();
+
+  let personId: string;
+  if (existingPerson) {
+    personId = existingPerson.id;
+  } else {
+    const { data: newPerson, error: pErr } = await supabase
+      .from("people").insert({ full_name: personName, profile_complete: false }).select("id").single();
+    if (pErr || !newPerson) return { error: pErr?.message || "Failed to create person" };
+    personId = newPerson.id;
+
+    // Add org membership
+    await supabase.from("org_memberships").insert({
+      person_id: personId, org_id: membership.org_id, role: "member",
+    });
+  }
+
+  // Find crew template for this production
+  const { data: template } = await supabase
+    .from("contract_templates")
+    .select("id")
+    .eq("production_id", productionId)
+    .eq("contract_type", "crew")
+    .limit(1)
+    .single();
+
+  if (!template) return { error: "No staff contract template found" };
+
+  // Create the contract
+  const { error: cErr } = await supabase.from("contracts").insert({
+    template_id: template.id,
+    production_id: productionId,
+    person_id: personId,
+    person_name: personName,
+    role_title: roleTitle,
+    compensation: compensation ? `$${compensation}` : null,
+    status: "pending",
+  });
+
+  if (cErr) return { error: cErr.message };
+  revalidatePath("/ledger");
+  return { success: true };
+}

@@ -39,6 +39,7 @@ interface BudgetItem {
 }
 
 interface ContractSummary {
+  id: string;
   person_name: string;
   role_title: string;
   compensation: string | null;
