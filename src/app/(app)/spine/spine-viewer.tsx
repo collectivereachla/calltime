@@ -1,9 +1,71 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { addAnnotation, deleteAnnotation, updateAnnotation, searchScript } from "./spine-actions";
 import { useRouter } from "next/navigation";
+
+// 16 distinct character colors — each character gets a consistent one via hash
+const CHARACTER_COLORS: { bg: string; text: string }[] = [
+  { bg: "bg-red-100", text: "text-red-700" },
+  { bg: "bg-blue-100", text: "text-blue-700" },
+  { bg: "bg-emerald-100", text: "text-emerald-700" },
+  { bg: "bg-purple-100", text: "text-purple-700" },
+  { bg: "bg-amber-100", text: "text-amber-700" },
+  { bg: "bg-pink-100", text: "text-pink-700" },
+  { bg: "bg-cyan-100", text: "text-cyan-700" },
+  { bg: "bg-indigo-100", text: "text-indigo-700" },
+  { bg: "bg-lime-100", text: "text-lime-700" },
+  { bg: "bg-rose-100", text: "text-rose-700" },
+  { bg: "bg-teal-100", text: "text-teal-700" },
+  { bg: "bg-orange-100", text: "text-orange-700" },
+  { bg: "bg-violet-100", text: "text-violet-700" },
+  { bg: "bg-sky-100", text: "text-sky-700" },
+  { bg: "bg-fuchsia-100", text: "text-fuchsia-700" },
+  { bg: "bg-yellow-100", text: "text-yellow-700" },
+];
+
+function hashCharacter(name: string): number {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = ((hash << 5) - hash) + name.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) % CHARACTER_COLORS.length;
+}
+
+function getCharacterColor(name: string) {
+  return CHARACTER_COLORS[hashCharacter(name)];
+}
+
+// Render annotation content with tagged character names highlighted inline
+function renderAnnotationContent(content: string, taggedCharacters: string[]): ReactNode {
+  if (!taggedCharacters || taggedCharacters.length === 0) {
+    return content;
+  }
+
+  // Sort tags longest-first so "QUEEN MOTHER" matches before "QUEEN"
+  const sorted = [...taggedCharacters].sort((a, b) => b.length - a.length);
+  // Build regex that matches any tagged character name (case-insensitive)
+  const escaped = sorted.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
+
+  const parts = content.split(pattern);
+  return parts.map((part, i) => {
+    const matchedTag = sorted.find(
+      (t) => t.toUpperCase() === part.toUpperCase()
+    );
+    if (matchedTag) {
+      const color = getCharacterColor(matchedTag);
+      return (
+        <span key={i} className={`${color.bg} ${color.text} px-1 py-0 rounded font-mono text-[11px] font-semibold uppercase`}>
+          {part}
+        </span>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
 
 interface ScriptLine {
   id: string;
@@ -625,27 +687,15 @@ export function SpineViewer({
                           : "bg-brick/5 border-l-2 border-brick/40"
                       }`}
                     >
-                      {/* Tags + pin row */}
-                      {(a.tagged_characters.length > 0 || a.is_pinned || isPersonal) && (
-                        <div className="flex items-center gap-1 flex-wrap">
+                      {/* Pin + personal indicator (compact) */}
+                      {(a.is_pinned || isPersonal) && (
+                        <div className="flex items-center gap-1 mb-0.5">
                           {a.is_pinned && <span className="text-amber-600 text-body-xs">\U0001F4CC</span>}
                           {isPersonal && <span className="text-blue-500 text-body-xs font-medium">Personal</span>}
-                          {a.tagged_characters.map((tag) => (
-                            <span
-                              key={tag}
-                              className={`inline-block px-1.5 py-0 text-[10px] font-mono uppercase tracking-wider rounded ${
-                                isPersonal
-                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
-                                  : "bg-brick/10 text-brick"
-                              }`}
-                            >
-                              {tag}
-                            </span>
-                          ))}
                         </div>
                       )}
 
-                      {/* Content + actions */}
+                      {/* Content with inline character highlighting + actions */}
                       <div className="flex items-start gap-2">
                         {isEditing ? (
                           <div className="flex-1">
@@ -665,8 +715,8 @@ export function SpineViewer({
                             </div>
                           </div>
                         ) : (
-                          <span className={`flex-1 ${isPersonal ? "text-blue-700 dark:text-blue-300" : "text-ash"} italic`}>
-                            {a.content}
+                          <span className={`flex-1 ${isPersonal ? "text-blue-700 dark:text-blue-300" : "text-ash"} italic text-body-sm leading-relaxed`}>
+                            {renderAnnotationContent(a.content, a.tagged_characters)}
                           </span>
                         )}
 
@@ -720,19 +770,23 @@ export function SpineViewer({
                         <div className="mt-2">
                           <p className="text-body-xs text-muted mb-1">Tag characters:</p>
                           <div className="flex flex-wrap gap-1">
-                            {allCharacters.map((c) => (
-                              <button
-                                key={c}
-                                onClick={() => toggleTag(c)}
-                                className={`px-1.5 py-0.5 text-[10px] font-mono uppercase rounded transition-colors ${
-                                  annotationTags.includes(c)
-                                    ? "bg-brick text-paper"
-                                    : "bg-bone/50 text-ash hover:bg-bone"
-                                }`}
-                              >
-                                {c}
-                              </button>
-                            ))}
+                            {allCharacters.map((c) => {
+                              const color = getCharacterColor(c);
+                              const selected = annotationTags.includes(c);
+                              return (
+                                <button
+                                  key={c}
+                                  onClick={() => toggleTag(c)}
+                                  className={`px-1.5 py-0.5 text-[10px] font-mono uppercase rounded transition-colors font-semibold ${
+                                    selected
+                                      ? `${color.bg} ${color.text} ring-1 ring-current`
+                                      : "bg-bone/50 text-ash hover:bg-bone"
+                                  }`}
+                                >
+                                  {c}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       )}

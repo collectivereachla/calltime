@@ -112,8 +112,8 @@ export function LineLab({ lines, myCharacters, allCharacters, scriptTitle }: Pro
     setCurrentCardIdx((prev) => Math.max(prev - 1, 0));
   }
 
-  // Character selector for role_title format (e.g., "Belle / Toni")
-  const characterOptions = myCharacters.length > 0 ? myCharacters : allCharacters;
+  // Everyone can see all characters — default to your own if you have one
+  const characterOptions = allCharacters;
 
   return (
     <div className="max-w-2xl mx-auto">
