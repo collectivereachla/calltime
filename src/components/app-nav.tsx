@@ -25,7 +25,7 @@ const rooms = [
   { name: "Spine", path: "/spine", icon: "▥" },
   { name: "Run", path: "/run", icon: "▶", disabled: true },
   { name: "Booth", path: "/booth", icon: "◧" },
-  { name: "Ledger", path: "/ledger", icon: "▧", disabled: true },
+  { name: "Ledger", path: "/ledger", icon: "▧" },
   { name: "Archive", path: "/archive", icon: "▣", disabled: true },
 ];
 
