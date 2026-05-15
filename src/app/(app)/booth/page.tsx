@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { CostumeBible } from "./costume-bible";
+import { StageManagement } from "./stage-management";
+import { BoothTabs } from "./booth-tabs";
 
 export default async function BoothPage() {
   const supabase = await createClient();
@@ -113,9 +115,28 @@ export default async function BoothPage() {
     .eq("org_id", orgId)
     .order("category", { ascending: true });
 
+  // Get SM-enhanced scenes (with characters, props, watchouts)
+  const { data: smScenesData } = await supabase
+    .from("scenes")
+    .select("*")
+    .eq("production_id", activeProduction.id)
+    .order("sort_order", { ascending: true });
+
+  // Get props
+  const { data: propsData } = await supabase
+    .from("props")
+    .select("*")
+    .eq("production_id", activeProduction.id);
+
+  // Get SM reports
+  const { data: reportsData } = await supabase
+    .from("sm_reports")
+    .select("*")
+    .eq("production_id", activeProduction.id)
+    .order("report_date", { ascending: false });
+
   return (
     <div className="max-w-full mx-auto px-4 md:px-8 py-6 md:py-10">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 mb-6">
         <div>
           <h1 className="font-display text-display-md text-ink">Booth</h1>
@@ -126,28 +147,29 @@ export default async function BoothPage() {
         </div>
       </div>
 
-      {/* Department tabs */}
-      <div className="flex gap-1 mb-6 border-b border-bone pb-2">
-        <span className="px-4 py-2 text-body-sm font-medium bg-ink text-paper rounded-t-card">
-          Costume Design
-        </span>
-        <span className="px-4 py-2 text-body-sm text-muted cursor-default" title="Coming soon">
-          Stage Management
-        </span>
-      </div>
-
-      {/* Costume Bible */}
-      <CostumeBible
-        productionId={activeProduction.id}
-        scenes={scenes.map((s) => ({
-          id: s.id, act: s.act, scene_number: s.scene_number, title: s.title,
-        }))}
-        cast={cast}
-        costumeEntries={entries}
-        paradeEntries={(paradeData || []) as any}
-        measurementEntries={(measurementData || []) as any}
-        inventoryItems={(inventoryData || []) as any}
-        canManage={canManage}
+      <BoothTabs
+        costumeContent={
+          <CostumeBible
+            productionId={activeProduction.id}
+            scenes={scenes.map((s) => ({
+              id: s.id, act: s.act, scene_number: s.scene_number, title: s.title,
+            }))}
+            cast={cast}
+            costumeEntries={entries}
+            paradeEntries={(paradeData || []) as any}
+            measurementEntries={(measurementData || []) as any}
+            inventoryItems={(inventoryData || []) as any}
+            canManage={canManage}
+          />
+        }
+        smContent={
+          <StageManagement
+            scenes={(smScenesData || []) as any}
+            props={(propsData || []) as any}
+            reports={(reportsData || []) as any}
+            productionTitle={activeProduction.title}
+          />
+        }
       />
     </div>
   );
