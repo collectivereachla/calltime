@@ -160,7 +160,7 @@ export function LineLab({ lines, myCharacters, allCharacters, scriptTitle }: Pro
             <div className="space-y-4">
               {/* Location badge */}
               <div className="font-mono text-data-sm text-muted">
-                Act {currentCard.act === 1 ? "I" : "II"} \u00B7 Scene {currentCard.scene} \u00B7 Card {currentCardIdx + 1} of {totalCards}
+                Act {currentCard.act === 1 ? "I" : "II"} · Scene {currentCard.scene} · Card {currentCardIdx + 1} of {totalCards}
               </div>
 
               {/* Cue line */}
@@ -205,14 +205,14 @@ export function LineLab({ lines, myCharacters, allCharacters, scriptTitle }: Pro
                   disabled={currentCardIdx === 0}
                   className="text-body-sm text-ash hover:text-ink disabled:opacity-30 transition-colors"
                 >
-                  \u2190 Previous
+                  ← Previous
                 </button>
                 <button
                   onClick={nextCard}
                   disabled={currentCardIdx === totalCards - 1}
                   className="text-body-sm text-ash hover:text-ink disabled:opacity-30 transition-colors"
                 >
-                  Next \u2192
+                  Next →
                 </button>
               </div>
             </div>
@@ -245,7 +245,7 @@ export function LineLab({ lines, myCharacters, allCharacters, scriptTitle }: Pro
           {firstLetterScenes.map((scene) => (
             <div key={`${scene.act}-${scene.scene}`}>
               <h3 className="font-mono text-data-sm text-muted uppercase tracking-wider mb-3">
-                Act {scene.act === 1 ? "I" : "II"} \u00B7 Scene {scene.scene}
+                Act {scene.act === 1 ? "I" : "II"} · Scene {scene.scene}
               </h3>
               <div className="space-y-3">
                 {scene.lines.map((line, idx) => (

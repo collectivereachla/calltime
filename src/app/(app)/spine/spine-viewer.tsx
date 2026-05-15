@@ -496,13 +496,13 @@ export function SpineViewer({
           onClick={() => setNoteView(noteView === "none" ? "all" : noteView === "all" ? "mine" : "none")}
           className="bg-card text-ash border border-bone px-3 py-2 rounded-full text-body-xs font-medium shadow-lg"
         >
-          {noteView === "all" ? "\U0001F4DD All" : noteView === "mine" ? "\U0001F4DD Mine" : "\U0001F4DD Off"}
+          {noteView === "all" ? "📝 All" : noteView === "mine" ? "📝 Mine" : "📝 Off"}
         </button>
         <button
           onClick={() => setShowNav(!showNav)}
           className="bg-ink text-paper px-3 py-2 rounded-full text-body-sm font-medium shadow-lg"
         >
-          {actNum > 0 ? `Act ${actNum === 1 ? "I" : "II"} \u00B7 Scene ${sceneNum}` : "Scenes"}
+          {actNum > 0 ? `Act ${actNum === 1 ? "I" : "II"} · Scene ${sceneNum}` : "Scenes"}
         </button>
       </div>
 
@@ -581,11 +581,11 @@ export function SpineViewer({
             <div className="flex items-center gap-3">
               <span className="font-mono text-data-sm text-muted">
                 {actNum > 0
-                  ? `Act ${actNum === 1 ? "I" : "II"} \u00B7 Scene ${sceneNum}`
+                  ? `Act ${actNum === 1 ? "I" : "II"} · Scene ${sceneNum}`
                   : scriptTitle}
               </span>
               {currentMeta?.title && (
-                <span className="text-body-sm text-ash">\u2014 {currentMeta.title}</span>
+                <span className="text-body-sm text-ash">— {currentMeta.title}</span>
               )}
             </div>
             <span className="font-mono text-data-sm text-muted">p. {pageNumber}</span>
@@ -690,7 +690,7 @@ export function SpineViewer({
                       {/* Pin + personal indicator (compact) */}
                       {(a.is_pinned || isPersonal) && (
                         <div className="flex items-center gap-1 mb-0.5">
-                          {a.is_pinned && <span className="text-amber-600 text-body-xs">\U0001F4CC</span>}
+                          {a.is_pinned && <span className="text-amber-600 text-body-xs">📌</span>}
                           {isPersonal && <span className="text-blue-500 text-body-xs font-medium">Personal</span>}
                         </div>
                       )}
@@ -710,7 +710,7 @@ export function SpineViewer({
                               rows={2}
                             />
                             <div className="flex gap-2 mt-1">
-                              <button onClick={() => handleUpdateAnnotation(a.id)} disabled={saving} className="text-body-xs font-medium text-brick">{saving ? "Saving\u2026" : "Save"}</button>
+                              <button onClick={() => handleUpdateAnnotation(a.id)} disabled={saving} className="text-body-xs font-medium text-brick">{saving ? "Saving…" : "Save"}</button>
                               <button onClick={() => { setEditingAnnotationId(null); setEditText(""); }} className="text-body-xs text-muted hover:text-ink">Cancel</button>
                             </div>
                           </div>
@@ -749,7 +749,7 @@ export function SpineViewer({
                     <div className={`p-3 rounded border ${annotationIsPersonal ? "border-blue-300 bg-blue-50/50" : "border-bone bg-card"}`}>
                       {annotationIsPersonal && (
                         <p className="text-body-xs text-blue-600 font-medium mb-2">
-                          Personal note \u2014 visible to you and production staff only
+                          Personal note — visible to you and production staff only
                         </p>
                       )}
                       <textarea
@@ -760,7 +760,7 @@ export function SpineViewer({
                           if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAddAnnotation(line.id); }
                           if (e.key === "Escape") { setAnnotatingLineId(null); setAnnotationText(""); }
                         }}
-                        placeholder={annotationIsPersonal ? "Your personal note\u2026" : "Blocking note\u2026 (Enter to save, Esc to cancel)"}
+                        placeholder={annotationIsPersonal ? "Your personal note…" : "Blocking note… (Enter to save, Esc to cancel)"}
                         className="w-full px-2 py-1.5 bg-transparent border-b border-bone text-body-sm text-ink placeholder:text-muted focus:border-brick focus:outline-none resize-none"
                         rows={2}
                       />
@@ -797,7 +797,7 @@ export function SpineViewer({
                           disabled={saving || !annotationText.trim()}
                           className="text-body-xs font-medium text-brick hover:text-brick/80 disabled:opacity-40"
                         >
-                          {saving ? "Saving\u2026" : "Save"}
+                          {saving ? "Saving…" : "Save"}
                         </button>
                         <button
                           onClick={() => { setAnnotatingLineId(null); setAnnotationText(""); }}
@@ -821,7 +821,7 @@ export function SpineViewer({
             disabled={sceneIdx === 0}
             className="text-body-sm text-ash hover:text-ink disabled:opacity-30 disabled:cursor-default transition-colors"
           >
-            \u2190 Previous
+            ← Previous
           </button>
           <span className="font-mono text-data-sm text-muted">
             p. {pageNumber} of {sceneKeys.length}
@@ -831,7 +831,7 @@ export function SpineViewer({
             disabled={sceneIdx === sceneKeys.length - 1}
             className="text-body-sm text-ash hover:text-ink disabled:opacity-30 disabled:cursor-default transition-colors"
           >
-            Next \u2192
+            Next →
           </button>
         </div>
       </div>
