@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CostumePlot } from "./costume-plot";
+import { InventoryTab } from "./inventory-tab";
 import { useRouter } from "next/navigation";
 
 interface Scene {
@@ -215,72 +216,7 @@ export function CostumeBible({ productionId, scenes, cast, costumeEntries, parad
       )}
       {/* Inventory tab */}
       {tab === "inventory" && (
-        <div>
-          <p className="text-body-xs text-ash mb-4">
-            Costume inventory from Google Drive. {inventoryItems.filter(i => !i.available).length > 0 &&
-              `${inventoryItems.filter(i => !i.available).length} items assigned.`}
-          </p>
-          {inventoryItems.length === 0 ? (
-            <div className="bg-card border border-bone rounded-card px-6 py-8 text-center">
-              <p className="text-body-md text-ash">No inventory items yet.</p>
-            </div>
-          ) : (() => {
-            const categories = new Map<string, InventoryItem[]>();
-            for (const item of inventoryItems) {
-              if (!categories.has(item.category)) categories.set(item.category, []);
-              categories.get(item.category)!.push(item);
-            }
-            const catLabels: Record<string, string> = {
-              men: "Men", women: "Women", girls: "Girls", boys: "Boys",
-              accessories: "Accessories", shoes: "Shoes", hats: "Hats", other: "Other"
-            };
-            return (
-              <div className="space-y-6">
-                {Array.from(categories.entries()).map(([cat, items]) => (
-                  <div key={cat}>
-                    <h3 className="text-body-xs text-muted uppercase tracking-wider mb-3">
-                      {catLabels[cat] || cat} ({items.length})
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                      {items.map((item) => {
-                        const assignedPerson = item.assigned_to_person_id
-                          ? cast.find(c => c.person_id === item.assigned_to_person_id)
-                          : null;
-                        return (
-                          <div key={item.id} className={`bg-card border rounded-card overflow-hidden ${
-                            item.available ? "border-bone" : "border-brick/30"
-                          }`}>
-                            {item.thumbnail_url && (
-                              <div className="aspect-square bg-bone/20">
-                                <img
-                                  src={item.thumbnail_url}
-                                  alt={item.item_name}
-                                  className="w-full h-full object-cover"
-                                  loading="lazy"
-                                />
-                              </div>
-                            )}
-                            <div className="px-2.5 py-2">
-                              <p className="text-body-xs font-medium text-ink truncate">{item.item_name}</p>
-                              {item.size && (
-                                <p className="font-mono text-[10px] text-ash">{item.size}</p>
-                              )}
-                              {assignedPerson && (
-                                <p className="text-[10px] text-brick mt-0.5 truncate">
-                                  → {assignedPerson.name}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </div>
+        <InventoryTab items={inventoryItems} cast={cast} productionId={productionId} />
       )}
     </div>
   );
