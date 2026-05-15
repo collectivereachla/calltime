@@ -247,7 +247,9 @@ export default async function CallboardPage() {
               <div className="space-y-2">
                 {dayEvents.map((event) => {
                   const prod = event.productions as unknown as { title: string };
-                  const calls = event.event_calls || [];
+                  const calls = (event.event_calls || []).filter(
+                    (c) => c.people != null
+                  );
                   const myCall = calls.find((c) => {
                     const p = c.people as unknown as { id: string };
                     return p.id === person!.id;
