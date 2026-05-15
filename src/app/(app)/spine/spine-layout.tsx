@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SpineViewer } from "./spine-viewer";
 import { LineLab } from "./line-lab";
+import { ScriptReports } from "./script-reports";
 
 interface ScriptLine {
   id: string;
@@ -28,7 +29,7 @@ interface Annotation {
   updated_at: string;
 }
 
-type Tab = "script" | "linelab";
+type Tab = "script" | "linelab" | "reports";
 
 interface Props {
   lines: ScriptLine[];
@@ -45,40 +46,47 @@ interface Props {
 export function SpineLayout(props: Props) {
   const [tab, setTab] = useState<Tab>("script");
 
+  const tabs: { key: Tab; label: string; staffOnly?: boolean }[] = [
+    { key: "script", label: "Script" },
+    { key: "linelab", label: "Line Lab" },
+    { key: "reports", label: "Reports", staffOnly: true },
+  ];
+
   return (
     <div>
       {/* Tab bar */}
       <div className="flex items-center gap-1 mb-6 border-b border-bone">
-        <button
-          onClick={() => setTab("script")}
-          className={`px-4 py-2 text-body-sm font-medium border-b-2 transition-colors -mb-px ${
-            tab === "script"
-              ? "border-ink text-ink"
-              : "border-transparent text-ash hover:text-ink"
-          }`}
-        >
-          Script
-        </button>
-        <button
-          onClick={() => setTab("linelab")}
-          className={`px-4 py-2 text-body-sm font-medium border-b-2 transition-colors -mb-px ${
-            tab === "linelab"
-              ? "border-ink text-ink"
-              : "border-transparent text-ash hover:text-ink"
-          }`}
-        >
-          Line Lab
-        </button>
+        {tabs
+          .filter((t) => !t.staffOnly || props.canManage)
+          .map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-2 text-body-sm font-medium border-b-2 transition-colors -mb-px ${
+                tab === t.key
+                  ? "border-ink text-ink"
+                  : "border-transparent text-ash hover:text-ink"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
       </div>
 
-      {tab === "script" ? (
-        <SpineViewer {...props} />
-      ) : (
+      {tab === "script" && <SpineViewer {...props} />}
+      {tab === "linelab" && (
         <LineLab
           lines={props.lines}
           myCharacters={props.myCharacters}
           allCharacters={props.allCharacters}
           scriptTitle={props.scriptTitle}
+        />
+      )}
+      {tab === "reports" && props.canManage && (
+        <ScriptReports
+          lines={props.lines}
+          annotations={props.annotations}
+          allCharacters={props.allCharacters}
         />
       )}
     </div>
