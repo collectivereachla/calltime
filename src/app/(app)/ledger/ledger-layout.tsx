@@ -43,12 +43,24 @@ interface ContractSummary {
   contract_type: string;
 }
 
+interface RevenueItem {
+  id: string;
+  source_name: string;
+  category: string;
+  amount: number | null;
+  donor_or_event: string | null;
+  received_date: string | null;
+  notes: string | null;
+  platform: string | null;
+}
+
 type Tab = "contracts" | "budget";
 
 interface Props {
   contracts: Contract[];
   templates: Template[];
   budgetItems: BudgetItem[];
+  revenueItems: RevenueItem[];
   contractSummaries: ContractSummary[];
   canManage: boolean;
   canSeeContent: boolean;
@@ -103,6 +115,7 @@ export function LedgerLayout(props: Props) {
       {tab === "budget" && showBudget && (
         <BudgetView
           budgetItems={props.budgetItems}
+          revenueItems={props.revenueItems}
           contractSummaries={props.contractSummaries}
           canSeeContent={props.canSeeContent}
           productionId={props.productionId}

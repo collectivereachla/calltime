@@ -121,6 +121,28 @@ export default async function LedgerPage() {
     contract_type: templateMap.get(c.template_id)?.contract_type || "other",
   }));
 
+  // Load revenue items (owner/production only)
+  let revenueItems: {
+    id: string;
+    source_name: string;
+    category: string;
+    amount: number | null;
+    donor_or_event: string | null;
+    received_date: string | null;
+    notes: string | null;
+    platform: string | null;
+  }[] = [];
+
+  if (canManage && productionIds.length > 0) {
+    const { data } = await supabase
+      .from("revenue_items")
+      .select("id, source_name, category, amount, donor_or_event, received_date, notes, platform")
+      .in("production_id", productionIds)
+      .order("category")
+      .order("amount", { ascending: false, nullsFirst: false });
+    revenueItems = data || [];
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="mb-8">
@@ -139,6 +161,7 @@ export default async function LedgerPage() {
           contracts={contracts}
           templates={templates}
           budgetItems={budgetItems}
+          revenueItems={revenueItems}
           contractSummaries={contractSummaries}
           canManage={canManage}
           canSeeContent={canSeeContent}
