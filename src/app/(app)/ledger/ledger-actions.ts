@@ -108,3 +108,47 @@ export async function markContractViewed(contractId: string) {
     .eq("id", contractId)
     .is("viewed_at", null);
 }
+
+export async function updateContract(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: person } = await supabase
+    .from("people").select("id").eq("user_id", user.id).single();
+  const { data: membership } = await supabase
+    .from("org_memberships").select("role").eq("person_id", person!.id).limit(1).single();
+
+  if (membership?.role !== "owner") return { error: "Only owners can edit contracts" };
+
+  const id = formData.get("id") as string;
+  const updates: Record<string, unknown> = {};
+
+  for (const [key, value] of formData.entries()) {
+    if (key === "id") continue;
+    updates[key] = (value as string) || null;
+  }
+
+  const { error } = await supabase.from("contracts").update(updates).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/ledger");
+  return { success: true };
+}
+
+export async function deleteContract(id: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: person } = await supabase
+    .from("people").select("id").eq("user_id", user.id).single();
+  const { data: membership } = await supabase
+    .from("org_memberships").select("role").eq("person_id", person!.id).limit(1).single();
+
+  if (membership?.role !== "owner") return { error: "Only owners can delete contracts" };
+
+  const { error } = await supabase.from("contracts").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/ledger");
+  return { success: true };
+}

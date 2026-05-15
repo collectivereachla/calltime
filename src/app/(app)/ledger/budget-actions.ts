@@ -55,6 +55,9 @@ export async function updateBudgetItem(formData: FormData) {
     if (key === "id") continue;
     if (key === "budget_amount" || key === "actual_cost") {
       updates[key] = value ? parseFloat(value as string) : null;
+    } else if (key === "is_paid") {
+      updates[key] = value === "true";
+      if (value === "true") updates.paid_date = new Date().toISOString().split("T")[0];
     } else {
       updates[key] = (value as string) || null;
     }

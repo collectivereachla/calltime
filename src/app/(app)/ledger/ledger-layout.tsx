@@ -34,6 +34,8 @@ interface BudgetItem {
   vendor: string | null;
   notes: string | null;
   transaction_date: string | null;
+  is_paid: boolean;
+  paid_date: string | null;
 }
 
 interface ContractSummary {
@@ -52,6 +54,7 @@ interface RevenueItem {
   received_date: string | null;
   notes: string | null;
   platform: string | null;
+  is_received: boolean;
 }
 
 type Tab = "contracts" | "budget";

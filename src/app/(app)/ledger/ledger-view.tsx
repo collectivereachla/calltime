@@ -1,8 +1,45 @@
 "use client";
 
-import { useState } from "react";
-import { signContract, countersignContract, markContractViewed } from "./ledger-actions";
+import { useState, useRef, useEffect } from "react";
+import { signContract, countersignContract, markContractViewed, updateContract, deleteContract } from "./ledger-actions";
 import { useRouter } from "next/navigation";
+
+// Inline editable cell for contract fields
+function ContractEditCell({ value, onSave, className = "" }: {
+  value: string; onSave: (v: string) => void; className?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (editing) ref.current?.focus(); }, [editing]);
+
+  function commit() {
+    setEditing(false);
+    if (draft !== value) onSave(draft);
+  }
+
+  if (!editing) {
+    return (
+      <span
+        onClick={() => { setDraft(value); setEditing(true); }}
+        className={`cursor-pointer hover:bg-bone/40 px-1 -mx-1 rounded transition-colors ${className}`}
+        title="Click to edit"
+      >
+        {value || "\u00A0"}
+      </span>
+    );
+  }
+
+  return (
+    <input
+      ref={ref} value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+      className="px-1 -mx-1 bg-card border border-brick/40 rounded text-body-sm text-ink focus:outline-none"
+    />
+  );
+}
 
 interface Contract {
   id: string;
@@ -121,6 +158,29 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
     }
   }
 
+  async function saveContractField(id: string, field: string, value: string) {
+    setSaving(true);
+    const fd = new FormData();
+    fd.set("id", id);
+    fd.set(field, value);
+    const result = await updateContract(fd);
+    setSaving(false);
+    if (result.error) alert(result.error);
+    else router.refresh();
+  }
+
+  async function handleDeleteContract(id: string) {
+    if (!confirm("Remove this contract? This cannot be undone.")) return;
+    setSaving(true);
+    const result = await deleteContract(id);
+    setSaving(false);
+    if (result.error) alert(result.error);
+    else {
+      setSelectedId(null);
+      router.refresh();
+    }
+  }
+
   // Contract detail view
   if (selected && template) {
     const body = renderContractBody(template, selected);
@@ -146,13 +206,46 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
               <div>
                 <h2 className="font-display text-display-sm text-ink">{template.title}</h2>
                 <p className="text-body-sm text-ash mt-0.5">
-                  {selected.person_name} — {selected.role_title}
-                  {showContent && selected.compensation && ` — ${selected.compensation}`}
+                  {canSeeContent ? (
+                    <>
+                      <ContractEditCell
+                        value={selected.person_name}
+                        onSave={(v) => saveContractField(selected.id, "person_name", v)}
+                      />
+                      {" — "}
+                      <ContractEditCell
+                        value={selected.role_title}
+                        onSave={(v) => saveContractField(selected.id, "role_title", v)}
+                      />
+                      {" — "}
+                      <ContractEditCell
+                        value={selected.compensation || "TBD"}
+                        onSave={(v) => saveContractField(selected.id, "compensation", v)}
+                        className="font-mono"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      {selected.person_name} — {selected.role_title}
+                      {showContent && selected.compensation && ` — ${selected.compensation}`}
+                    </>
+                  )}
                 </p>
               </div>
-              <span className={`text-body-xs font-medium px-2 py-1 rounded-full ${statusColor(selected.status)}`}>
-                {statusLabel(selected.status)}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-body-xs font-medium px-2 py-1 rounded-full ${statusColor(selected.status)}`}>
+                  {statusLabel(selected.status)}
+                </span>
+                {canSeeContent && selected.status === "pending" && (
+                  <button
+                    onClick={() => handleDeleteContract(selected.id)}
+                    className="text-body-xs text-muted hover:text-conflict transition-colors"
+                    title="Remove contract"
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

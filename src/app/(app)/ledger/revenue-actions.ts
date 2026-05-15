@@ -44,6 +44,9 @@ export async function updateRevenueItem(formData: FormData) {
     if (key === "id") continue;
     if (key === "amount") {
       updates[key] = value ? parseFloat(value as string) : null;
+    } else if (key === "is_received") {
+      updates[key] = value === "true";
+      if (value === "true") updates.received_actual_date = new Date().toISOString().split("T")[0];
     } else {
       updates[key] = (value as string) || null;
     }

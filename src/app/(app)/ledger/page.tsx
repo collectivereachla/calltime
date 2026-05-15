@@ -100,12 +100,14 @@ export default async function LedgerPage() {
     vendor: string | null;
     notes: string | null;
     transaction_date: string | null;
+    is_paid: boolean;
+    paid_date: string | null;
   }[] = [];
 
   if (canManage && productionIds.length > 0) {
     const { data } = await supabase
       .from("budget_items")
-      .select("id, expense_name, category, budget_amount, paid_by, vendor, notes, transaction_date")
+      .select("id, expense_name, category, budget_amount, paid_by, vendor, notes, transaction_date, is_paid, paid_date")
       .in("production_id", productionIds)
       .order("category")
       .order("budget_amount", { ascending: false, nullsFirst: false });
@@ -131,12 +133,13 @@ export default async function LedgerPage() {
     received_date: string | null;
     notes: string | null;
     platform: string | null;
+    is_received: boolean;
   }[] = [];
 
   if (canManage && productionIds.length > 0) {
     const { data } = await supabase
       .from("revenue_items")
-      .select("id, source_name, category, amount, donor_or_event, received_date, notes, platform")
+      .select("id, source_name, category, amount, donor_or_event, received_date, notes, platform, is_received")
       .in("production_id", productionIds)
       .order("category")
       .order("amount", { ascending: false, nullsFirst: false });

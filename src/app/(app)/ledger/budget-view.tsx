@@ -14,6 +14,8 @@ interface BudgetItem {
   vendor: string | null;
   notes: string | null;
   transaction_date: string | null;
+  is_paid: boolean;
+  paid_date: string | null;
 }
 
 interface RevenueItem {
@@ -25,6 +27,7 @@ interface RevenueItem {
   received_date: string | null;
   notes: string | null;
   platform: string | null;
+  is_received: boolean;
 }
 
 interface ContractSummary {
@@ -246,12 +249,13 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
                       </th>
                       <th className="text-left px-4 py-2 text-muted font-mono text-data-sm">Notes</th>
                       <th className="text-right px-4 py-2 text-muted font-mono text-data-sm">Amount</th>
+                      <th className="text-center px-2 py-2 text-muted font-mono text-data-sm">Rcvd</th>
                       <th className="w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((item) => (
-                      <tr key={item.id} className="border-b border-bone/50 group">
+                      <tr key={item.id} className={`border-b border-bone/50 group ${item.is_received ? "bg-confirmed/5" : ""}`}>
                         <td className="px-4 py-2 text-ink">
                           <EditCell value={item.source_name} onSave={(v) => saveRevField(item.id, "source_name", v)} />
                         </td>
@@ -266,6 +270,14 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
                             value={item.amount != null ? String(item.amount) : ""}
                             onSave={(v) => saveRevField(item.id, "amount", v)}
                             type="number" className="text-right"
+                          />
+                        </td>
+                        <td className="text-center px-2 py-2">
+                          <input
+                            type="checkbox"
+                            checked={item.is_received}
+                            onChange={() => saveRevField(item.id, "is_received", item.is_received ? "false" : "true")}
+                            className="accent-confirmed cursor-pointer"
                           />
                         </td>
                         <td className="px-1 py-2">
@@ -331,12 +343,13 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
                       <th className="text-left px-4 py-2 text-muted font-mono text-data-sm">Item</th>
                       <th className="text-left px-4 py-2 text-muted font-mono text-data-sm">Notes</th>
                       <th className="text-right px-4 py-2 text-muted font-mono text-data-sm">Amount</th>
+                      <th className="text-center px-2 py-2 text-muted font-mono text-data-sm">Paid</th>
                       <th className="w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((item) => (
-                      <tr key={item.id} className="border-b border-bone/50 group">
+                      <tr key={item.id} className={`border-b border-bone/50 group ${item.is_paid ? "bg-confirmed/5" : ""}`}>
                         <td className="px-4 py-2 text-ink">
                           <EditCell value={item.expense_name} onSave={(v) => saveExpField(item.id, "expense_name", v)} />
                         </td>
@@ -348,6 +361,14 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
                             value={item.budget_amount != null ? String(item.budget_amount) : ""}
                             onSave={(v) => saveExpField(item.id, "budget_amount", v)}
                             type="number" className="text-right"
+                          />
+                        </td>
+                        <td className="text-center px-2 py-2">
+                          <input
+                            type="checkbox"
+                            checked={item.is_paid}
+                            onChange={() => saveExpField(item.id, "is_paid", item.is_paid ? "false" : "true")}
+                            className="accent-confirmed cursor-pointer"
                           />
                         </td>
                         <td className="px-1 py-2">
