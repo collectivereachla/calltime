@@ -1,171 +1,274 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createBrowserClient } from "@supabase/ssr";
+import { addAnnotation, deleteAnnotation } from "./spine-actions";
+import { useRouter } from "next/navigation";
 
-interface Scene {
+interface ScriptLine {
   id: string;
+  line_number: number;
+  act: number;
+  scene: number;
+  line_type: string;
+  character: string | null;
+  content: string;
+}
+
+interface SceneMeta {
   act: number;
   scene: number;
   title: string | null;
   setting: string | null;
-  content: string;
-  sort_order: number;
 }
+
+interface Annotation {
+  id: string;
+  script_line_id: string;
+  person_id: string;
+  annotation_type: string;
+  content: string;
+  target_character: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+type NoteView = "all" | "mine" | "none";
 
 interface Props {
-  scenes: Scene[];
+  lines: ScriptLine[];
+  sceneMeta: SceneMeta[];
+  annotations: Annotation[];
   scriptTitle: string;
+  scriptId: string;
   myCharacters: string[];
   canManage: boolean;
+  personId: string;
 }
 
-function formatSceneContent(content: string, myCharacters: string[]) {
-  // Parse plain text script into styled HTML
-  const lines = content.split("\n");
-  const elements: { type: string; text: string; character?: string }[] = [];
-
-  // Known character names (uppercase, at least 2 chars, on their own line)
-  const charPattern = /^([A-Z][A-Z\s.']+)$/;
-
+export function SpineViewer({
+  lines,
+  sceneMeta,
+  annotations: initialAnnotations,
+  scriptTitle,
+  scriptId,
+  myCharacters,
+  canManage,
+  personId,
+}: Props) {
+  // Group lines by act.scene
+  const sceneKeys: string[] = [];
+  const sceneMap = new Map<string, ScriptLine[]>();
   for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    // Skip horizontal rules
-    if (/^_{4,}$/.test(trimmed)) continue;
-
-    // Stage directions in parentheses
-    if (trimmed.startsWith("(") && trimmed.endsWith(")")) {
-      elements.push({ type: "stage_direction", text: trimmed });
-      continue;
+    const key = `${line.act}-${line.scene}`;
+    if (!sceneMap.has(key)) {
+      sceneKeys.push(key);
+      sceneMap.set(key, []);
     }
-
-    // Continued marker
-    if (trimmed === "(Cont.)") {
-      elements.push({ type: "continued", text: trimmed });
-      continue;
-    }
-
-    // Setting/AT RISE
-    if (trimmed.startsWith("SETTING:") || trimmed.startsWith("AT RISE:")) {
-      elements.push({ type: "setting", text: trimmed });
-      continue;
-    }
-
-    // Song sections (all caps, likely lyrics)
-    if (trimmed === trimmed.toUpperCase() && trimmed.length > 10 && /[A-Z]{3,}/.test(trimmed) && !charPattern.test(trimmed)) {
-      // Check if it looks like a lyric (has multiple words, all caps)
-      const words = trimmed.split(/\s+/);
-      if (words.length >= 3) {
-        elements.push({ type: "lyric", text: trimmed });
-        continue;
-      }
-    }
-
-    // Song direction markers
-    if (/^(CALL|CALL\/RESPONSE|VERSE|CHORUS|REFRAIN|OUTRO)(\s|$)/i.test(trimmed) && trimmed === trimmed.toUpperCase()) {
-      elements.push({ type: "song_direction", text: trimmed });
-      continue;
-    }
-
-    // Character name (all caps, on its own line)
-    if (charPattern.test(trimmed) && trimmed.length <= 30) {
-      // Exclude known non-character all-caps like END OF ACT I
-      if (!trimmed.startsWith("END OF") && !trimmed.startsWith("SONG:")) {
-        elements.push({ type: "character_name", text: trimmed, character: trimmed });
-        continue;
-      }
-    }
-
-    // Song title (in quotes with emdash)
-    if (trimmed.startsWith("\u201c") || trimmed.startsWith("Song:") || trimmed.startsWith('"')) {
-      elements.push({ type: "song_title", text: trimmed });
-      continue;
-    }
-
-    // Default: dialogue or narration
-    elements.push({ type: "dialogue", text: trimmed });
+    sceneMap.get(key)!.push(line);
   }
 
-  return elements;
-}
-
-export function SpineViewer({ scenes, scriptTitle, myCharacters, canManage }: Props) {
-  const [activeScene, setActiveScene] = useState(0);
+  const [activeSceneKey, setActiveSceneKey] = useState(sceneKeys[0] || "0-0");
   const [showNav, setShowNav] = useState(false);
+  const [noteView, setNoteView] = useState<NoteView>("all");
+  const [annotatingLineId, setAnnotatingLineId] = useState<string | null>(null);
+  const [annotationText, setAnnotationText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [annotations, setAnnotations] = useState<Annotation[]>(initialAnnotations);
   const contentRef = useRef<HTMLDivElement>(null);
+  const annotationInputRef = useRef<HTMLTextAreaElement>(null);
+  const router = useRouter();
 
-  // Group scenes by act
-  const acts = new Map<number, Scene[]>();
-  for (const scene of scenes) {
-    if (!acts.has(scene.act)) acts.set(scene.act, []);
-    acts.get(scene.act)!.push(scene);
+  // Group scenes by act for nav
+  const actGroups = new Map<number, string[]>();
+  for (const key of sceneKeys) {
+    const [act] = key.split("-").map(Number);
+    if (!actGroups.has(act)) actGroups.set(act, []);
+    actGroups.get(act)!.push(key);
   }
 
-  const currentScene = scenes[activeScene];
+  const currentLines = sceneMap.get(activeSceneKey) || [];
+  const [actNum, sceneNum] = activeSceneKey.split("-").map(Number);
+  const currentMeta = sceneMeta.find((s) => s.act === actNum && s.scene === sceneNum);
 
+  // Build annotation lookup: lineId -> Annotation[]
+  const annotationsByLine = new Map<string, Annotation[]>();
+  for (const a of annotations) {
+    const visible =
+      noteView === "all" ||
+      (noteView === "mine" && a.person_id === personId);
+    if (!visible) continue;
+    if (!annotationsByLine.has(a.script_line_id)) {
+      annotationsByLine.set(a.script_line_id, []);
+    }
+    annotationsByLine.get(a.script_line_id)!.push(a);
+  }
+
+  // Scroll to top on scene change
   useEffect(() => {
     contentRef.current?.scrollTo(0, 0);
-  }, [activeScene]);
+  }, [activeSceneKey]);
 
-  if (!currentScene) return null;
+  // Focus annotation input when opened
+  useEffect(() => {
+    if (annotatingLineId) {
+      setTimeout(() => annotationInputRef.current?.focus(), 50);
+    }
+  }, [annotatingLineId]);
 
-  const elements = formatSceneContent(currentScene.content, myCharacters);
-
-  // Check if a character name is one of the user's characters
-  const isMyCharacter = (name: string) => {
-    return myCharacters.some((c) =>
-      name.toUpperCase().includes(c.toUpperCase().split(" / ")[0]) ||
-      name.toUpperCase().includes(c.toUpperCase().split(" / ")[1] || "___NOMATCH___")
+  // Realtime subscription for annotations
+  useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
-  };
+
+    const channel = supabase
+      .channel("spine-annotations")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "script_annotations" },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const newAnnotation = payload.new as Annotation;
+            setAnnotations((prev) => {
+              if (prev.some((a) => a.id === newAnnotation.id)) return prev;
+              return [...prev, newAnnotation];
+            });
+          } else if (payload.eventType === "DELETE") {
+            const oldId = (payload.old as { id: string }).id;
+            setAnnotations((prev) => prev.filter((a) => a.id !== oldId));
+          } else if (payload.eventType === "UPDATE") {
+            const updated = payload.new as Annotation;
+            setAnnotations((prev) =>
+              prev.map((a) => (a.id === updated.id ? updated : a))
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const isMyCharacter = useCallback(
+    (name: string) => {
+      return myCharacters.some(
+        (c) =>
+          name.toUpperCase().includes(c.toUpperCase().split(" / ")[0]) ||
+          name.toUpperCase().includes(c.toUpperCase().split(" / ")[1] || "___NOMATCH___")
+      );
+    },
+    [myCharacters]
+  );
+
+  async function handleAddAnnotation(lineId: string) {
+    if (!annotationText.trim()) return;
+    setSaving(true);
+    const fd = new FormData();
+    fd.set("script_line_id", lineId);
+    fd.set("content", annotationText);
+    fd.set("annotation_type", "blocking");
+    const result = await addAnnotation(fd);
+    setSaving(false);
+    if (result.error) {
+      alert(result.error);
+    } else {
+      setAnnotationText("");
+      setAnnotatingLineId(null);
+      router.refresh();
+    }
+  }
+
+  async function handleDeleteAnnotation(id: string) {
+    const result = await deleteAnnotation(id);
+    if (result.error) alert(result.error);
+    else router.refresh();
+  }
+
+  const sceneIdx = sceneKeys.indexOf(activeSceneKey);
+
+  function getSceneLabel(key: string) {
+    const [a, s] = key.split("-").map(Number);
+    if (a === 0) return "Front Matter";
+    return `Scene ${s}`;
+  }
+
+  function getActLabel(act: number) {
+    if (act === 0) return "";
+    return `Act ${act === 1 ? "I" : "II"}`;
+  }
 
   return (
     <div className="flex gap-6">
-      {/* Scene navigation — desktop sidebar */}
+      {/* Desktop sidebar nav */}
       <nav className="hidden lg:block w-48 shrink-0">
         <div className="sticky top-24 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
-          {Array.from(acts.entries()).map(([actNum, actScenes]) => (
-            <div key={actNum}>
-              {actNum > 0 && (
+          {Array.from(actGroups.entries()).map(([act, keys]) => (
+            <div key={act}>
+              {act > 0 && (
                 <h3 className="font-mono text-data-sm text-muted uppercase tracking-wider mb-1">
-                  Act {actNum === 1 ? "I" : "II"}
+                  {getActLabel(act)}
                 </h3>
               )}
               <div className="space-y-0.5">
-                {actScenes.map((scene) => {
-                  const idx = scenes.indexOf(scene);
-                  const isActive = idx === activeScene;
-                  return (
-                    <button
-                      key={scene.id}
-                      onClick={() => setActiveScene(idx)}
-                      className={`block w-full text-left px-2 py-1.5 rounded text-body-sm transition-colors ${
-                        isActive
-                          ? "bg-ink/10 text-ink font-medium"
-                          : "text-ash hover:text-ink hover:bg-ink/5"
-                      }`}
-                    >
-                      {scene.act === 0
-                        ? "Front Matter"
-                        : `Scene ${scene.scene}`}
-                    </button>
-                  );
-                })}
+                {keys.map((key) => (
+                  <button
+                    key={key}
+                    onClick={() => setActiveSceneKey(key)}
+                    className={`block w-full text-left px-2 py-1.5 rounded text-body-sm transition-colors ${
+                      key === activeSceneKey
+                        ? "bg-ink/10 text-ink font-medium"
+                        : "text-ash hover:text-ink hover:bg-ink/5"
+                    }`}
+                  >
+                    {getSceneLabel(key)}
+                  </button>
+                ))}
               </div>
             </div>
           ))}
+
+          {/* View toggle */}
+          <div className="pt-4 border-t border-bone">
+            <h3 className="font-mono text-data-sm text-muted uppercase tracking-wider mb-2">
+              Notes
+            </h3>
+            <div className="space-y-1">
+              {(["all", "mine", "none"] as NoteView[]).map((view) => (
+                <button
+                  key={view}
+                  onClick={() => setNoteView(view)}
+                  className={`block w-full text-left px-2 py-1.5 rounded text-body-sm transition-colors ${
+                    noteView === view
+                      ? "bg-brick/10 text-brick font-medium"
+                      : "text-ash hover:text-ink hover:bg-ink/5"
+                  }`}
+                >
+                  {view === "all" ? "All notes" : view === "mine" ? "My notes" : "Hide notes"}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </nav>
 
-      {/* Mobile scene nav toggle */}
-      <div className="lg:hidden fixed bottom-20 right-4 z-30">
+      {/* Mobile scene nav */}
+      <div className="lg:hidden fixed bottom-20 right-4 z-30 flex gap-2">
+        <button
+          onClick={() => setNoteView(noteView === "none" ? "all" : noteView === "all" ? "mine" : "none")}
+          className="bg-card text-ash border border-bone px-3 py-2 rounded-full text-body-xs font-medium shadow-lg"
+        >
+          {noteView === "all" ? "📝 All" : noteView === "mine" ? "📝 Mine" : "📝 Off"}
+        </button>
         <button
           onClick={() => setShowNav(!showNav)}
           className="bg-ink text-paper px-3 py-2 rounded-full text-body-sm font-medium shadow-lg"
         >
-          {currentScene.act > 0
-            ? `Act ${currentScene.act === 1 ? "I" : "II"} · Scene ${currentScene.scene}`
+          {actNum > 0
+            ? `Act ${actNum === 1 ? "I" : "II"} · Scene ${sceneNum}`
             : "Scenes"}
         </button>
       </div>
@@ -181,36 +284,30 @@ export function SpineViewer({ scenes, scriptTitle, myCharacters, canManage }: Pr
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-1 bg-bone rounded mx-auto mb-4" />
-            {Array.from(acts.entries()).map(([actNum, actScenes]) => (
-              <div key={actNum} className="mb-3">
-                {actNum > 0 && (
+            {Array.from(actGroups.entries()).map(([act, keys]) => (
+              <div key={act} className="mb-3">
+                {act > 0 && (
                   <h3 className="font-mono text-data-sm text-muted uppercase tracking-wider mb-1 px-2">
-                    Act {actNum === 1 ? "I" : "II"}
+                    {getActLabel(act)}
                   </h3>
                 )}
                 <div className="space-y-0.5">
-                  {actScenes.map((scene) => {
-                    const idx = scenes.indexOf(scene);
-                    const isActive = idx === activeScene;
-                    return (
-                      <button
-                        key={scene.id}
-                        onClick={() => {
-                          setActiveScene(idx);
-                          setShowNav(false);
-                        }}
-                        className={`block w-full text-left px-3 py-2.5 rounded text-body-md ${
-                          isActive
-                            ? "bg-ink/10 text-ink font-medium"
-                            : "text-ash"
-                        }`}
-                      >
-                        {scene.act === 0
-                          ? "Front Matter"
-                          : `Scene ${scene.scene}`}
-                      </button>
-                    );
-                  })}
+                  {keys.map((key) => (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        setActiveSceneKey(key);
+                        setShowNav(false);
+                      }}
+                      className={`block w-full text-left px-3 py-2.5 rounded text-body-md ${
+                        key === activeSceneKey
+                          ? "bg-ink/10 text-ink font-medium"
+                          : "text-ash"
+                      }`}
+                    >
+                      {getSceneLabel(key)}
+                    </button>
+                  ))}
                 </div>
               </div>
             ))}
@@ -224,94 +321,134 @@ export function SpineViewer({ scenes, scriptTitle, myCharacters, canManage }: Pr
         <div className="mb-6 pb-4 border-b border-bone">
           <div className="flex items-center gap-3">
             <span className="font-mono text-data-sm text-muted">
-              {currentScene.act > 0
-                ? `Act ${currentScene.act === 1 ? "I" : "II"} · Scene ${currentScene.scene}`
+              {actNum > 0
+                ? `Act ${actNum === 1 ? "I" : "II"} · Scene ${sceneNum}`
                 : scriptTitle}
             </span>
+            {currentMeta?.title && (
+              <span className="text-body-sm text-ash">— {currentMeta.title}</span>
+            )}
           </div>
-          {currentScene.setting && (
-            <p className="text-body-sm text-ash mt-2 italic">
-              {currentScene.setting}
-            </p>
+          {currentMeta?.setting && (
+            <p className="text-body-sm text-ash mt-2 italic">{currentMeta.setting}</p>
           )}
         </div>
 
         {/* Script lines */}
-        <div className="space-y-1 pb-12">
-          {elements.map((el, i) => {
-            switch (el.type) {
-              case "character_name":
-                return (
-                  <p
-                    key={i}
-                    className={`font-mono text-data-sm uppercase tracking-wider mt-6 mb-0.5 ${
-                      isMyCharacter(el.text) ? "text-brick font-bold" : "text-ink font-semibold"
-                    }`}
+        <div className="space-y-0.5 pb-12">
+          {currentLines.map((line) => {
+            const lineAnnotations = annotationsByLine.get(line.id) || [];
+            const hasAnnotations = lineAnnotations.length > 0;
+            const isAnnotating = annotatingLineId === line.id;
+
+            return (
+              <div key={line.id} className="group relative">
+                {/* The line itself */}
+                <div
+                  className={`relative ${canManage ? "cursor-pointer" : ""} ${
+                    hasAnnotations && noteView !== "none" ? "border-l-2 border-brick/30 pl-3" : ""
+                  }`}
+                  onClick={() => {
+                    if (canManage && !isAnnotating) {
+                      setAnnotatingLineId(line.id);
+                      setAnnotationText("");
+                    }
+                  }}
+                >
+                  {/* Add note indicator for SM */}
+                  {canManage && (
+                    <span className="absolute -left-6 top-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted text-body-xs select-none">
+                      +
+                    </span>
+                  )}
+
+                  {renderLine(line, isMyCharacter)}
+                </div>
+
+                {/* Annotations on this line */}
+                {noteView !== "none" && lineAnnotations.map((a) => (
+                  <div
+                    key={a.id}
+                    className="ml-4 mt-1 mb-2 px-3 py-1.5 bg-brick/5 border-l-2 border-brick/40 rounded-r text-body-sm text-ash italic flex items-start gap-2"
                   >
-                    {el.text}
-                  </p>
-                );
-              case "stage_direction":
-                return (
-                  <p key={i} className="text-body-sm text-ash italic pl-4">
-                    {el.text}
-                  </p>
-                );
-              case "continued":
-                return (
-                  <p key={i} className="text-body-xs text-muted italic pl-4">
-                    {el.text}
-                  </p>
-                );
-              case "setting":
-                return (
-                  <p key={i} className="text-body-sm text-ash italic mt-4 mb-2">
-                    {el.text}
-                  </p>
-                );
-              case "song_title":
-                return (
-                  <p key={i} className="text-body-md font-medium text-ink mt-6 mb-1 italic">
-                    {el.text}
-                  </p>
-                );
-              case "song_direction":
-                return (
-                  <p key={i} className="text-body-xs text-muted uppercase tracking-wider mt-3 mb-1">
-                    {el.text}
-                  </p>
-                );
-              case "lyric":
-                return (
-                  <p key={i} className="text-body-sm text-ash italic pl-6">
-                    {el.text}
-                  </p>
-                );
-              default: // dialogue
-                return (
-                  <p key={i} className="text-body-md text-ink leading-relaxed">
-                    {el.text}
-                  </p>
-                );
-            }
+                    <span className="flex-1">{a.content}</span>
+                    {canManage && a.person_id === personId && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteAnnotation(a.id);
+                        }}
+                        className="text-muted hover:text-conflict text-body-xs shrink-0"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {/* Annotation input */}
+                {isAnnotating && (
+                  <div className="ml-4 mt-1 mb-3" onClick={(e) => e.stopPropagation()}>
+                    <textarea
+                      ref={annotationInputRef}
+                      value={annotationText}
+                      onChange={(e) => setAnnotationText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleAddAnnotation(line.id);
+                        }
+                        if (e.key === "Escape") {
+                          setAnnotatingLineId(null);
+                          setAnnotationText("");
+                        }
+                      }}
+                      placeholder="Blocking note… (Enter to save, Esc to cancel)"
+                      className="w-full px-3 py-2 bg-card border border-bone rounded text-body-sm text-ink placeholder:text-muted focus:border-brick focus:outline-none resize-none"
+                      rows={2}
+                    />
+                    <div className="flex gap-2 mt-1">
+                      <button
+                        onClick={() => handleAddAnnotation(line.id)}
+                        disabled={saving || !annotationText.trim()}
+                        className="text-body-xs font-medium text-brick hover:text-brick/80 disabled:opacity-40"
+                      >
+                        {saving ? "Saving…" : "Save"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAnnotatingLineId(null);
+                          setAnnotationText("");
+                        }}
+                        className="text-body-xs text-muted hover:text-ink"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
           })}
         </div>
 
-        {/* Prev/Next navigation */}
+        {/* Prev/Next */}
         <div className="flex items-center justify-between pt-4 border-t border-bone">
           <button
-            onClick={() => setActiveScene(Math.max(0, activeScene - 1))}
-            disabled={activeScene === 0}
+            onClick={() => setActiveSceneKey(sceneKeys[Math.max(0, sceneIdx - 1)])}
+            disabled={sceneIdx === 0}
             className="text-body-sm text-ash hover:text-ink disabled:opacity-30 disabled:cursor-default transition-colors"
           >
             ← Previous
           </button>
           <span className="font-mono text-data-sm text-muted">
-            {activeScene + 1} / {scenes.length}
+            {sceneIdx + 1} / {sceneKeys.length}
           </span>
           <button
-            onClick={() => setActiveScene(Math.min(scenes.length - 1, activeScene + 1))}
-            disabled={activeScene === scenes.length - 1}
+            onClick={() =>
+              setActiveSceneKey(sceneKeys[Math.min(sceneKeys.length - 1, sceneIdx + 1)])
+            }
+            disabled={sceneIdx === sceneKeys.length - 1}
             className="text-body-sm text-ash hover:text-ink disabled:opacity-30 disabled:cursor-default transition-colors"
           >
             Next →
@@ -320,4 +457,66 @@ export function SpineViewer({ scenes, scriptTitle, myCharacters, canManage }: Pr
       </div>
     </div>
   );
+}
+
+function renderLine(
+  line: ScriptLine,
+  isMyCharacter: (name: string) => boolean
+) {
+  switch (line.line_type) {
+    case "character_name":
+      return (
+        <p
+          className={`font-mono text-data-sm uppercase tracking-wider mt-6 mb-0.5 ${
+            line.character && isMyCharacter(line.character)
+              ? "text-brick font-bold"
+              : "text-ink font-semibold"
+          }`}
+        >
+          {line.character || line.content}
+        </p>
+      );
+    case "stage_direction":
+      return (
+        <p className="text-body-sm text-ash italic pl-4">
+          {line.content}
+        </p>
+      );
+    case "continued":
+      return (
+        <p className="text-body-xs text-muted italic pl-4">
+          {line.content}
+        </p>
+      );
+    case "setting":
+      return (
+        <p className="text-body-sm text-ash italic mt-4 mb-2">
+          {line.content}
+        </p>
+      );
+    case "song_title":
+      return (
+        <p className="text-body-md font-medium text-ink mt-6 mb-1 italic">
+          {line.content}
+        </p>
+      );
+    case "song_direction":
+      return (
+        <p className="text-body-xs text-muted uppercase tracking-wider mt-3 mb-1">
+          {line.content}
+        </p>
+      );
+    case "lyric":
+      return (
+        <p className="text-body-sm text-ash italic pl-6">
+          {line.content}
+        </p>
+      );
+    default: // dialogue
+      return (
+        <p className="text-body-md text-ink leading-relaxed">
+          {line.content}
+        </p>
+      );
+  }
 }

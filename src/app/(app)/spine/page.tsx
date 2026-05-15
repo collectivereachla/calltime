@@ -32,7 +32,6 @@ export default async function SpinePage() {
   const canManage = membership.role === "owner" || membership.role === "production";
   const orgId = (membership.organizations as unknown as { id: string }).id;
 
-  // Get active productions
   const { data: productions } = await supabase
     .from("productions")
     .select("id, title")
@@ -42,7 +41,6 @@ export default async function SpinePage() {
 
   const productionIds = productions?.map((p) => p.id) || [];
 
-  // Get scripts for these productions
   let scripts: {
     id: string;
     title: string;
@@ -56,34 +54,60 @@ export default async function SpinePage() {
       .from("scripts")
       .select("id, title, version, production_id, productions(title)")
       .in("production_id", productionIds);
-
     scripts = (data as unknown as typeof scripts) || [];
   }
 
-  // If we have scripts, load scenes for the first one
-  let scenes: {
+  const activeScript = scripts[0] || null;
+
+  let lines: {
     id: string;
+    line_number: number;
     act: number;
     scene: number;
-    title: string | null;
-    setting: string | null;
+    line_type: string;
+    character: string | null;
     content: string;
-    sort_order: number;
   }[] = [];
-
-  const activeScript = scripts[0] || null;
 
   if (activeScript) {
     const { data } = await supabase
-      .from("script_scenes")
-      .select("id, act, scene, title, setting, content, sort_order")
+      .from("script_lines")
+      .select("id, line_number, act, scene, line_type, character, content")
       .eq("script_id", activeScript.id)
-      .order("sort_order", { ascending: true });
-
-    scenes = data || [];
+      .order("line_number", { ascending: true });
+    lines = data || [];
   }
 
-  // Get user's character assignments for this production
+  let sceneMeta: { act: number; scene: number; title: string | null; setting: string | null }[] = [];
+  if (activeScript) {
+    const { data } = await supabase
+      .from("script_scenes")
+      .select("act, scene, title, setting")
+      .eq("script_id", activeScript.id)
+      .order("sort_order", { ascending: true });
+    sceneMeta = data || [];
+  }
+
+  let annotations: {
+    id: string;
+    script_line_id: string;
+    person_id: string;
+    annotation_type: string;
+    content: string;
+    target_character: string | null;
+    created_at: string;
+    updated_at: string;
+  }[] = [];
+
+  if (activeScript && lines.length > 0) {
+    const lineIds = lines.map((l) => l.id);
+    const { data } = await supabase
+      .from("script_annotations")
+      .select("id, script_line_id, person_id, annotation_type, content, target_character, created_at, updated_at")
+      .in("script_line_id", lineIds);
+    annotations = data || [];
+  }
+
   let myCharacters: string[] = [];
   if (activeScript) {
     const { data: assignments } = await supabase
@@ -91,7 +115,6 @@ export default async function SpinePage() {
       .select("role_title")
       .eq("production_id", activeScript.production_id)
       .eq("person_id", person!.id);
-
     myCharacters = assignments?.map((a) => a.role_title) || [];
   }
 
@@ -111,22 +134,26 @@ export default async function SpinePage() {
           <p className="text-body-md text-ash mb-2">No script imported yet.</p>
           {canManage && (
             <p className="text-body-sm text-muted">
-              Script import is coming soon. The script for The Juneteenth Story is ready to be loaded.
+              Script import is coming soon.
             </p>
           )}
         </div>
-      ) : scenes.length === 0 ? (
+      ) : lines.length === 0 ? (
         <div className="bg-card border border-bone rounded-card px-6 py-10 text-center">
           <p className="text-body-md text-ash">
-            Script record exists but no scenes have been imported yet.
+            Script record exists but no lines have been imported yet.
           </p>
         </div>
       ) : (
         <SpineViewer
-          scenes={scenes}
+          lines={lines}
+          sceneMeta={sceneMeta}
+          annotations={annotations}
           scriptTitle={activeScript.title}
+          scriptId={activeScript.id}
           myCharacters={myCharacters}
           canManage={canManage}
+          personId={person!.id}
         />
       )}
     </div>
