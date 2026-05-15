@@ -22,7 +22,7 @@ const rooms = [
   { name: "Callboard", path: "/callboard", icon: "▤", mobile: true },
   { name: "Company", path: "/company", icon: "◎", mobile: true },
   { name: "Greenroom", path: "/greenroom", icon: "◌", disabled: true },
-  { name: "Spine", path: "/spine", icon: "▥", disabled: true },
+  { name: "Spine", path: "/spine", icon: "▥" },
   { name: "Run", path: "/run", icon: "▶", disabled: true },
   { name: "Booth", path: "/booth", icon: "◧" },
   { name: "Ledger", path: "/ledger", icon: "▧", disabled: true },
