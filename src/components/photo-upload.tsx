@@ -47,16 +47,8 @@ export function PhotoUpload({ personId, currentUrl, size = "md" }: Props) {
 
     const supabase = createClient();
 
-    // Get current user for the storage path
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError("Not authenticated.");
-      setUploading(false);
-      return;
-    }
-
     const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-    const filePath = `${user.id}/headshot.${ext}`;
+    const filePath = `${personId}/headshot.${ext}`;
 
     // Upload to storage
     const { error: uploadError } = await supabase.storage
