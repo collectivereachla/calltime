@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { addAnnotation, deleteAnnotation } from "./spine-actions";
+import { addAnnotation, deleteAnnotation, updateAnnotation, searchScript } from "./spine-actions";
 import { useRouter } from "next/navigation";
 
 interface ScriptLine {
@@ -28,12 +28,23 @@ interface Annotation {
   person_id: string;
   annotation_type: string;
   content: string;
-  target_character: string | null;
+  tagged_characters: string[];
+  visibility: string;
+  note_type: string;
+  is_pinned: boolean;
   created_at: string;
   updated_at: string;
 }
 
 type NoteView = "all" | "mine" | "none";
+
+interface SearchResult {
+  act: number;
+  scene: number;
+  line_number: number;
+  content: string;
+  type: "line" | "note";
+}
 
 interface Props {
   lines: ScriptLine[];
@@ -42,6 +53,7 @@ interface Props {
   scriptTitle: string;
   scriptId: string;
   myCharacters: string[];
+  allCharacters: string[];
   canManage: boolean;
   personId: string;
 }
@@ -53,6 +65,7 @@ export function SpineViewer({
   scriptTitle,
   scriptId,
   myCharacters,
+  allCharacters,
   canManage,
   personId,
 }: Props) {
@@ -71,12 +84,21 @@ export function SpineViewer({
   const [activeSceneKey, setActiveSceneKey] = useState(sceneKeys[0] || "0-0");
   const [showNav, setShowNav] = useState(false);
   const [noteView, setNoteView] = useState<NoteView>("all");
+  const [characterFilter, setCharacterFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [annotatingLineId, setAnnotatingLineId] = useState<string | null>(null);
   const [annotationText, setAnnotationText] = useState("");
+  const [annotationTags, setAnnotationTags] = useState<string[]>([]);
+  const [annotationIsPersonal, setAnnotationIsPersonal] = useState(false);
+  const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
   const [saving, setSaving] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>(initialAnnotations);
   const contentRef = useRef<HTMLDivElement>(null);
   const annotationInputRef = useRef<HTMLTextAreaElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   // Group scenes by act for nav
@@ -91,18 +113,43 @@ export function SpineViewer({
   const [actNum, sceneNum] = activeSceneKey.split("-").map(Number);
   const currentMeta = sceneMeta.find((s) => s.act === actNum && s.scene === sceneNum);
 
-  // Build annotation lookup: lineId -> Annotation[]
-  const annotationsByLine = new Map<string, Annotation[]>();
-  for (const a of annotations) {
-    const visible =
-      noteView === "all" ||
-      (noteView === "mine" && a.person_id === personId);
-    if (!visible) continue;
-    if (!annotationsByLine.has(a.script_line_id)) {
-      annotationsByLine.set(a.script_line_id, []);
+  // Build annotation lookup with view filters applied
+  const annotationsByLine = useMemo(() => {
+    const map = new Map<string, Annotation[]>();
+    for (const a of annotations) {
+      let visible = false;
+
+      if (noteView === "none") continue;
+
+      if (noteView === "all") {
+        if (characterFilter) {
+          // Show only notes tagged with the filtered character
+          visible = a.tagged_characters.includes(characterFilter);
+        } else {
+          visible = true;
+        }
+      } else if (noteView === "mine") {
+        // Show notes tagged with any of my characters
+        visible = a.tagged_characters.some((tag) =>
+          myCharacters.some(
+            (mc) =>
+              mc.toUpperCase().includes(tag.toUpperCase()) ||
+              tag.toUpperCase().includes(mc.toUpperCase().split(" / ")[0]) ||
+              tag.toUpperCase().includes(mc.toUpperCase().split(" / ")[1] || "___NOMATCH___")
+          )
+        );
+        // Also show my own personal notes
+        if (!visible && a.visibility === "personal" && a.person_id === personId) {
+          visible = true;
+        }
+      }
+
+      if (!visible) continue;
+      if (!map.has(a.script_line_id)) map.set(a.script_line_id, []);
+      map.get(a.script_line_id)!.push(a);
     }
-    annotationsByLine.get(a.script_line_id)!.push(a);
-  }
+    return map;
+  }, [annotations, noteView, characterFilter, myCharacters, personId]);
 
   // Scroll to top on scene change
   useEffect(() => {
@@ -116,7 +163,7 @@ export function SpineViewer({
     }
   }, [annotatingLineId]);
 
-  // Realtime subscription for annotations
+  // Realtime subscription
   useEffect(() => {
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -130,27 +177,23 @@ export function SpineViewer({
         { event: "*", schema: "public", table: "script_annotations" },
         (payload) => {
           if (payload.eventType === "INSERT") {
-            const newAnnotation = payload.new as Annotation;
+            const n = payload.new as Annotation;
             setAnnotations((prev) => {
-              if (prev.some((a) => a.id === newAnnotation.id)) return prev;
-              return [...prev, newAnnotation];
+              if (prev.some((a) => a.id === n.id)) return prev;
+              return [...prev, n];
             });
           } else if (payload.eventType === "DELETE") {
             const oldId = (payload.old as { id: string }).id;
             setAnnotations((prev) => prev.filter((a) => a.id !== oldId));
           } else if (payload.eventType === "UPDATE") {
             const updated = payload.new as Annotation;
-            setAnnotations((prev) =>
-              prev.map((a) => (a.id === updated.id ? updated : a))
-            );
+            setAnnotations((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
           }
         }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const isMyCharacter = useCallback(
@@ -164,28 +207,76 @@ export function SpineViewer({
     [myCharacters]
   );
 
+  function openAnnotationInput(lineId: string, isPersonal: boolean) {
+    setAnnotatingLineId(lineId);
+    setAnnotationText("");
+    setAnnotationTags([]);
+    setAnnotationIsPersonal(isPersonal);
+  }
+
   async function handleAddAnnotation(lineId: string) {
     if (!annotationText.trim()) return;
     setSaving(true);
     const fd = new FormData();
     fd.set("script_line_id", lineId);
     fd.set("content", annotationText);
-    fd.set("annotation_type", "blocking");
+    fd.set("note_type", annotationIsPersonal ? "personal" : "blocking");
+    fd.set("visibility", annotationIsPersonal ? "personal" : "production");
+    fd.set("tagged_characters", annotationTags.join(","));
     const result = await addAnnotation(fd);
     setSaving(false);
-    if (result.error) {
-      alert(result.error);
-    } else {
+    if (result.error) alert(result.error);
+    else {
       setAnnotationText("");
       setAnnotatingLineId(null);
       router.refresh();
     }
   }
 
+  async function handleUpdateAnnotation(id: string) {
+    if (!editText.trim()) return;
+    setSaving(true);
+    const fd = new FormData();
+    fd.set("id", id);
+    fd.set("content", editText);
+    const result = await updateAnnotation(fd);
+    setSaving(false);
+    if (result.error) alert(result.error);
+    else {
+      setEditingAnnotationId(null);
+      setEditText("");
+      router.refresh();
+    }
+  }
+
   async function handleDeleteAnnotation(id: string) {
+    if (!confirm("Delete this note?")) return;
     const result = await deleteAnnotation(id);
     if (result.error) alert(result.error);
     else router.refresh();
+  }
+
+  async function handleSearch() {
+    if (!searchQuery.trim()) { setSearchResults(null); return; }
+    const results = await searchScript(scriptId, searchQuery);
+    const combined: SearchResult[] = [
+      ...results.lines.map((l) => ({ act: l.act, scene: l.scene, line_number: l.line_number, content: l.content, type: "line" as const })),
+      ...results.annotations.map((a) => ({ act: a.act, scene: a.scene, line_number: a.line_number, content: a.content, type: "note" as const })),
+    ].sort((a, b) => a.line_number - b.line_number);
+    setSearchResults(combined);
+  }
+
+  function jumpToResult(r: SearchResult) {
+    setActiveSceneKey(`${r.act}-${r.scene}`);
+    setSearchOpen(false);
+    setSearchResults(null);
+    setSearchQuery("");
+  }
+
+  function toggleTag(char: string) {
+    setAnnotationTags((prev) =>
+      prev.includes(char) ? prev.filter((c) => c !== char) : [...prev, char]
+    );
   }
 
   const sceneIdx = sceneKeys.indexOf(activeSceneKey);
@@ -201,11 +292,58 @@ export function SpineViewer({
     return `Act ${act === 1 ? "I" : "II"}`;
   }
 
+  // Note view labels
+  const viewLabels: Record<NoteView, string> = {
+    all: characterFilter ? `${characterFilter}` : "All notes",
+    mine: "My blocking",
+    none: "Clean script",
+  };
+
   return (
     <div className="flex gap-6">
       {/* Desktop sidebar nav */}
-      <nav className="hidden lg:block w-48 shrink-0">
+      <nav className="hidden lg:block w-52 shrink-0">
         <div className="sticky top-24 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
+          {/* Search */}
+          <div>
+            <button
+              onClick={() => { setSearchOpen(!searchOpen); setTimeout(() => searchInputRef.current?.focus(), 50); }}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-body-sm text-ash hover:text-ink hover:bg-ink/5 transition-colors"
+            >
+              <span className="text-xs">&#128269;</span> Search script
+            </button>
+            {searchOpen && (
+              <div className="mt-1 space-y-2">
+                <input
+                  ref={searchInputRef}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); if (e.key === "Escape") { setSearchOpen(false); setSearchResults(null); } }}
+                  placeholder="Lines or notes..."
+                  className="w-full px-2 py-1.5 bg-card border border-bone rounded text-body-sm text-ink focus:border-brick focus:outline-none"
+                />
+                {searchResults && (
+                  <div className="max-h-48 overflow-y-auto space-y-0.5">
+                    {searchResults.length === 0 && <p className="text-body-xs text-muted px-2">No results</p>}
+                    {searchResults.map((r, i) => (
+                      <button
+                        key={i}
+                        onClick={() => jumpToResult(r)}
+                        className="block w-full text-left px-2 py-1.5 rounded text-body-xs hover:bg-ink/5 transition-colors"
+                      >
+                        <span className="font-mono text-muted">{r.act > 0 ? `${r.act}.${r.scene}` : "FM"}</span>
+                        <span className={`ml-1 ${r.type === "note" ? "text-brick italic" : "text-ink"}`}>
+                          {r.content.slice(0, 60)}{r.content.length > 60 ? "..." : ""}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Scene nav */}
           {Array.from(actGroups.entries()).map(([act, keys]) => (
             <div key={act}>
               {act > 0 && (
@@ -240,50 +378,97 @@ export function SpineViewer({
               {(["all", "mine", "none"] as NoteView[]).map((view) => (
                 <button
                   key={view}
-                  onClick={() => setNoteView(view)}
+                  onClick={() => { setNoteView(view); if (view !== "all") setCharacterFilter(null); }}
                   className={`block w-full text-left px-2 py-1.5 rounded text-body-sm transition-colors ${
                     noteView === view
                       ? "bg-brick/10 text-brick font-medium"
                       : "text-ash hover:text-ink hover:bg-ink/5"
                   }`}
                 >
-                  {view === "all" ? "All notes" : view === "mine" ? "My notes" : "Hide notes"}
+                  {view === "all" ? "All notes" : view === "mine" ? "My blocking" : "Clean script"}
                 </button>
               ))}
             </div>
           </div>
+
+          {/* Character filter (staff + anyone in all-notes mode) */}
+          {noteView === "all" && (
+            <div className="pt-2">
+              <h3 className="font-mono text-data-sm text-muted uppercase tracking-wider mb-2">
+                Filter by character
+              </h3>
+              <select
+                value={characterFilter || ""}
+                onChange={(e) => setCharacterFilter(e.target.value || null)}
+                className="w-full px-2 py-1.5 bg-card border border-bone rounded text-body-sm text-ink focus:border-brick focus:outline-none"
+              >
+                <option value="">All characters</option>
+                {allCharacters.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </nav>
 
-      {/* Mobile scene nav */}
+      {/* Mobile FABs */}
       <div className="lg:hidden fixed bottom-20 right-4 z-30 flex gap-2">
         <button
           onClick={() => setNoteView(noteView === "none" ? "all" : noteView === "all" ? "mine" : "none")}
           className="bg-card text-ash border border-bone px-3 py-2 rounded-full text-body-xs font-medium shadow-lg"
         >
-          {noteView === "all" ? "📝 All" : noteView === "mine" ? "📝 Mine" : "📝 Off"}
+          {noteView === "all" ? "\U0001F4DD All" : noteView === "mine" ? "\U0001F4DD Mine" : "\U0001F4DD Off"}
         </button>
         <button
           onClick={() => setShowNav(!showNav)}
           className="bg-ink text-paper px-3 py-2 rounded-full text-body-sm font-medium shadow-lg"
         >
-          {actNum > 0
-            ? `Act ${actNum === 1 ? "I" : "II"} · Scene ${sceneNum}`
-            : "Scenes"}
+          {actNum > 0 ? `Act ${actNum === 1 ? "I" : "II"} \u00B7 Scene ${sceneNum}` : "Scenes"}
         </button>
       </div>
 
       {/* Mobile nav overlay */}
       {showNav && (
-        <div
-          className="lg:hidden fixed inset-0 bg-ink/40 z-40"
-          onClick={() => setShowNav(false)}
-        >
+        <div className="lg:hidden fixed inset-0 bg-ink/40 z-40" onClick={() => setShowNav(false)}>
           <div
             className="absolute bottom-0 left-0 right-0 bg-paper rounded-t-2xl p-4 max-h-[60vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-1 bg-bone rounded mx-auto mb-4" />
+            {/* Mobile search */}
+            <div className="mb-3">
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
+                placeholder="Search lines or notes..."
+                className="w-full px-3 py-2 bg-card border border-bone rounded text-body-sm text-ink focus:border-brick focus:outline-none"
+              />
+              {searchResults && searchResults.length > 0 && (
+                <div className="mt-1 max-h-32 overflow-y-auto">
+                  {searchResults.map((r, i) => (
+                    <button key={i} onClick={() => jumpToResult(r)} className="block w-full text-left px-3 py-2 text-body-xs hover:bg-ink/5">
+                      <span className="font-mono text-muted">{r.act}.{r.scene}</span>{" "}
+                      <span className={r.type === "note" ? "text-brick italic" : "text-ink"}>{r.content.slice(0, 50)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Mobile character filter */}
+            {noteView === "all" && (
+              <div className="mb-3">
+                <select
+                  value={characterFilter || ""}
+                  onChange={(e) => setCharacterFilter(e.target.value || null)}
+                  className="w-full px-3 py-2 bg-card border border-bone rounded text-body-sm text-ink"
+                >
+                  <option value="">All characters</option>
+                  {allCharacters.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            )}
             {Array.from(actGroups.entries()).map(([act, keys]) => (
               <div key={act} className="mb-3">
                 {act > 0 && (
@@ -295,14 +480,9 @@ export function SpineViewer({
                   {keys.map((key) => (
                     <button
                       key={key}
-                      onClick={() => {
-                        setActiveSceneKey(key);
-                        setShowNav(false);
-                      }}
+                      onClick={() => { setActiveSceneKey(key); setShowNav(false); }}
                       className={`block w-full text-left px-3 py-2.5 rounded text-body-md ${
-                        key === activeSceneKey
-                          ? "bg-ink/10 text-ink font-medium"
-                          : "text-ash"
+                        key === activeSceneKey ? "bg-ink/10 text-ink font-medium" : "text-ash"
                       }`}
                     >
                       {getSceneLabel(key)}
@@ -322,15 +502,24 @@ export function SpineViewer({
           <div className="flex items-center gap-3">
             <span className="font-mono text-data-sm text-muted">
               {actNum > 0
-                ? `Act ${actNum === 1 ? "I" : "II"} · Scene ${sceneNum}`
+                ? `Act ${actNum === 1 ? "I" : "II"} \u00B7 Scene ${sceneNum}`
                 : scriptTitle}
             </span>
             {currentMeta?.title && (
-              <span className="text-body-sm text-ash">— {currentMeta.title}</span>
+              <span className="text-body-sm text-ash">\u2014 {currentMeta.title}</span>
             )}
           </div>
           {currentMeta?.setting && (
             <p className="text-body-sm text-ash mt-2 italic">{currentMeta.setting}</p>
+          )}
+          {/* Active filter indicator */}
+          {characterFilter && noteView === "all" && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brick/10 text-brick text-body-xs rounded-full font-medium">
+                {characterFilter}
+                <button onClick={() => setCharacterFilter(null)} className="hover:text-brick/70">&times;</button>
+              </span>
+            </div>
           )}
         </div>
 
@@ -340,23 +529,27 @@ export function SpineViewer({
             const lineAnnotations = annotationsByLine.get(line.id) || [];
             const hasAnnotations = lineAnnotations.length > 0;
             const isAnnotating = annotatingLineId === line.id;
+            const canAddHere = canManage || (line.character && isMyCharacter(line.character || ""));
 
             return (
               <div key={line.id} className="group relative">
                 {/* The line itself */}
                 <div
-                  className={`relative ${canManage ? "cursor-pointer" : ""} ${
+                  className={`relative ${canAddHere ? "cursor-pointer" : ""} ${
                     hasAnnotations && noteView !== "none" ? "border-l-2 border-brick/30 pl-3" : ""
                   }`}
                   onClick={() => {
-                    if (canManage && !isAnnotating) {
-                      setAnnotatingLineId(line.id);
-                      setAnnotationText("");
+                    if (canAddHere && !isAnnotating) {
+                      openAnnotationInput(line.id, !canManage);
+                      // Pre-fill tags with the line's character if available
+                      if (line.character && !line.character.includes(" / ")) {
+                        setAnnotationTags([line.character]);
+                      }
                     }
                   }}
                 >
-                  {/* Add note indicator for SM */}
-                  {canManage && (
+                  {/* Add note indicator */}
+                  {canAddHere && (
                     <span className="absolute -left-6 top-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted text-body-xs select-none">
                       +
                     </span>
@@ -366,64 +559,149 @@ export function SpineViewer({
                 </div>
 
                 {/* Annotations on this line */}
-                {noteView !== "none" && lineAnnotations.map((a) => (
-                  <div
-                    key={a.id}
-                    className="ml-4 mt-1 mb-2 px-3 py-1.5 bg-brick/5 border-l-2 border-brick/40 rounded-r text-body-sm text-ash italic flex items-start gap-2"
-                  >
-                    <span className="flex-1">{a.content}</span>
-                    {canManage && a.person_id === personId && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteAnnotation(a.id);
-                        }}
-                        className="text-muted hover:text-conflict text-body-xs shrink-0"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {noteView !== "none" && lineAnnotations.map((a) => {
+                  const isEditing = editingAnnotationId === a.id;
+                  const isPersonal = a.visibility === "personal";
+                  const canEdit = canManage || (isPersonal && a.person_id === personId);
+
+                  return (
+                    <div
+                      key={a.id}
+                      className={`ml-4 mt-1 mb-2 px-3 py-1.5 rounded-r text-body-sm flex flex-col gap-1 ${
+                        isPersonal
+                          ? "bg-blue-50 border-l-2 border-blue-400/40 dark:bg-blue-950/20"
+                          : a.is_pinned
+                          ? "bg-amber-50 border-l-2 border-amber-400/60 dark:bg-amber-950/20"
+                          : "bg-brick/5 border-l-2 border-brick/40"
+                      }`}
+                    >
+                      {/* Tags + pin row */}
+                      {(a.tagged_characters.length > 0 || a.is_pinned || isPersonal) && (
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {a.is_pinned && <span className="text-amber-600 text-body-xs">\U0001F4CC</span>}
+                          {isPersonal && <span className="text-blue-500 text-body-xs font-medium">Personal</span>}
+                          {a.tagged_characters.map((tag) => (
+                            <span
+                              key={tag}
+                              className={`inline-block px-1.5 py-0 text-[10px] font-mono uppercase tracking-wider rounded ${
+                                isPersonal
+                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                                  : "bg-brick/10 text-brick"
+                              }`}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Content + actions */}
+                      <div className="flex items-start gap-2">
+                        {isEditing ? (
+                          <div className="flex-1">
+                            <textarea
+                              value={editText}
+                              onChange={(e) => setEditText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleUpdateAnnotation(a.id); }
+                                if (e.key === "Escape") { setEditingAnnotationId(null); setEditText(""); }
+                              }}
+                              className="w-full px-2 py-1 bg-card border border-bone rounded text-body-sm text-ink focus:border-brick focus:outline-none resize-none"
+                              rows={2}
+                            />
+                            <div className="flex gap-2 mt-1">
+                              <button onClick={() => handleUpdateAnnotation(a.id)} disabled={saving} className="text-body-xs font-medium text-brick">{saving ? "Saving\u2026" : "Save"}</button>
+                              <button onClick={() => { setEditingAnnotationId(null); setEditText(""); }} className="text-body-xs text-muted hover:text-ink">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className={`flex-1 ${isPersonal ? "text-blue-700 dark:text-blue-300" : "text-ash"} italic`}>
+                            {a.content}
+                          </span>
+                        )}
+
+                        {canEdit && !isEditing && (
+                          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditingAnnotationId(a.id); setEditText(a.content); }}
+                              className="text-muted hover:text-ink text-body-xs"
+                              title="Edit"
+                            >
+                              &#9998;
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteAnnotation(a.id); }}
+                              className="text-muted hover:text-conflict text-body-xs"
+                              title="Delete"
+                            >
+                              &times;
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
 
                 {/* Annotation input */}
                 {isAnnotating && (
                   <div className="ml-4 mt-1 mb-3" onClick={(e) => e.stopPropagation()}>
-                    <textarea
-                      ref={annotationInputRef}
-                      value={annotationText}
-                      onChange={(e) => setAnnotationText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleAddAnnotation(line.id);
-                        }
-                        if (e.key === "Escape") {
-                          setAnnotatingLineId(null);
-                          setAnnotationText("");
-                        }
-                      }}
-                      placeholder="Blocking note… (Enter to save, Esc to cancel)"
-                      className="w-full px-3 py-2 bg-card border border-bone rounded text-body-sm text-ink placeholder:text-muted focus:border-brick focus:outline-none resize-none"
-                      rows={2}
-                    />
-                    <div className="flex gap-2 mt-1">
-                      <button
-                        onClick={() => handleAddAnnotation(line.id)}
-                        disabled={saving || !annotationText.trim()}
-                        className="text-body-xs font-medium text-brick hover:text-brick/80 disabled:opacity-40"
-                      >
-                        {saving ? "Saving…" : "Save"}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setAnnotatingLineId(null);
-                          setAnnotationText("");
+                    <div className={`p-3 rounded border ${annotationIsPersonal ? "border-blue-300 bg-blue-50/50" : "border-bone bg-card"}`}>
+                      {annotationIsPersonal && (
+                        <p className="text-body-xs text-blue-600 font-medium mb-2">
+                          Personal note \u2014 visible to you and production staff only
+                        </p>
+                      )}
+                      <textarea
+                        ref={annotationInputRef}
+                        value={annotationText}
+                        onChange={(e) => setAnnotationText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAddAnnotation(line.id); }
+                          if (e.key === "Escape") { setAnnotatingLineId(null); setAnnotationText(""); }
                         }}
-                        className="text-body-xs text-muted hover:text-ink"
-                      >
-                        Cancel
-                      </button>
+                        placeholder={annotationIsPersonal ? "Your personal note\u2026" : "Blocking note\u2026 (Enter to save, Esc to cancel)"}
+                        className="w-full px-2 py-1.5 bg-transparent border-b border-bone text-body-sm text-ink placeholder:text-muted focus:border-brick focus:outline-none resize-none"
+                        rows={2}
+                      />
+
+                      {/* Character tags (staff only) */}
+                      {canManage && !annotationIsPersonal && (
+                        <div className="mt-2">
+                          <p className="text-body-xs text-muted mb-1">Tag characters:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {allCharacters.map((c) => (
+                              <button
+                                key={c}
+                                onClick={() => toggleTag(c)}
+                                className={`px-1.5 py-0.5 text-[10px] font-mono uppercase rounded transition-colors ${
+                                  annotationTags.includes(c)
+                                    ? "bg-brick text-paper"
+                                    : "bg-bone/50 text-ash hover:bg-bone"
+                                }`}
+                              >
+                                {c}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => handleAddAnnotation(line.id)}
+                          disabled={saving || !annotationText.trim()}
+                          className="text-body-xs font-medium text-brick hover:text-brick/80 disabled:opacity-40"
+                        >
+                          {saving ? "Saving\u2026" : "Save"}
+                        </button>
+                        <button
+                          onClick={() => { setAnnotatingLineId(null); setAnnotationText(""); }}
+                          className="text-body-xs text-muted hover:text-ink"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -439,19 +717,17 @@ export function SpineViewer({
             disabled={sceneIdx === 0}
             className="text-body-sm text-ash hover:text-ink disabled:opacity-30 disabled:cursor-default transition-colors"
           >
-            ← Previous
+            \u2190 Previous
           </button>
           <span className="font-mono text-data-sm text-muted">
             {sceneIdx + 1} / {sceneKeys.length}
           </span>
           <button
-            onClick={() =>
-              setActiveSceneKey(sceneKeys[Math.min(sceneKeys.length - 1, sceneIdx + 1)])
-            }
+            onClick={() => setActiveSceneKey(sceneKeys[Math.min(sceneKeys.length - 1, sceneIdx + 1)])}
             disabled={sceneIdx === sceneKeys.length - 1}
             className="text-body-sm text-ash hover:text-ink disabled:opacity-30 disabled:cursor-default transition-colors"
           >
-            Next →
+            Next \u2192
           </button>
         </div>
       </div>
@@ -459,64 +735,29 @@ export function SpineViewer({
   );
 }
 
-function renderLine(
-  line: ScriptLine,
-  isMyCharacter: (name: string) => boolean
-) {
+function renderLine(line: ScriptLine, isMyCharacter: (name: string) => boolean) {
   switch (line.line_type) {
     case "character_name":
       return (
-        <p
-          className={`font-mono text-data-sm uppercase tracking-wider mt-6 mb-0.5 ${
-            line.character && isMyCharacter(line.character)
-              ? "text-brick font-bold"
-              : "text-ink font-semibold"
-          }`}
-        >
+        <p className={`font-mono text-data-sm uppercase tracking-wider mt-6 mb-0.5 ${
+          line.character && isMyCharacter(line.character) ? "text-brick font-bold" : "text-ink font-semibold"
+        }`}>
           {line.character || line.content}
         </p>
       );
     case "stage_direction":
-      return (
-        <p className="text-body-sm text-ash italic pl-4">
-          {line.content}
-        </p>
-      );
+      return <p className="text-body-sm text-ash italic pl-4">{line.content}</p>;
     case "continued":
-      return (
-        <p className="text-body-xs text-muted italic pl-4">
-          {line.content}
-        </p>
-      );
+      return <p className="text-body-xs text-muted italic pl-4">{line.content}</p>;
     case "setting":
-      return (
-        <p className="text-body-sm text-ash italic mt-4 mb-2">
-          {line.content}
-        </p>
-      );
+      return <p className="text-body-sm text-ash italic mt-4 mb-2">{line.content}</p>;
     case "song_title":
-      return (
-        <p className="text-body-md font-medium text-ink mt-6 mb-1 italic">
-          {line.content}
-        </p>
-      );
+      return <p className="text-body-md font-medium text-ink mt-6 mb-1 italic">{line.content}</p>;
     case "song_direction":
-      return (
-        <p className="text-body-xs text-muted uppercase tracking-wider mt-3 mb-1">
-          {line.content}
-        </p>
-      );
+      return <p className="text-body-xs text-muted uppercase tracking-wider mt-3 mb-1">{line.content}</p>;
     case "lyric":
-      return (
-        <p className="text-body-sm text-ash italic pl-6">
-          {line.content}
-        </p>
-      );
-    default: // dialogue
-      return (
-        <p className="text-body-md text-ink leading-relaxed">
-          {line.content}
-        </p>
-      );
+      return <p className="text-body-sm text-ash italic pl-6">{line.content}</p>;
+    default:
+      return <p className="text-body-md text-ink leading-relaxed">{line.content}</p>;
   }
 }

@@ -94,7 +94,10 @@ export default async function SpinePage() {
     person_id: string;
     annotation_type: string;
     content: string;
-    target_character: string | null;
+    tagged_characters: string[];
+    visibility: string;
+    note_type: string;
+    is_pinned: boolean;
     created_at: string;
     updated_at: string;
   }[] = [];
@@ -103,10 +106,19 @@ export default async function SpinePage() {
     const lineIds = lines.map((l) => l.id);
     const { data } = await supabase
       .from("script_annotations")
-      .select("id, script_line_id, person_id, annotation_type, content, target_character, created_at, updated_at")
+      .select("id, script_line_id, person_id, annotation_type, content, tagged_characters, visibility, note_type, is_pinned, created_at, updated_at")
       .in("script_line_id", lineIds);
     annotations = data || [];
   }
+
+  // Get all distinct characters in the script for the filter dropdown
+  const allCharacters = Array.from(
+    new Set(
+      lines
+        .map((l) => l.character)
+        .filter((c): c is string => c !== null && c !== "ALL" && c !== "BOTH" && !c.includes(" / "))
+    )
+  ).sort();
 
   let myCharacters: string[] = [];
   if (activeScript) {
@@ -124,7 +136,7 @@ export default async function SpinePage() {
         <h1 className="font-display text-display-md text-ink">Spine</h1>
         <p className="text-body-md text-ash mt-1">
           {activeScript
-            ? `${activeScript.title} — ${(activeScript.productions as unknown as { title: string }).title}`
+            ? `${activeScript.title} \u2014 ${(activeScript.productions as unknown as { title: string }).title}`
             : "The interpretive layer."}
         </p>
       </div>
@@ -152,6 +164,7 @@ export default async function SpinePage() {
           scriptTitle={activeScript.title}
           scriptId={activeScript.id}
           myCharacters={myCharacters}
+          allCharacters={allCharacters}
           canManage={canManage}
           personId={person!.id}
         />
