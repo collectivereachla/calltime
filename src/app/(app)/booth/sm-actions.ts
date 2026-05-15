@@ -6,8 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 export async function submitReport(formData: FormData) {
   const supabase = await createClient();
 
-  const { error } = await supabase.from("sm_reports").insert({
-    production_id: formData.get("production_id") as string,
+  const productionId = formData.get("production_id") as string;
+
+  const { data: report, error } = await supabase.from("sm_reports").insert({
+    production_id: productionId,
     report_type: formData.get("report_type") as string,
     report_date: formData.get("report_date") as string,
     start_time: (formData.get("start_time") as string) || null,
@@ -18,7 +20,48 @@ export async function submitReport(formData: FormData) {
     director_notes: (formData.get("director_notes") as string) || null,
     action_items: (formData.get("action_items") as string) || null,
     next_call: (formData.get("next_call") as string) || null,
+  }).select("id").single();
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/booth");
+  return { success: true, reportId: report?.id };
+}
+
+export async function addActionItem(formData: FormData) {
+  const supabase = await createClient();
+
+  const { data: person } = await supabase
+    .from("people")
+    .select("id")
+    .eq("user_id", (await supabase.auth.getUser()).data.user!.id)
+    .single();
+
+  const { error } = await supabase.from("action_items").insert({
+    production_id: formData.get("production_id") as string,
+    report_id: (formData.get("report_id") as string) || null,
+    description: formData.get("description") as string,
+    assigned_to: (formData.get("assigned_to") as string) || null,
+    assigned_by: person?.id || null,
+    department: (formData.get("department") as string) || null,
+    due_date: (formData.get("due_date") as string) || null,
   });
+
+  if (error) return { error: error.message };
+  revalidatePath("/booth");
+  return { success: true };
+}
+
+export async function toggleActionItem(itemId: string, done: boolean) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("action_items")
+    .update({
+      status: done ? "done" : "open",
+      completed_at: done ? new Date().toISOString() : null,
+    })
+    .eq("id", itemId);
 
   if (error) return { error: error.message };
   revalidatePath("/booth");

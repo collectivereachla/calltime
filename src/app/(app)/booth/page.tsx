@@ -135,6 +135,38 @@ export default async function BoothPage() {
     .eq("production_id", activeProduction.id)
     .order("report_date", { ascending: false });
 
+  // Get action items
+  const { data: actionItemsData } = await supabase
+    .from("action_items")
+    .select("*")
+    .eq("production_id", activeProduction.id)
+    .order("created_at", { ascending: false });
+
+  // Get recent events with conflict info for report auto-population
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+  const { data: recentEvents } = await supabase
+    .from("schedule_events")
+    .select("id, title, event_date")
+    .eq("production_id", activeProduction.id)
+    .gte("event_date", today)
+    .order("event_date", { ascending: true })
+    .limit(10);
+
+  // For each recent event, get conflicts
+  const eventsWithConflicts = [];
+  for (const evt of recentEvents || []) {
+    const { data: conflicts } = await supabase.rpc("get_event_conflicts", { p_event_id: evt.id });
+    const conflictText = (conflicts as { person_name: string; conflict_reason: string }[] || [])
+      .map(c => `${c.person_name}: ${c.conflict_reason || "no reason given"}`)
+      .join("; ");
+    eventsWithConflicts.push({
+      id: evt.id,
+      title: evt.title,
+      event_date: evt.event_date,
+      conflicts: conflictText || null,
+    });
+  }
+
   return (
     <div className="max-w-full mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 mb-6">
@@ -167,6 +199,9 @@ export default async function BoothPage() {
             scenes={(smScenesData || []) as any}
             props={(propsData || []) as any}
             reports={(reportsData || []) as any}
+            actionItems={(actionItemsData || []) as any}
+            events={eventsWithConflicts}
+            cast={cast}
             productionId={activeProduction.id}
             productionTitle={activeProduction.title}
           />
