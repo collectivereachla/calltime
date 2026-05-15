@@ -29,6 +29,7 @@ interface Props {
   contracts: Contract[];
   templates: Template[];
   canManage: boolean;
+  canSeeContent: boolean;
   personId: string;
   personName: string;
 }
@@ -59,7 +60,7 @@ function renderContractBody(template: Template, contract: Contract) {
   return body;
 }
 
-export function LedgerView({ contracts, templates, canManage, personId, personName }: Props) {
+export function LedgerView({ contracts, templates, canManage, canSeeContent, personId, personName }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [signatureName, setSignatureName] = useState("");
@@ -125,7 +126,9 @@ export function LedgerView({ contracts, templates, canManage, personId, personNa
     const body = renderContractBody(template, selected);
     const isMine = selected.person_id === personId;
     const canSign = isMine && selected.status === "pending";
-    const canCountersign = canManage && selected.status === "signed";
+    const canCountersign = canSeeContent && selected.status === "signed";
+    // Only show full content to owners or the person whose contract it is
+    const showContent = canSeeContent || isMine;
 
     return (
       <div>
@@ -144,7 +147,7 @@ export function LedgerView({ contracts, templates, canManage, personId, personNa
                 <h2 className="font-display text-display-sm text-ink">{template.title}</h2>
                 <p className="text-body-sm text-ash mt-0.5">
                   {selected.person_name} — {selected.role_title}
-                  {selected.compensation && ` — ${selected.compensation}`}
+                  {showContent && selected.compensation && ` — ${selected.compensation}`}
                 </p>
               </div>
               <span className={`text-body-xs font-medium px-2 py-1 rounded-full ${statusColor(selected.status)}`}>
@@ -153,8 +156,9 @@ export function LedgerView({ contracts, templates, canManage, personId, personNa
             </div>
           </div>
 
-          {/* Contract body */}
-          <div className="px-6 py-6">
+          {showContent ? (
+            /* Full contract body — visible to owners + the person signing */
+            <div className="px-6 py-6">
             {/* Letterhead */}
             <div className="text-center mb-6 pb-4 border-b border-bone">
               <p className="font-display text-display-sm text-ink">Heritage Parc / Black Theatre Experience</p>
@@ -218,9 +222,51 @@ export function LedgerView({ contracts, templates, canManage, personId, personNa
               </div>
             )}
           </div>
+          ) : (
+            /* Status-only view for production tier (Director, SM, ASM) */
+            <div className="px-6 py-8 text-center">
+              <div className="space-y-3">
+                <div className="flex items-center justify-center gap-3">
+                  <span className={`text-body-sm font-medium px-3 py-1.5 rounded-full ${statusColor(selected.status)}`}>
+                    {statusLabel(selected.status)}
+                  </span>
+                </div>
 
-          {/* Signing area */}
-          {canSign && (
+                {selected.signed_at && (
+                  <p className="text-body-sm text-confirmed">
+                    Signed on{" "}
+                    {new Date(selected.signed_at).toLocaleDateString("en-US", {
+                      month: "long", day: "numeric", year: "numeric",
+                    })}
+                  </p>
+                )}
+
+                {selected.countersigned_at && (
+                  <p className="text-body-sm text-confirmed">
+                    Countersigned on{" "}
+                    {new Date(selected.countersigned_at).toLocaleDateString("en-US", {
+                      month: "long", day: "numeric", year: "numeric",
+                    })}
+                  </p>
+                )}
+
+                {selected.status === "pending" && !selected.viewed_at && (
+                  <p className="text-body-xs text-muted">Contract has not been viewed yet.</p>
+                )}
+                {selected.status === "pending" && selected.viewed_at && (
+                  <p className="text-body-xs text-muted">
+                    Viewed on{" "}
+                    {new Date(selected.viewed_at).toLocaleDateString("en-US", {
+                      month: "long", day: "numeric", year: "numeric",
+                    })}
+                  </p>
+                )}
+
+                <p className="text-body-xs text-muted mt-4">Contract content is only visible to the contract holder and the producer.</p>
+              </div>
+            </div>
+          )}
+          {canSign && showContent && (
             <div className="px-6 py-6 bg-paper border-t border-bone">
               <h3 className="font-display text-display-sm text-ink mb-3">Sign this contract</h3>
               <p className="text-body-sm text-ash mb-4">
@@ -264,12 +310,12 @@ export function LedgerView({ contracts, templates, canManage, personId, personNa
             </div>
           )}
 
-          {/* Countersign area */}
+          {/* Countersign area — owners only */}
           {canCountersign && (
             <div className="px-6 py-6 bg-paper border-t border-bone">
               <h3 className="font-display text-display-sm text-ink mb-3">Countersign</h3>
               <p className="text-body-sm text-ash mb-4">
-                {selected.person_name} has signed. Type your name to countersign as Director.
+                {selected.person_name} has signed. Type your name to countersign.
               </p>
 
               <div className="space-y-3">
@@ -277,7 +323,7 @@ export function LedgerView({ contracts, templates, canManage, personId, personNa
                   type="text"
                   value={counterSignName}
                   onChange={(e) => setCounterSignName(e.target.value)}
-                  placeholder="Josiah Price"
+                  placeholder="Producer signature"
                   className="w-full px-3 py-2 bg-card border border-bone rounded text-body-md text-ink font-display italic placeholder:text-muted focus:border-brick focus:outline-none"
                 />
 
@@ -339,7 +385,7 @@ export function LedgerView({ contracts, templates, canManage, personId, personNa
                 </p>
                 <p className="text-body-sm text-ash truncate">
                   {contract.role_title}
-                  {contract.compensation && ` · ${contract.compensation}`}
+                  {(canSeeContent || isMine) && contract.compensation && ` · ${contract.compensation}`}
                 </p>
               </div>
               <span className={`text-body-xs font-medium px-2 py-1 rounded-full shrink-0 ${statusColor(contract.status)}`}>

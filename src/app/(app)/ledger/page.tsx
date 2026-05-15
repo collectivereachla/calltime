@@ -28,6 +28,7 @@ export default async function LedgerPage() {
   }
 
   const canManage = membership.role === "owner" || membership.role === "production";
+  const canSeeContent = membership.role === "owner"; // Only owners see contract text + compensation
   const orgId = (membership.organizations as unknown as { id: string }).id;
 
   // Get active productions
@@ -97,7 +98,7 @@ export default async function LedgerPage() {
       <div className="mb-8">
         <h1 className="font-display text-display-md text-ink">Ledger</h1>
         <p className="text-body-md text-ash mt-1">
-          {canManage ? "Contract management and signing status." : "Your contracts."}
+          {canSeeContent ? "Contract management and signing status." : canManage ? "Contract signing status." : "Your contracts."}
         </p>
       </div>
 
@@ -110,6 +111,7 @@ export default async function LedgerPage() {
           contracts={contracts}
           templates={templates}
           canManage={canManage}
+          canSeeContent={canSeeContent}
           personId={person!.id}
           personName={person!.full_name}
         />
