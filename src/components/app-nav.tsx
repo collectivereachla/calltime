@@ -40,7 +40,7 @@ export function AppNav({ displayName, orgs }: AppNavProps) {
       {/* Desktop sidebar — hidden on mobile */}
       <nav className="hidden md:flex w-56 shrink-0 border-r border-bone bg-paper flex-col h-screen sticky top-0">
         <div className="px-5 py-5 border-b border-bone">
-          <Link href="/home" className="font-display text-display-sm text-ink hover:opacity-80 transition-opacity">
+          <Link href="/home" className="font-display text-display-md text-ink hover:opacity-80 transition-opacity">
             Calltime<span className="text-brick">.</span>
           </Link>
         </div>
@@ -91,7 +91,7 @@ export function AppNav({ displayName, orgs }: AppNavProps) {
 
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-paper border-b border-bone px-4 py-3 flex items-center justify-between">
-        <Link href="/home" className="font-display text-display-sm text-ink">
+        <Link href="/home" className="font-display text-display-md text-ink">
           Calltime<span className="text-brick">.</span>
         </Link>
         <div className="flex items-center gap-3">
