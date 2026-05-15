@@ -144,6 +144,7 @@ export default async function LedgerPage() {
           canSeeContent={canSeeContent}
           personId={person!.id}
           personName={person!.full_name}
+          productionId={productionIds[0] || ""}
         />
       )}
     </div>

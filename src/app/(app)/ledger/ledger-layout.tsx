@@ -54,6 +54,7 @@ interface Props {
   canSeeContent: boolean;
   personId: string;
   personName: string;
+  productionId: string;
 }
 
 export function LedgerLayout(props: Props) {
@@ -104,6 +105,7 @@ export function LedgerLayout(props: Props) {
           budgetItems={props.budgetItems}
           contractSummaries={props.contractSummaries}
           canSeeContent={props.canSeeContent}
+          productionId={props.productionId}
         />
       )}
     </div>
