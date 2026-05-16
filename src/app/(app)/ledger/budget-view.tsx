@@ -49,7 +49,7 @@ interface Props {
 
 function parseAmount(comp: string | null): number {
   if (!comp) return 0;
-  const match = comp.match(/\$([\ d,]+)/);
+  const match = comp.match(/\$(\d[\d,]*)/);
   if (!match) return 0;
   return parseFloat(match[1].replace(/,/g, "")) || 0;
 }
