@@ -6,7 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 export async function createScheduleEvent(formData: FormData) {
   const supabase = await createClient();
 
-  const { error } = await supabase.rpc("create_schedule_event", {
+  const callEveryone = formData.get("call_everyone") === "on";
+  const personIds = formData.getAll("person_ids") as string[];
+
+  const { data: eventId, error } = await supabase.rpc("create_schedule_event", {
     p_production_id: formData.get("production_id") as string,
     p_event_type: formData.get("event_type") as string,
     p_title: formData.get("title") as string,
@@ -15,10 +18,19 @@ export async function createScheduleEvent(formData: FormData) {
     p_end_time: (formData.get("end_time") as string) || null,
     p_location: (formData.get("location") as string) || null,
     p_notes: (formData.get("notes") as string) || null,
-    p_call_everyone: formData.get("call_everyone") === "on",
+    p_call_everyone: callEveryone,
   });
 
   if (error) return { error: error.message };
+
+  // If not calling everyone and specific people were selected, set their calls
+  if (!callEveryone && personIds.length > 0 && eventId) {
+    const { error: callError } = await supabase.rpc("update_event_calls", {
+      p_event_id: eventId,
+      p_person_ids: personIds,
+    });
+    if (callError) return { error: callError.message };
+  }
 
   revalidatePath("/callboard");
   return { success: true };

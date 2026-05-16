@@ -215,7 +215,7 @@ export default async function CallboardPage() {
             {/* New event form — owner and production only */}
             {canManage && activeProductions.length > 0 && (
               <div className="mb-8">
-                <NewEventForm productions={activeProductions} />
+                <NewEventForm productions={activeProductions} companyMembers={companyMembers} />
               </div>
             )}
 
