@@ -91,6 +91,13 @@ export default async function HomePage() {
   const { data: nextCallData } = await supabase.rpc("get_next_call", {
     p_person_id: person!.id,
   });
+  // Pending contracts for this person
+  const { data: pendingContracts } = await supabase
+    .from("contracts")
+    .select("id, role_title, compensation, contract_templates(title)")
+    .eq("person_id", person!.id)
+    .eq("status", "pending");
+
   const nextCall = (nextCallData as unknown as {
     event_id: string; event_call_id: string; event_title: string;
     event_type: string; event_date: string; start_time: string | null;
@@ -169,6 +176,38 @@ export default async function HomePage() {
                   </span>
                 )}
               </div>
+            </div>
+          </a>
+        </div>
+      )}
+
+      {/* Pending contracts */}
+      {pendingContracts && pendingContracts.length > 0 && (
+        <div className="mb-8">
+          <p className="text-body-xs text-muted uppercase tracking-wider mb-2">Contracts</p>
+          <a href="/ledger" className="block bg-card border border-brick/20 rounded-card px-5 py-4 hover:shadow-card-hover transition-shadow">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-body-md font-medium text-ink">
+                  {pendingContracts.length} contract{pendingContracts.length === 1 ? "" : "s"} awaiting your signature
+                </h3>
+                <div className="mt-2 space-y-1">
+                  {pendingContracts.slice(0, 3).map((c) => (
+                    <p key={c.id} className="text-body-xs text-ash">
+                      {(c.contract_templates as unknown as { title: string })?.title} — {c.role_title}
+                      {c.compensation && (
+                        <span className="font-mono text-brick ml-1">{c.compensation}</span>
+                      )}
+                    </p>
+                  ))}
+                  {pendingContracts.length > 3 && (
+                    <p className="text-body-xs text-muted">+{pendingContracts.length - 3} more</p>
+                  )}
+                </div>
+              </div>
+              <span className="text-body-xs font-medium px-2 py-1 rounded-full bg-brick/10 text-brick shrink-0">
+                Sign now
+              </span>
             </div>
           </a>
         </div>
