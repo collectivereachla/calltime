@@ -53,20 +53,21 @@ export default async function LedgerPage() {
     viewed_at: string | null;
     template_id: string;
     production_id: string;
+    contract_body: string | null;
   }[] = [];
 
   if (productionIds.length > 0) {
     if (canManage) {
       const { data } = await supabase
         .from("contracts")
-        .select("id, person_name, person_id, role_title, compensation, status, signed_at, countersigned_at, viewed_at, template_id, production_id")
+        .select("id, person_name, person_id, role_title, compensation, status, signed_at, countersigned_at, viewed_at, template_id, production_id, contract_body")
         .in("production_id", productionIds)
         .order("person_name");
       contracts = data || [];
     } else {
       const { data } = await supabase
         .from("contracts")
-        .select("id, person_name, person_id, role_title, compensation, status, signed_at, countersigned_at, viewed_at, template_id, production_id")
+        .select("id, person_name, person_id, role_title, compensation, status, signed_at, countersigned_at, viewed_at, template_id, production_id, contract_body")
         .in("production_id", productionIds)
         .eq("person_id", person!.id);
       contracts = data || [];

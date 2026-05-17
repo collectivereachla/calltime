@@ -53,6 +53,7 @@ interface Contract {
   viewed_at: string | null;
   template_id: string;
   production_id: string;
+  contract_body: string | null;
 }
 
 interface Template {
@@ -90,9 +91,14 @@ function statusLabel(status: string) {
 }
 
 function renderContractBody(template: Template, contract: Contract) {
+  // Prefer pre-rendered contract_body (personalized with signature block)
+  if (contract.contract_body) return contract.contract_body;
+  // Fallback: render from template with placeholder replacement
   let body = template.body_markdown;
   body = body.replace(/\{\{PERSON_NAME\}\}/g, contract.person_name);
+  body = body.replace(/\{\{NAME\}\}/g, contract.person_name);
   body = body.replace(/\{\{ROLE_TITLE\}\}/g, contract.role_title);
+  body = body.replace(/\{\{ROLE\}\}/g, contract.role_title);
   body = body.replace(/\{\{COMPENSATION\}\}/g, contract.compensation || "TBD");
   return body;
 }
