@@ -92,14 +92,22 @@ function statusLabel(status: string) {
 
 function renderContractBody(template: Template, contract: Contract) {
   // Prefer pre-rendered contract_body (personalized with signature block)
-  if (contract.contract_body) return contract.contract_body;
-  // Fallback: render from template with placeholder replacement
-  let body = template.body_markdown;
-  body = body.replace(/\{\{PERSON_NAME\}\}/g, contract.person_name);
-  body = body.replace(/\{\{NAME\}\}/g, contract.person_name);
-  body = body.replace(/\{\{ROLE_TITLE\}\}/g, contract.role_title);
-  body = body.replace(/\{\{ROLE\}\}/g, contract.role_title);
-  body = body.replace(/\{\{COMPENSATION\}\}/g, contract.compensation || "TBD");
+  let body = contract.contract_body || template.body_markdown;
+  if (!contract.contract_body) {
+    // Fallback: render from template with placeholder replacement
+    body = body.replace(/\{\{PERSON_NAME\}\}/g, contract.person_name);
+    body = body.replace(/\{\{NAME\}\}/g, contract.person_name);
+    body = body.replace(/\{\{ROLE_TITLE\}\}/g, contract.role_title);
+    body = body.replace(/\{\{ROLE\}\}/g, contract.role_title);
+    body = body.replace(/\{\{COMPENSATION\}\}/g, contract.compensation || "TBD");
+  }
+  // Clean up escaped markdown from Google Drive import
+  body = body.replace(/\\\*\\\*/g, "**");
+  body = body.replace(/\\\*/g, "*");
+  // Strip markdown table separators (| :-: | or |---|)
+  body = body.replace(/^\|[\s:*-]+\|$/gm, "");
+  // Convert markdown table rows to plain text
+  body = body.replace(/^\|(.+)\|$/gm, (_match, content) => content.trim());
   return body;
 }
 
