@@ -178,10 +178,6 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
       router.refresh();
     }
   }
-      setSelectedId(null);
-      router.refresh();
-    }
-  }
 
   async function saveContractField(id: string, field: string, value: string) {
     setSaving(true);
