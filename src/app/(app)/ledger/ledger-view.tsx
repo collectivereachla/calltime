@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { signContract, countersignContract, markContractViewed, updateContract, deleteContract } from "./ledger-actions";
 import { useRouter } from "next/navigation";
+import { SignaturePad } from "./signature-pad";
 
 // Inline editable cell for contract fields
 function ContractEditCell({ value, onSave, className = "" }: {
@@ -115,9 +116,11 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [signatureName, setSignatureName] = useState("");
+  const [signatureDrawUrl, setSignatureDrawUrl] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [counterSignName, setCounterSignName] = useState("");
+  const [counterSignDrawUrl, setCounterSignDrawUrl] = useState<string | null>(null);
   const router = useRouter();
 
   const selected = contracts.find((c) => c.id === selectedId);
@@ -135,19 +138,22 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
   async function openContract(contract: Contract) {
     setSelectedId(contract.id);
     setSignatureName("");
+    setSignatureDrawUrl(null);
     setAgreed(false);
     setCounterSignName("");
+    setCounterSignDrawUrl(null);
     if (!contract.viewed_at && contract.person_id === personId) {
       markContractViewed(contract.id);
     }
   }
 
   async function handleSign() {
-    if (!selected || !signatureName.trim() || !agreed) return;
+    if (!selected || !signatureName.trim() || !agreed || !signatureDrawUrl) return;
     setSaving(true);
     const fd = new FormData();
     fd.set("contract_id", selected.id);
     fd.set("signature_typed", signatureName);
+    fd.set("signature_draw_url", signatureDrawUrl);
     const result = await signContract(fd);
     setSaving(false);
     if (result.error) alert(result.error);
@@ -158,15 +164,20 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
   }
 
   async function handleCountersign() {
-    if (!selected || !counterSignName.trim()) return;
+    if (!selected || !counterSignName.trim() || !counterSignDrawUrl) return;
     setSaving(true);
     const fd = new FormData();
     fd.set("contract_id", selected.id);
     fd.set("signature_typed", counterSignName);
+    fd.set("signature_draw_url", counterSignDrawUrl);
     const result = await countersignContract(fd);
     setSaving(false);
     if (result.error) alert(result.error);
     else {
+      setSelectedId(null);
+      router.refresh();
+    }
+  }
       setSelectedId(null);
       router.refresh();
     }
@@ -377,10 +388,12 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
             <div className="px-6 py-6 bg-paper border-t border-bone">
               <h3 className="font-display text-display-sm text-ink mb-3">Sign this contract</h3>
               <p className="text-body-sm text-ash mb-4">
-                By typing your full legal name below and checking the box, you agree to the terms and expectations outlined in this agreement.
+                Sign below and type your full legal name to agree to the terms outlined in this agreement.
               </p>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
+                <SignaturePad onChange={setSignatureDrawUrl} />
+
                 <div>
                   <label className="text-body-xs text-muted uppercase tracking-wider">
                     Type your full legal name
@@ -408,7 +421,7 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
 
                 <button
                   onClick={handleSign}
-                  disabled={!signatureName.trim() || !agreed || saving}
+                  disabled={!signatureDrawUrl || !signatureName.trim() || !agreed || saving}
                   className="w-full py-3 bg-brick text-paper font-medium rounded-card text-body-md hover:bg-brick/90 disabled:opacity-40 disabled:cursor-default transition-colors"
                 >
                   {saving ? "Signing…" : "Sign Contract"}
@@ -422,21 +435,28 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
             <div className="px-6 py-6 bg-paper border-t border-bone">
               <h3 className="font-display text-display-sm text-ink mb-3">Countersign</h3>
               <p className="text-body-sm text-ash mb-4">
-                {selected.person_name} has signed. Type your name to countersign.
+                {selected.person_name} has signed. Sign below and type your name to countersign.
               </p>
 
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  value={counterSignName}
-                  onChange={(e) => setCounterSignName(e.target.value)}
-                  placeholder="Producer signature"
-                  className="w-full px-3 py-2 bg-card border border-bone rounded text-body-md text-ink font-display italic placeholder:text-muted focus:border-brick focus:outline-none"
-                />
+              <div className="space-y-4">
+                <SignaturePad onChange={setCounterSignDrawUrl} />
+
+                <div>
+                  <label className="text-body-xs text-muted uppercase tracking-wider">
+                    Type your full legal name
+                  </label>
+                  <input
+                    type="text"
+                    value={counterSignName}
+                    onChange={(e) => setCounterSignName(e.target.value)}
+                    placeholder="Producer signature"
+                    className="mt-1 w-full px-3 py-2 bg-card border border-bone rounded text-body-md text-ink font-display italic placeholder:text-muted focus:border-brick focus:outline-none"
+                  />
+                </div>
 
                 <button
                   onClick={handleCountersign}
-                  disabled={!counterSignName.trim() || saving}
+                  disabled={!counterSignDrawUrl || !counterSignName.trim() || saving}
                   className="w-full py-3 bg-confirmed text-paper font-medium rounded-card text-body-md hover:bg-confirmed/90 disabled:opacity-40 disabled:cursor-default transition-colors"
                 >
                   {saving ? "Countersigning…" : "Countersign Contract"}

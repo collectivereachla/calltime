@@ -8,6 +8,7 @@ export async function signContract(formData: FormData) {
 
   const contractId = formData.get("contract_id") as string;
   const signatureTyped = formData.get("signature_typed") as string;
+  const signatureDrawUrl = formData.get("signature_draw_url") as string | null;
 
   if (!contractId || !signatureTyped?.trim()) {
     return { error: "Contract ID and typed signature are required." };
@@ -43,6 +44,7 @@ export async function signContract(formData: FormData) {
       status: "signed",
       signed_at: new Date().toISOString(),
       signature_typed: signatureTyped.trim(),
+      signature_draw_url: signatureDrawUrl || null,
       viewed_at: contract.status === "pending" ? new Date().toISOString() : undefined,
     })
     .eq("id", contractId);
@@ -57,6 +59,7 @@ export async function countersignContract(formData: FormData) {
 
   const contractId = formData.get("contract_id") as string;
   const signatureTyped = formData.get("signature_typed") as string;
+  const signatureDrawUrl = formData.get("signature_draw_url") as string | null;
 
   if (!contractId || !signatureTyped?.trim()) {
     return { error: "Contract ID and typed signature are required." };
@@ -91,6 +94,7 @@ export async function countersignContract(formData: FormData) {
       countersigned_at: new Date().toISOString(),
       countersigned_by: person.id,
       countersigned_typed: signatureTyped.trim(),
+      countersigned_draw_url: signatureDrawUrl || null,
     })
     .eq("id", contractId);
 
