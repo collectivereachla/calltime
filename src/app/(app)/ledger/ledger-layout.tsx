@@ -16,6 +16,7 @@ interface Contract {
   viewed_at: string | null;
   template_id: string;
   production_id: string;
+  contract_body: string | null;
 }
 
 interface Template {
