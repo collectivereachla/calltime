@@ -36,7 +36,7 @@ export default async function GreenroomPage() {
   // Fetch initial messages (most recent 50)
   const { data: initialMessages } = await supabase
     .from("messages")
-    .select("id, content, created_at, person_id, people(id, full_name, preferred_name, headshot_url)")
+    .select("id, content, created_at, person_id, attachment_url, attachment_name, attachment_type, people(id, full_name, preferred_name, headshot_url)")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -63,6 +63,9 @@ export default async function GreenroomPage() {
           person_id: m.person_id,
           author_name: p?.preferred_name || p?.full_name || "Unknown",
           author_headshot: p?.headshot_url || null,
+          attachment_url: m.attachment_url || null,
+          attachment_name: m.attachment_name || null,
+          attachment_type: m.attachment_type || null,
         };
       })}
     />
