@@ -42,17 +42,25 @@ export default async function AppLayout({
 
   const displayName = person.preferred_name || person.full_name;
 
-  // Count contracts awaiting countersign (owner badge)
+  // Count unread notifications + contracts awaiting countersign
   const isOwner = memberships.some((m) => m.role === "owner");
   let pendingCountersignCount = 0;
+  let unreadNotificationCount = 0;
+
   if (isOwner) {
-    const orgId = (memberships[0].organizations as unknown as { id: string }).id;
-    const { count } = await supabase
+    const { count: csCount } = await supabase
       .from("contracts")
       .select("id", { count: "exact", head: true })
       .eq("status", "signed");
-    pendingCountersignCount = count || 0;
+    pendingCountersignCount = csCount || 0;
   }
+
+  const { count: notifCount } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("person_id", person.id)
+    .is("read_at", null);
+  unreadNotificationCount = notifCount || 0;
 
   return (
     <div className="min-h-screen flex">
@@ -65,6 +73,7 @@ export default async function AppLayout({
           role: m.role,
         }))}
         badges={{ ledger: pendingCountersignCount }}
+        notificationCount={unreadNotificationCount}
       />
       <main className="flex-1 min-w-0 pt-14 pb-16 md:pt-0 md:pb-0">
         {children}

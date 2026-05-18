@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createNotification, notifyOrgOwners } from "@/lib/notifications";
 
 export async function signContract(formData: FormData) {
   const supabase = await createClient();
@@ -28,7 +29,7 @@ export async function signContract(formData: FormData) {
 
   const { data: contract } = await supabase
     .from("contracts")
-    .select("id, person_id, status")
+    .select("id, person_id, person_name, role_title, status, production_id")
     .eq("id", contractId)
     .single();
 
@@ -50,6 +51,24 @@ export async function signContract(formData: FormData) {
     .eq("id", contractId);
 
   if (error) return { error: error.message };
+
+  // Notify org owners that a contract was signed and needs countersign
+  const { data: production } = await supabase
+    .from("productions")
+    .select("org_id")
+    .eq("id", contract.production_id)
+    .single();
+
+  if (production) {
+    notifyOrgOwners(production.org_id, {
+      type: "contract_signed",
+      title: `${contract.person_name} signed their contract`,
+      body: `${contract.role_title} — ready for your countersignature.`,
+      link: `/ledger`,
+      metadata: { contract_id: contractId, production_id: contract.production_id },
+    });
+  }
+
   revalidatePath("/ledger");
   return { success: true };
 }
@@ -87,6 +106,13 @@ export async function countersignContract(formData: FormData) {
 
   if (!membership) return { error: "Not authorized to countersign" };
 
+  // Get contract details for notification
+  const { data: contract } = await supabase
+    .from("contracts")
+    .select("person_id, person_name, role_title, production_id")
+    .eq("id", contractId)
+    .single();
+
   const { error } = await supabase
     .from("contracts")
     .update({
@@ -99,6 +125,27 @@ export async function countersignContract(formData: FormData) {
     .eq("id", contractId);
 
   if (error) return { error: error.message };
+
+  // Notify the contract holder that their contract is fully executed
+  if (contract) {
+    const { data: production } = await supabase
+      .from("productions")
+      .select("org_id")
+      .eq("id", contract.production_id)
+      .single();
+
+    if (production) {
+      createNotification({
+        personId: contract.person_id,
+        orgId: production.org_id,
+        type: "contract_countersigned",
+        title: "Your contract has been countersigned",
+        body: `Your ${contract.role_title} contract is now fully executed. You can view and print it in the Ledger.`,
+        link: `/ledger`,
+        metadata: { contract_id: contractId, production_id: contract.production_id },
+      });
+    }
+  }
   revalidatePath("/ledger");
   return { success: true };
 }

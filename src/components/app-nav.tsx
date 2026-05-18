@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { logout } from "@/app/auth/actions";
+import { NotificationBell } from "./notification-bell";
 
 interface Org {
   id: string;
@@ -16,6 +17,7 @@ interface AppNavProps {
   displayName: string;
   orgs: Org[];
   badges?: Record<string, number>;
+  notificationCount?: number;
 }
 
 const rooms = [
@@ -32,7 +34,7 @@ const rooms = [
 
 const mobileRooms = rooms.filter((r) => r.mobile && !r.disabled);
 
-export function AppNav({ displayName, orgs, badges = {} }: AppNavProps) {
+export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0 }: AppNavProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -52,9 +54,12 @@ export function AppNav({ displayName, orgs, badges = {} }: AppNavProps) {
         </div>
 
         {orgs.length > 0 && (
-          <div className="px-5 py-3 border-b border-bone">
-            <p className="text-body-xs text-muted uppercase tracking-wider mb-1">Organization</p>
-            <p className="text-body-sm font-medium text-ink truncate">{orgs[0].name}</p>
+          <div className="px-5 py-3 border-b border-bone flex items-center justify-between">
+            <div className="min-w-0">
+              <p className="text-body-xs text-muted uppercase tracking-wider mb-1">Organization</p>
+              <p className="text-body-sm font-medium text-ink truncate">{orgs[0].name}</p>
+            </div>
+            <NotificationBell unreadCount={notificationCount} />
           </div>
         )}
 
@@ -106,6 +111,7 @@ export function AppNav({ displayName, orgs, badges = {} }: AppNavProps) {
           Calltime<span className="text-brick">.</span>
         </Link>
         <div className="flex items-center gap-3">
+          <NotificationBell unreadCount={notificationCount} />
           <p className="text-body-xs text-ash truncate max-w-[120px]">{orgs[0]?.name}</p>
           <form action={logout}>
             <button type="submit" className="text-body-xs text-muted hover:text-brick transition-colors">
