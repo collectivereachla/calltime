@@ -4,6 +4,11 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 export default function OnboardingPage() {
   const [step, setStep] = useState<"profile" | "org">("profile");
   const [isOwner, setIsOwner] = useState(false);
@@ -12,11 +17,16 @@ export default function OnboardingPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  // Profile fields
+  // Profile fields (public → people table)
   const [fullName, setFullName] = useState("");
   const [preferredName, setPreferredName] = useState("");
   const [pronouns, setPronouns] = useState("");
   const [phone, setPhone] = useState("");
+  const [birthMonth, setBirthMonth] = useState<number | "">(""  );
+  const [birthDay, setBirthDay] = useState<number | "">("");
+
+  // Private fields (→ member_details table)
+  const [birthYear, setBirthYear] = useState<number | "">("");
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [emergencyRelationship, setEmergencyRelationship] = useState("");
@@ -31,23 +41,31 @@ export default function OnboardingPage() {
     async function checkUser() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      // Check if this is the platform owner
       setIsOwner(user.id === "3f2c8560-c6eb-434f-9ade-2bffa981a125");
-
-      // Pre-fill from auth metadata
       const meta = user.user_metadata;
       if (meta?.full_name) setFullName(meta.full_name);
     }
     checkUser();
   }, [supabase.auth]);
 
+  function computeIsMinor(): boolean {
+    if (!birthYear || !birthMonth || !birthDay) return false;
+    const today = new Date();
+    const birth = new Date(Number(birthYear), Number(birthMonth) - 1, Number(birthDay));
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age < 18;
+  }
+
   async function handleProfileSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    // Ensure person profile exists and update it
+    // Ensure person profile exists
     const { data: personId, error: profileError } = await supabase.rpc(
       "ensure_person_profile",
       { p_full_name: fullName, p_email: null }
@@ -59,7 +77,7 @@ export default function OnboardingPage() {
       return;
     }
 
-    // Update the profile with additional fields
+    // Update public fields on people table
     const { error: updateError } = await supabase
       .from("people")
       .update({
@@ -67,16 +85,33 @@ export default function OnboardingPage() {
         preferred_name: preferredName || null,
         pronouns: pronouns || null,
         phone: phone || null,
-        emergency_contact_name: emergencyName || null,
-        emergency_contact_phone: emergencyPhone || null,
-        emergency_contact_relationship: emergencyRelationship || null,
-        allergies: allergies || null,
+        birth_month: birthMonth || null,
+        birth_day: birthDay || null,
+        is_minor: computeIsMinor(),
         profile_complete: true,
       })
       .eq("id", personId);
 
     if (updateError) {
       setError(updateError.message);
+      setLoading(false);
+      return;
+    }
+
+    // Insert private fields into member_details
+    const { error: detailsError } = await supabase
+      .from("member_details")
+      .upsert({
+        person_id: personId,
+        birth_year: birthYear || null,
+        emergency_contact_name: emergencyName || null,
+        emergency_contact_phone: emergencyPhone || null,
+        emergency_contact_relationship: emergencyRelationship || null,
+        allergies: allergies || null,
+      }, { onConflict: "person_id" });
+
+    if (detailsError) {
+      setError(detailsError.message);
       setLoading(false);
       return;
     }
@@ -133,6 +168,9 @@ export default function OnboardingPage() {
       .trim();
   }
 
+  const currentYear = new Date().getFullYear();
+  const dayOptions = birthMonth ? Array.from({ length: new Date(currentYear, Number(birthMonth), 0).getDate() }, (_, i) => i + 1) : [];
+
   // Step 1: Profile
   if (step === "profile") {
     return (
@@ -180,7 +218,7 @@ export default function OnboardingPage() {
                   type="text"
                   value={pronouns}
                   onChange={(e) => setPronouns(e.target.value)}
-                  placeholder="e.g. he/him, she/her, they/them"
+                  placeholder="e.g. he/him, she/her"
                   className="w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors"
                 />
               </div>
@@ -196,6 +234,47 @@ export default function OnboardingPage() {
               />
             </div>
 
+            {/* Birthday */}
+            <div>
+              <label className="block text-body-sm text-ash mb-1.5">Birthday</label>
+              <div className="grid grid-cols-3 gap-3">
+                <select
+                  value={birthMonth}
+                  onChange={(e) => { setBirthMonth(e.target.value ? Number(e.target.value) : ""); setBirthDay(""); }}
+                  className="w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink focus:border-brick focus:outline-none transition-colors"
+                >
+                  <option value="">Month</option>
+                  {MONTHS.map((m, i) => (
+                    <option key={i} value={i + 1}>{m}</option>
+                  ))}
+                </select>
+                <select
+                  value={birthDay}
+                  onChange={(e) => setBirthDay(e.target.value ? Number(e.target.value) : "")}
+                  disabled={!birthMonth}
+                  className="w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink focus:border-brick focus:outline-none transition-colors disabled:opacity-50"
+                >
+                  <option value="">Day</option>
+                  {dayOptions.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  value={birthYear}
+                  onChange={(e) => setBirthYear(e.target.value ? Number(e.target.value) : "")}
+                  placeholder="Year"
+                  min={1920}
+                  max={currentYear}
+                  className="w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors"
+                />
+              </div>
+              <p className="text-body-xs text-muted mt-1">
+                Your birthday (month & day) may be shared with your company. Birth year is private.
+              </p>
+            </div>
+
+            {/* Emergency contact */}
             <div className="pt-2">
               <p className="text-body-xs text-muted uppercase tracking-wider mb-3">Emergency contact</p>
               <div className="space-y-3">
@@ -266,7 +345,6 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Join existing org */}
         <form onSubmit={handleJoinOrg} className="space-y-4 mb-8">
           <div>
             <label className="block text-body-sm text-ash mb-1.5">Organization code</label>
@@ -291,7 +369,6 @@ export default function OnboardingPage() {
           </button>
         </form>
 
-        {/* Create org — Josiah only */}
         {isOwner && (
           <div className="border-t border-bone pt-6">
             <p className="text-body-xs text-muted uppercase tracking-wider mb-4">Platform owner</p>
