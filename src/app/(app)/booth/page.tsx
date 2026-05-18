@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { CostumeBible } from "./costume-bible";
+import { SetDesign } from "./set-design";
 import { StageManagement } from "./stage-management";
 import { BoothTabs } from "./booth-tabs";
 
@@ -167,6 +168,22 @@ export default async function BoothPage() {
     });
   }
 
+  // Get set design elements
+  const { data: setElements } = await supabase
+    .from("design_elements")
+    .select("id, name, description, status, image_url, notes, scene_ids, sort_order")
+    .eq("production_id", activeProduction.id)
+    .eq("department", "set")
+    .order("sort_order", { ascending: true });
+
+  // Get set design references
+  const { data: setReferences } = await supabase
+    .from("design_references")
+    .select("id, title, description, image_url, category, created_at")
+    .eq("production_id", activeProduction.id)
+    .eq("department", "set")
+    .order("created_at", { ascending: false });
+
   return (
     <div className="max-w-full mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 mb-6">
@@ -191,6 +208,17 @@ export default async function BoothPage() {
             paradeEntries={(paradeData || []) as any}
             measurementEntries={(measurementData || []) as any}
             inventoryItems={(inventoryData || []) as any}
+            canManage={canManage}
+          />
+        }
+        setDesignContent={
+          <SetDesign
+            productionId={activeProduction.id}
+            scenes={scenes.map((s) => ({
+              id: s.id, act: s.act, scene_number: s.scene_number, title: s.title,
+            }))}
+            elements={(setElements || []) as any}
+            references={(setReferences || []) as any}
             canManage={canManage}
           />
         }
