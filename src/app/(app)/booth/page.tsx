@@ -168,10 +168,10 @@ export default async function BoothPage() {
     });
   }
 
-  // Get set design elements
+  // Get set design elements (including spatial data for stage viewer)
   const { data: setElements } = await supabase
     .from("design_elements")
-    .select("id, name, description, status, image_url, notes, scene_ids, sort_order")
+    .select("id, name, description, status, image_url, notes, scene_ids, sort_order, pos_x, pos_y, width_ft, depth_ft, height_ft, rotation, color")
     .eq("production_id", activeProduction.id)
     .eq("department", "set")
     .order("sort_order", { ascending: true });
@@ -183,6 +183,13 @@ export default async function BoothPage() {
     .eq("production_id", activeProduction.id)
     .eq("department", "set")
     .order("created_at", { ascending: false });
+
+  // Get stage configuration
+  const { data: stageConfig } = await supabase
+    .from("stage_configs")
+    .select("stage_width, stage_depth, proscenium_width, proscenium_height, grid_size")
+    .eq("production_id", activeProduction.id)
+    .single();
 
   // Get design milestones
   const { data: setMilestones } = await supabase
@@ -245,6 +252,7 @@ export default async function BoothPage() {
             references={(setReferences || []) as any}
             milestones={(setMilestones || []) as any}
             sceneNotes={setSceneNotes}
+            stageConfig={stageConfig || null}
             canManage={canManage}
           />
         }

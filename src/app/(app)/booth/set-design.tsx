@@ -7,6 +7,7 @@ import {
   saveDesignReference, deleteDesignReference,
   saveSceneDesignNote, toggleMilestone,
 } from "./set-design-actions";
+import { StageViewer } from "./stage-viewer";
 
 interface Scene {
   id: string;
@@ -24,6 +25,13 @@ interface Element {
   image_url: string | null;
   notes: string | null;
   scene_ids: string[];
+  pos_x: number;
+  pos_y: number;
+  width_ft: number;
+  depth_ft: number;
+  height_ft: number;
+  rotation: number;
+  color: string;
 }
 
 interface Reference {
@@ -44,6 +52,14 @@ interface Milestone {
   notes: string | null;
 }
 
+interface StageConfig {
+  stage_width: number;
+  stage_depth: number;
+  proscenium_width: number;
+  proscenium_height: number;
+  grid_size: number;
+}
+
 interface Props {
   productionId: string;
   scenes: Scene[];
@@ -51,6 +67,7 @@ interface Props {
   references: Reference[];
   milestones: Milestone[];
   sceneNotes: { scene_id: string; content: string | null }[];
+  stageConfig: StageConfig | null;
   canManage: boolean;
 }
 
@@ -76,9 +93,9 @@ function sceneLabel(s: Scene): string {
   return `${s.act === 1 ? "I" : "II"}.${s.scene_number}`;
 }
 
-export function SetDesign({ productionId, scenes, elements, references, milestones, sceneNotes, canManage }: Props) {
+export function SetDesign({ productionId, scenes, elements, references, milestones, sceneNotes, stageConfig, canManage }: Props) {
   const router = useRouter();
-  const [view, setView] = useState<"progress" | "pieces" | "scenes" | "references">("progress");
+  const [view, setView] = useState<"progress" | "stage" | "pieces" | "scenes" | "references">("progress");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showAddRef, setShowAddRef] = useState(false);
@@ -203,7 +220,7 @@ export function SetDesign({ productionId, scenes, elements, references, mileston
     <div>
       {/* Sub-nav */}
       <div className="flex gap-1 mb-6">
-        {(["progress", "pieces", "scenes", "references"] as const).map((v) => (
+        {(["progress", "stage", "pieces", "scenes", "references"] as const).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -212,6 +229,7 @@ export function SetDesign({ productionId, scenes, elements, references, mileston
             }`}
           >
             {v === "progress" ? `Progress (${milestones.filter((m) => m.completed).length}/${milestones.length})` :
+             v === "stage" ? "Stage" :
              v === "pieces" ? `Set Pieces (${elements.filter((e) => e.status !== "cut").length})` :
              v === "scenes" ? "Scene Breakdown" : `References (${references.length})`}
           </button>
@@ -281,6 +299,26 @@ export function SetDesign({ productionId, scenes, elements, references, mileston
               <p>The ground plan comes from your venue's technical specs. If you have one, upload it as a Reference with the "Ground Plan" category.</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* STAGE VIEW */}
+      {view === "stage" && stageConfig && (
+        <StageViewer
+          pieces={elements.map((e) => ({
+            id: e.id, name: e.name, pos_x: e.pos_x, pos_y: e.pos_y,
+            width_ft: e.width_ft, depth_ft: e.depth_ft, height_ft: e.height_ft,
+            rotation: e.rotation, color: e.color, status: e.status,
+          }))}
+          config={stageConfig}
+          canManage={canManage}
+          onRefresh={() => router.refresh()}
+        />
+      )}
+
+      {view === "stage" && !stageConfig && (
+        <div className="bg-card border border-bone rounded-card px-6 py-10 text-center">
+          <p className="text-body-md text-ash">No stage configuration set up yet.</p>
         </div>
       )}
 

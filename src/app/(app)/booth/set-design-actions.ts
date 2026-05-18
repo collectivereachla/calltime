@@ -170,3 +170,21 @@ export async function seedMilestones(productionId: string, department: string) {
   revalidatePath("/booth");
   return { success: true };
 }
+
+export async function updateElementPosition(id: string, data: {
+  pos_x: number;
+  pos_y: number;
+  width_ft?: number;
+  depth_ft?: number;
+  height_ft?: number;
+  rotation?: number;
+}) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("design_elements")
+    .update({ ...data, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/booth");
+  return { success: true };
+}
