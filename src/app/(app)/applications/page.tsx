@@ -42,8 +42,8 @@ export default async function ApplicationsPage() {
 
   // Filter to only applications for this admin's orgs
   const filtered = (applications || []).filter((app) => {
-    const prod = app.productions as unknown as { id: string; title: string; org_id: string };
-    return orgIds.includes(prod?.org_id);
+    const prod = app.productions as unknown as { id: string; title: string; org_id: string } | null;
+    return prod && orgIds.includes(prod.org_id);
   });
 
   const pending = filtered.filter((a) => a.status === "submitted");
@@ -73,8 +73,9 @@ export default async function ApplicationsPage() {
                 id: string; full_name: string; preferred_name: string | null;
                 email: string; phone: string | null; bio: string | null;
                 headshot_url: string | null; pronouns: string | null;
-              };
-              const prod = app.productions as unknown as { id: string; title: string };
+              } | null;
+              const prod = app.productions as unknown as { id: string; title: string } | null;
+              if (!person || !prod) return null;
               return (
                 <ApplicationReview
                   key={app.id}
@@ -112,8 +113,9 @@ export default async function ApplicationsPage() {
             {processed.map((app) => {
               const person = app.people as unknown as {
                 full_name: string; preferred_name: string | null;
-              };
-              const prod = app.productions as unknown as { title: string };
+              } | null;
+              const prod = app.productions as unknown as { title: string } | null;
+              if (!person || !prod) return null;
               return (
                 <div
                   key={app.id}
