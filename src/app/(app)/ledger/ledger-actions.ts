@@ -157,6 +157,97 @@ export async function deleteContract(id: string) {
   return { success: true };
 }
 
+// ---------- Template CRUD ----------
+
+export async function updateTemplate(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: person } = await supabase
+    .from("people").select("id").eq("user_id", user.id).single();
+  const { data: membership } = await supabase
+    .from("org_memberships").select("role").eq("person_id", person!.id).limit(1).single();
+
+  if (membership?.role !== "owner") return { error: "Only owners can edit templates" };
+
+  const id = formData.get("id") as string;
+  const title = formData.get("title") as string;
+  const body_markdown = formData.get("body_markdown") as string;
+
+  if (!id) return { error: "Template ID required" };
+
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (title) updates.title = title;
+  if (body_markdown) updates.body_markdown = body_markdown;
+
+  const { error } = await supabase.from("contract_templates").update(updates).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/ledger");
+  return { success: true };
+}
+
+export async function createTemplate(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: person } = await supabase
+    .from("people").select("id").eq("user_id", user.id).single();
+  const { data: membership } = await supabase
+    .from("org_memberships").select("role").eq("person_id", person!.id).limit(1).single();
+
+  if (membership?.role !== "owner") return { error: "Only owners can create templates" };
+
+  const productionId = formData.get("production_id") as string;
+  const contractType = formData.get("contract_type") as string;
+  const title = formData.get("title") as string;
+  const bodyMarkdown = formData.get("body_markdown") as string;
+
+  if (!productionId || !contractType || !title) {
+    return { error: "Production, type, and title are required" };
+  }
+
+  const { error } = await supabase.from("contract_templates").insert({
+    production_id: productionId,
+    contract_type: contractType,
+    title: title,
+    body_markdown: bodyMarkdown || "",
+  });
+
+  if (error) return { error: error.message };
+  revalidatePath("/ledger");
+  return { success: true };
+}
+
+export async function deleteTemplate(id: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: person } = await supabase
+    .from("people").select("id").eq("user_id", user.id).single();
+  const { data: membership } = await supabase
+    .from("org_memberships").select("role").eq("person_id", person!.id).limit(1).single();
+
+  if (membership?.role !== "owner") return { error: "Only owners can delete templates" };
+
+  // Check for existing contracts using this template
+  const { count } = await supabase
+    .from("contracts")
+    .select("id", { count: "exact", head: true })
+    .eq("template_id", id);
+
+  if (count && count > 0) {
+    return { error: `Cannot delete — ${count} contract(s) use this template. Remove those contracts first.` };
+  }
+
+  const { error } = await supabase.from("contract_templates").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/ledger");
+  return { success: true };
+}
+
 export async function addStaffMember(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

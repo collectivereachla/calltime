@@ -74,7 +74,7 @@ export default async function LedgerPage() {
     }
   }
 
-  // Load templates
+  // Load templates used by contracts
   let templates: {
     id: string;
     contract_type: string;
@@ -89,6 +89,23 @@ export default async function LedgerPage() {
       .select("id, contract_type, title, body_markdown")
       .in("id", templateIds);
     templates = data || [];
+  }
+
+  // Load ALL templates for the Templates tab (owner only)
+  let allTemplates: {
+    id: string;
+    contract_type: string;
+    title: string;
+    body_markdown: string;
+  }[] = [];
+
+  if (canSeeContent && productionIds.length > 0) {
+    const { data } = await supabase
+      .from("contract_templates")
+      .select("id, contract_type, title, body_markdown")
+      .in("production_id", productionIds)
+      .order("title");
+    allTemplates = data || [];
   }
 
   // Load budget items (owner/production only)
@@ -165,6 +182,7 @@ export default async function LedgerPage() {
         <LedgerLayout
           contracts={contracts}
           templates={templates}
+          allTemplates={allTemplates}
           budgetItems={budgetItems}
           revenueItems={revenueItems}
           contractSummaries={contractSummaries}

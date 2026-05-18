@@ -83,11 +83,14 @@ function statusColor(status: string) {
   }
 }
 
-function statusLabel(status: string) {
+function statusLabel(status: string, viewedAt?: string | null, isOwnerView?: boolean) {
   switch (status) {
     case "countersigned": return "Complete";
     case "signed": return "Awaiting countersign";
-    default: return "Pending";
+    default:
+      if (isOwnerView && viewedAt) return "Viewed · unsigned";
+      if (isOwnerView && !viewedAt) return "Not yet viewed";
+      return "Pending";
   }
 }
 
@@ -512,7 +515,7 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
                 </p>
               </div>
               <span className={`text-body-xs font-medium px-2 py-1 rounded-full shrink-0 ${statusColor(contract.status)}`}>
-                {statusLabel(contract.status)}
+                {statusLabel(contract.status, contract.viewed_at, canManage && !isMine)}
               </span>
             </button>
           );

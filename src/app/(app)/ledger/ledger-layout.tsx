@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { LedgerView } from "./ledger-view";
 import { BudgetView } from "./budget-view";
+import { TemplatesView } from "./templates-view";
 
 interface Contract {
   id: string;
@@ -59,11 +60,12 @@ interface RevenueItem {
   is_received: boolean;
 }
 
-type Tab = "contracts" | "budget";
+type Tab = "contracts" | "budget" | "templates";
 
 interface Props {
   contracts: Contract[];
   templates: Template[];
+  allTemplates: Template[];
   budgetItems: BudgetItem[];
   revenueItems: RevenueItem[];
   contractSummaries: ContractSummary[];
@@ -77,18 +79,24 @@ interface Props {
 export function LedgerLayout(props: Props) {
   const [tab, setTab] = useState<Tab>("contracts");
 
-  // Budget tab only visible to owner/production
   const showBudget = props.canManage;
+  const showTemplates = props.canSeeContent;
+
+  // Count contracts per template
+  const contractCounts: Record<string, number> = {};
+  for (const c of props.contracts) {
+    contractCounts[c.template_id] = (contractCounts[c.template_id] || 0) + 1;
+  }
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "contracts", label: "Contracts" },
     ...(showBudget ? [{ key: "budget" as Tab, label: "Budget" }] : []),
+    ...(showTemplates ? [{ key: "templates" as Tab, label: "Templates" }] : []),
   ];
 
   return (
     <div>
-      {/* Tab bar — only show if budget is available */}
-      {showBudget && (
+      {tabs.length > 1 && (
         <div className="flex items-center gap-1 mb-6 border-b border-bone">
           {tabs.map((t) => (
             <button
@@ -124,6 +132,14 @@ export function LedgerLayout(props: Props) {
           contractSummaries={props.contractSummaries}
           canSeeContent={props.canSeeContent}
           productionId={props.productionId}
+        />
+      )}
+
+      {tab === "templates" && showTemplates && (
+        <TemplatesView
+          templates={props.allTemplates}
+          productionId={props.productionId}
+          contractCounts={contractCounts}
         />
       )}
     </div>
