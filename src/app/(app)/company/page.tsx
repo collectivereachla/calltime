@@ -32,30 +32,44 @@ export default async function CompanyPage() {
   const org = membership.organizations as unknown as { id: string; name: string };
   const canManage = membership.role === "owner" || membership.role === "production";
 
-  // Get all members with their org role (minor-gated email/phone)
-  const { data: rosterData } = await supabase.rpc("get_company_roster", {
-    p_org_id: org.id,
-  });
+  // Get all members with their org role
+  const { data: rawMembers } = await supabase
+    .from("org_memberships")
+    .select(`
+      id,
+      role,
+      people (
+        id,
+        full_name,
+        preferred_name,
+        email,
+        phone,
+        pronouns,
+        headshot_url,
+        is_minor
+      )
+    `)
+    .eq("org_id", org.id)
+    .order("created_at", { ascending: true });
 
-  // Reshape into the structure the template expects
-  const members = (rosterData || []).map((r: {
-    person_id: string; full_name: string; preferred_name: string | null;
-    email: string | null; phone: string | null; pronouns: string | null;
-    headshot_url: string | null; bio: string | null; is_minor: boolean;
-    org_role: string; membership_id: string;
-  }) => ({
-    id: r.membership_id,
-    role: r.org_role,
-    people: {
-      id: r.person_id,
-      full_name: r.full_name,
-      preferred_name: r.preferred_name,
-      email: r.email,
-      phone: r.phone,
-      pronouns: r.pronouns,
-      headshot_url: r.headshot_url,
-    },
-  }));
+  // Minor gating: null out email/phone for minors unless viewer is staff or self
+  const members = (rawMembers || []).map((m) => {
+    const p = m.people as unknown as {
+      id: string; full_name: string; preferred_name: string | null;
+      email: string | null; phone: string | null; pronouns: string | null;
+      headshot_url: string | null; is_minor: boolean;
+    };
+    if (!p) return m;
+    const hideContact = p.is_minor && !canManage && p.id !== person!.id;
+    return {
+      ...m,
+      people: {
+        ...p,
+        email: hideContact ? null : p.email,
+        phone: hideContact ? null : p.phone,
+      },
+    };
+  });
 
   // Get productions with assignments (including assignment IDs for editing)
   const { data: productions } = await supabase
