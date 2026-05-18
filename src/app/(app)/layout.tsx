@@ -34,11 +34,12 @@ export default async function AppLayout({
 
   const { data: memberships } = await supabase
     .from("org_memberships")
-    .select("id, role, organizations(id, name, slug)")
-    .eq("person_id", person.id);
+    .select("id, role, status, organizations(id, name, slug)")
+    .eq("person_id", person.id)
+    .eq("status", "active");
 
   if (!memberships || memberships.length === 0) {
-    redirect("/onboarding");
+    redirect("/directory");
   }
 
   const displayName = person.preferred_name || person.full_name;
