@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { EditMemberButton } from "./edit-member";
+import Link from "next/link";
 
 export default async function CompanyPage() {
   const supabase = await createClient();
@@ -192,7 +193,9 @@ export default async function CompanyPage() {
                     <div className="min-w-0">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <h3 className="text-body-md font-medium text-ink">
-                        {p.preferred_name || p.full_name}
+                        <Link href={`/company/${p.id}`} className="hover:text-brick transition-colors">
+                          {p.preferred_name || p.full_name}
+                        </Link>
                       </h3>
                       {p.preferred_name && p.preferred_name !== p.full_name && (
                         <span className="text-body-xs text-muted">
