@@ -27,10 +27,20 @@ export default async function DirectoryPage() {
       <PublicHeader />
 
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-8 md:py-12">
-        <h1 className="font-display text-display-md mb-2">Companies</h1>
-        <p className="text-body-md text-ash mb-10">
-          Find a theatre company and see what&apos;s casting.
-        </p>
+        <div className="flex items-start justify-between gap-4 mb-10">
+          <div>
+            <h1 className="font-display text-display-md mb-2">Companies</h1>
+            <p className="text-body-md text-ash">
+              Find a theatre company and see what&apos;s casting.
+            </p>
+          </div>
+          <Link
+            href="/create-org"
+            className="flex-shrink-0 px-4 py-2 bg-card border border-bone text-body-sm text-ink rounded-card hover:border-ash transition-colors mt-1"
+          >
+            Create an organization
+          </Link>
+        </div>
 
         {states.length === 0 ? (
           <div className="text-center py-16">
