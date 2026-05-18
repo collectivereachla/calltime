@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { sendPushNotification } from "@/lib/web-push";
 
 interface CreateNotificationParams {
   personId: string;
@@ -11,8 +12,7 @@ interface CreateNotificationParams {
 }
 
 /**
- * Create an in-app notification for a person.
- * Call this from server actions when events happen (contract signed, etc.)
+ * Create an in-app notification for a person and send a push notification.
  */
 export async function createNotification(params: CreateNotificationParams) {
   const supabase = await createClient();
@@ -31,8 +31,13 @@ export async function createNotification(params: CreateNotificationParams) {
     console.error("Failed to create notification:", error.message);
   }
 
-  // TODO: Send email notification via Resend when email provider is configured
-  // await sendNotificationEmail(params);
+  // Send push notification to all registered devices
+  sendPushNotification(params.personId, {
+    title: params.title,
+    body: params.body,
+    url: params.link || "/home",
+    tag: params.type,
+  }).catch((err) => console.error("Push send failed:", err));
 }
 
 /**
