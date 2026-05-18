@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { PublicHeader } from "@/components/public-header";
 
 export default async function OrgPage({
   params,
@@ -42,17 +43,7 @@ export default async function OrgPage({
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <div className="border-b border-bone bg-card/50">
-        <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 flex items-center justify-between">
-          <Link href="/directory" className="text-body-sm text-ash hover:text-brick transition-colors">
-            ← All companies
-          </Link>
-          <Link href="/" className="font-display text-body-lg text-ink hover:text-brick transition-colors">
-            Calltime<span className="text-brick">.</span>
-          </Link>
-        </div>
-      </div>
+      <PublicHeader back={{ href: "/directory", label: "All companies" }} />
 
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-8 md:py-12">
         {/* Org header */}

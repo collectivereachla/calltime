@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { PublicHeader } from "@/components/public-header";
 
 export default async function DirectoryPage() {
   const supabase = await createClient();
@@ -23,14 +24,7 @@ export default async function DirectoryPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <div className="border-b border-bone bg-card/50">
-        <div className="max-w-3xl mx-auto px-4 md:px-8 py-6">
-          <Link href="/" className="font-display text-display-sm text-ink hover:text-brick transition-colors">
-            Calltime<span className="text-brick">.</span>
-          </Link>
-        </div>
-      </div>
+      <PublicHeader />
 
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-8 md:py-12">
         <h1 className="font-display text-display-md mb-2">Companies</h1>

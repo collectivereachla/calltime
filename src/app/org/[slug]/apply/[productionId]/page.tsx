@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import { PublicHeader } from "@/components/public-header";
 
 const DEPARTMENTS = [
   { value: "cast", label: "Cast / Performer" },
@@ -179,17 +180,7 @@ export default function ApplyPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <div className="border-b border-bone bg-card/50">
-        <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 flex items-center justify-between">
-          <Link href={`/org/${slug}`} className="text-body-sm text-ash hover:text-brick transition-colors">
-            ← {orgName}
-          </Link>
-          <Link href="/" className="font-display text-body-lg text-ink hover:text-brick transition-colors">
-            Calltime<span className="text-brick">.</span>
-          </Link>
-        </div>
-      </div>
+      <PublicHeader back={{ href: `/org/${slug}`, label: orgName || "Back" }} />
 
       <div className="max-w-lg mx-auto px-4 md:px-8 py-8 md:py-12">
         <h1 className="font-display text-display-md mb-1">Apply</h1>
