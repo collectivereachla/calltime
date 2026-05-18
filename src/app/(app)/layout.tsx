@@ -42,6 +42,32 @@ export default async function AppLayout({
     redirect("/directory");
   }
 
+  // Check if non-admin member needs to complete org profile
+  const isAdminOrOwner = memberships.some((m) => m.role === "owner" || m.role === "admin");
+  if (!isAdminOrOwner) {
+    const firstOrg = memberships[0].organizations as unknown as { id: string };
+    const { data: details } = await supabase
+      .from("member_details")
+      .select("id")
+      .eq("person_id", person.id)
+      .eq("org_id", firstOrg.id)
+      .maybeSingle();
+
+    if (!details) {
+      // Check if org actually has required fields
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("required_member_fields")
+        .eq("id", firstOrg.id)
+        .single();
+
+      const required = (org?.required_member_fields as string[]) || [];
+      if (required.length > 0) {
+        redirect("/complete-profile");
+      }
+    }
+  }
+
   const displayName = person.preferred_name || person.full_name;
 
   // Count unread notifications + contracts awaiting countersign + pending applications
