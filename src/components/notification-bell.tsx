@@ -45,6 +45,12 @@ function notificationIcon(type: string) {
       return "✓";
     case "contract_assigned":
       return "📄";
+    case "application_submitted":
+      return "📋";
+    case "application_accepted":
+      return "🎉";
+    case "application_declined":
+      return "—";
     default:
       return "●";
   }

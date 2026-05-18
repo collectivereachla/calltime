@@ -29,6 +29,7 @@ const rooms = [
   { name: "Run", path: "/run", icon: "▶", disabled: true },
   { name: "Booth", path: "/booth", icon: "◧" },
   { name: "Ledger", path: "/ledger", icon: "▧" },
+  { name: "Applications", path: "/applications", icon: "◇", adminOnly: true },
   { name: "Archive", path: "/archive", icon: "▣", disabled: true },
 ];
 
@@ -37,11 +38,14 @@ const mobileRooms = rooms.filter((r) => r.mobile && !r.disabled);
 export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0 }: AppNavProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
+  const isAdmin = orgs.some((o) => o.role === "owner" || o.role === "admin");
 
   function getBadge(room: { path: string }) {
     const key = room.path.replace("/", "");
     return badges[key] || 0;
   }
+
+  const visibleRooms = rooms.filter((r) => !("adminOnly" in r && r.adminOnly) || isAdmin);
 
   return (
     <>
@@ -64,7 +68,7 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0 }
         )}
 
         <div className="flex-1 overflow-y-auto py-2">
-          {rooms.map((room) => {
+          {visibleRooms.map((room) => {
             const isActive = pathname.startsWith(room.path);
             if (room.disabled) {
               return (
@@ -147,7 +151,7 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0 }
         {/* More menu */}
         {moreOpen && (
           <div className="absolute bottom-full left-0 right-0 bg-paper border-t border-bone shadow-card-hover py-2">
-            {rooms.filter((r) => !r.mobile || r.disabled).map((room) => {
+            {visibleRooms.filter((r) => !r.mobile || r.disabled).map((room) => {
               if (room.disabled) {
                 return (
                   <div key={room.path} className="flex items-center gap-3 px-5 py-2.5 text-body-sm text-muted">

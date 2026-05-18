@@ -44,9 +44,11 @@ export default async function AppLayout({
 
   const displayName = person.preferred_name || person.full_name;
 
-  // Count unread notifications + contracts awaiting countersign
+  // Count unread notifications + contracts awaiting countersign + pending applications
   const isOwner = memberships.some((m) => m.role === "owner");
+  const isAdmin = memberships.some((m) => m.role === "owner" || m.role === "admin");
   let pendingCountersignCount = 0;
+  let pendingApplicationsCount = 0;
   let unreadNotificationCount = 0;
 
   if (isOwner) {
@@ -55,6 +57,16 @@ export default async function AppLayout({
       .select("id", { count: "exact", head: true })
       .eq("status", "signed");
     pendingCountersignCount = csCount || 0;
+  }
+
+  if (isAdmin) {
+    const orgIds = memberships.filter((m) => m.role === "owner" || m.role === "admin").map((m) => (m.organizations as unknown as { id: string }).id);
+    const { count: appCount } = await supabase
+      .from("applications")
+      .select("id, productions!inner(org_id)", { count: "exact", head: true })
+      .eq("status", "submitted")
+      .in("productions.org_id", orgIds);
+    pendingApplicationsCount = appCount || 0;
   }
 
   const { count: notifCount } = await supabase
@@ -74,7 +86,7 @@ export default async function AppLayout({
           slug: (m.organizations as unknown as { id: string; name: string; slug: string }).slug,
           role: m.role,
         }))}
-        badges={{ ledger: pendingCountersignCount }}
+        badges={{ ledger: pendingCountersignCount, applications: pendingApplicationsCount }}
         notificationCount={unreadNotificationCount}
       />
       <main className="flex-1 min-w-0 pt-14 pb-16 md:pt-0 md:pb-0">
