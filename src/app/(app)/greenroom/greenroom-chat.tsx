@@ -71,6 +71,7 @@ export function GreenroomChat({
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(initialMessages.length >= 50);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -355,7 +356,7 @@ export function GreenroomChat({
           src={msg.attachment_url}
           alt={msg.attachment_name || "Image"}
           className="max-w-xs md:max-w-sm rounded-card border border-bone mt-1 cursor-pointer"
-          onClick={() => window.open(msg.attachment_url!, "_blank")}
+          onClick={(e) => { e.stopPropagation(); setLightboxUrl(msg.attachment_url); }}
         />
       );
     }
@@ -364,6 +365,7 @@ export function GreenroomChat({
         href={msg.attachment_url}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
         className="inline-flex items-center gap-2 mt-1 px-3 py-1.5 bg-bone/30 border border-bone rounded-card text-body-xs text-ink hover:text-brick transition-colors"
       >
         📎 {msg.attachment_name || "File"}
@@ -557,6 +559,27 @@ export function GreenroomChat({
           </button>
         </div>
       </div>
+
+      {/* Image lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-ink/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 text-paper/70 hover:text-paper text-2xl transition-colors"
+          >
+            ✕
+          </button>
+          <img
+            src={lightboxUrl}
+            alt=""
+            className="max-w-full max-h-full object-contain rounded-card"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
