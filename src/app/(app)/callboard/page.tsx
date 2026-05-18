@@ -3,6 +3,7 @@ import { NewEventForm } from "./new-event-form";
 import { EventCard } from "./event-card";
 import { EditEventButton } from "./edit-event";
 import { CallboardTabs } from "./callboard-tabs";
+import { PrintButton } from "./print-button";
 
 function formatTime(time: string): string {
   const [h, m] = time.split(":").map(Number);
@@ -205,6 +206,7 @@ export default async function CallboardPage() {
               : `${events.length} upcoming event${events.length === 1 ? "" : "s"}`}
           </p>
         </div>
+        {events.length > 0 && <PrintButton />}
       </div>
 
       <CallboardTabs
@@ -214,7 +216,7 @@ export default async function CallboardPage() {
           <>
             {/* New event form — owner and production only */}
             {canManage && activeProductions.length > 0 && (
-              <div className="mb-8">
+              <div className="mb-8 print:hidden">
                 <NewEventForm productions={activeProductions} companyMembers={companyMembers} />
               </div>
             )}
@@ -307,6 +309,7 @@ export default async function CallboardPage() {
                         {/* Response summary + Edit */}
                         <div className="text-right shrink-0 flex items-start gap-3">
                           {canManage && (
+                            <span className="print:hidden">
                             <EditEventButton
                               event={{
                                 id: event.id,
@@ -324,6 +327,7 @@ export default async function CallboardPage() {
                               })}
                               companyMembers={companyMembers}
                             />
+                            </span>
                           )}
                           {total > 0 && (
                             <div>

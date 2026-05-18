@@ -49,7 +49,7 @@ export function CallboardTabs({
   return (
     <div>
       {/* Tab bar */}
-      <div className="flex gap-1 mb-6">
+      <div className="flex gap-1 mb-6 print:hidden">
         <button
           onClick={() => setTab("schedule")}
           className={`px-4 py-2 text-body-sm font-medium rounded-card transition-colors ${
@@ -75,12 +75,14 @@ export function CallboardTabs({
         </button>
       </div>
 
-      {/* Schedule tab */}
-      {tab === "schedule" && scheduleContent}
+      {/* Schedule tab — always rendered for print */}
+      <div className={tab === "schedule" ? "" : "hidden print:block"}>
+        {scheduleContent}
+      </div>
 
-      {/* Conflicts tab */}
+      {/* Conflicts tab — never prints */}
       {tab === "conflicts" && (
-        <div>
+        <div className="print:hidden">
           {conflicts.length === 0 ? (
             <div className="bg-card border border-bone rounded-card px-6 py-10 text-center">
               <p className="text-body-md text-ash">No conflicts reported for upcoming events.</p>

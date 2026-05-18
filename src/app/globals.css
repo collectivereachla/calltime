@@ -119,4 +119,36 @@ body {
   h2, h3 {
     page-break-after: avoid;
   }
+
+  /* Callboard: expand call lists in print */
+  details[open],
+  details {
+    display: block !important;
+  }
+
+  details > summary {
+    display: none !important;
+  }
+
+  /* Callboard: avoid breaks inside event cards */
+  .bg-card {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Callboard: print call pills with color */
+  .rounded-full {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Print-only header */
+  .print\\:block {
+    display: block !important;
+  }
+
+  /* Spine: print-only visible */
+  .print\\:flex {
+    display: flex !important;
+  }
 }

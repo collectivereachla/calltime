@@ -121,7 +121,7 @@ export function EventCard({ eventCallId, currentStatus, calls, canManage, curren
     <div>
       {/* Response buttons (if user is called) */}
       {eventCallId && (
-        <div className="mt-3 pt-3 border-t border-bone">
+        <div className="mt-3 pt-3 border-t border-bone print:hidden">
           {error && <p className="text-body-xs text-brick mb-2">{error}</p>}
           {saved && <p className="text-body-xs text-confirmed mb-2">Response saved.</p>}
 
@@ -198,22 +198,37 @@ export function EventCard({ eventCallId, currentStatus, calls, canManage, curren
 
       {/* Call list (owner/production only) */}
       {canManage && calls.length > 0 && (
-        <details className="mt-3 pt-3 border-t border-bone">
-          <summary className="text-body-xs text-muted cursor-pointer hover:text-ash transition-colors">
-            {confirmedCount}/{totalCalls} confirmed &middot; {totalCalls} called &middot; tap to view
-          </summary>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {calls.map((call) => (
-              <span
-                key={call.id}
-                className={`text-body-xs px-2 py-0.5 rounded-full border ${pillColor(call.person_id)}`}
-                title={callStatuses[call.person_id]?.reason || undefined}
-              >
-                {call.person_name}{pillIcon(call.person_id)}
-              </span>
-            ))}
+        <>
+          <details className="mt-3 pt-3 border-t border-bone print:hidden">
+            <summary className="text-body-xs text-muted cursor-pointer hover:text-ash transition-colors">
+              {confirmedCount}/{totalCalls} confirmed &middot; {totalCalls} called &middot; tap to view
+            </summary>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {calls.map((call) => (
+                <span
+                  key={call.id}
+                  className={`text-body-xs px-2 py-0.5 rounded-full border ${pillColor(call.person_id)}`}
+                  title={callStatuses[call.person_id]?.reason || undefined}
+                >
+                  {call.person_name}{pillIcon(call.person_id)}
+                </span>
+              ))}
+            </div>
+          </details>
+          {/* Print-only: always-visible call list */}
+          <div className="hidden print:block mt-2 pt-2 border-t border-bone">
+            <div className="flex flex-wrap gap-1.5">
+              {calls.map((call) => (
+                <span
+                  key={call.id}
+                  className={`text-body-xs px-2 py-0.5 rounded-full border ${pillColor(call.person_id)}`}
+                >
+                  {call.person_name}{pillIcon(call.person_id)}
+                </span>
+              ))}
+            </div>
           </div>
-        </details>
+        </>
       )}
     </div>
   );
