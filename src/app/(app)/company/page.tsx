@@ -47,18 +47,43 @@ export default async function CompanyPage() {
         phone,
         pronouns,
         headshot_url,
+        bio,
+        birth_month,
+        birth_day,
         is_minor
       )
     `)
     .eq("org_id", org.id)
     .order("created_at", { ascending: true });
 
+  // For staff: fetch member_details for completion tracking
+  let detailsMap = new Map<string, { ec: boolean; allergies: boolean; birthday_full: boolean }>();
+  if (canManage) {
+    const personIds = (rawMembers || [])
+      .map((m) => (m.people as unknown as { id: string })?.id)
+      .filter(Boolean);
+    if (personIds.length > 0) {
+      const { data: allDetails } = await supabase
+        .from("member_details")
+        .select("person_id, emergency_contact_name, allergies, birth_year")
+        .in("person_id", personIds);
+      for (const d of allDetails || []) {
+        detailsMap.set(d.person_id, {
+          ec: !!d.emergency_contact_name,
+          allergies: d.allergies !== null,
+          birthday_full: !!d.birth_year,
+        });
+      }
+    }
+  }
+
   // Minor gating: null out email/phone for minors unless viewer is staff or self
   const members = (rawMembers || []).map((m) => {
     const p = m.people as unknown as {
       id: string; full_name: string; preferred_name: string | null;
       email: string | null; phone: string | null; pronouns: string | null;
-      headshot_url: string | null; is_minor: boolean;
+      headshot_url: string | null; bio: string | null;
+      birth_month: number | null; birth_day: number | null; is_minor: boolean;
     };
     if (!p) return m;
     const hideContact = p.is_minor && !canManage && p.id !== person!.id;
@@ -110,6 +135,44 @@ export default async function CompanyPage() {
         )}
       </div>
 
+      {/* Staff completion dashboard */}
+      {canManage && members.length > 0 && (() => {
+        const total = members.filter((m) => m.people != null).length;
+        const withPeople = members.filter((m) => m.people != null).map((m) => {
+          const p = m.people as unknown as { id: string; headshot_url: string | null; bio: string | null; birth_month: number | null };
+          const d = detailsMap.get(p.id);
+          return {
+            headshot: !!p.headshot_url,
+            bio: !!p.bio,
+            birthday: !!p.birth_month && !!d?.birthday_full,
+            emergency: !!d?.ec,
+          };
+        });
+        const counts = {
+          headshot: withPeople.filter((p) => p.headshot).length,
+          bio: withPeople.filter((p) => p.bio).length,
+          birthday: withPeople.filter((p) => p.birthday).length,
+          emergency: withPeople.filter((p) => p.emergency).length,
+        };
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
+            {([
+              { label: "Headshot", count: counts.headshot },
+              { label: "Bio", count: counts.bio },
+              { label: "Birthday", count: counts.birthday },
+              { label: "Emergency", count: counts.emergency },
+            ] as const).map((item) => (
+              <div key={item.label} className="bg-card border border-bone rounded-card px-3 py-2.5 text-center">
+                <p className={`font-mono text-data-md ${item.count === total ? "text-confirmed" : item.count === 0 ? "text-muted" : "text-tentative"}`}>
+                  {item.count}/{total}
+                </p>
+                <p className="text-body-xs text-muted">{item.label}</p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {!members || members.length === 0 ? (
         <div className="bg-card border border-bone rounded-card px-6 py-10 text-center">
           <p className="text-body-md text-ash">No members yet.</p>
@@ -148,7 +211,17 @@ export default async function CompanyPage() {
               phone: string | null;
               pronouns: string | null;
               headshot_url: string | null;
+              bio: string | null;
+              birth_month: number | null;
+              birth_day: number | null;
+              is_minor: boolean;
             };
+            const completion = canManage ? {
+              headshot: !!p?.headshot_url,
+              bio: !!p?.bio,
+              birthday: !!p?.birth_month && !!detailsMap.get(p?.id)?.birthday_full,
+              emergency: !!detailsMap.get(p?.id)?.ec,
+            } : null;
 
             // Find this person's active assignments with full details
             const personAssignments = productions
@@ -215,6 +288,14 @@ export default async function CompanyPage() {
                       }`}>
                         {member.role}
                       </span>
+                      {completion && (
+                        <span className="inline-flex gap-0.5 ml-1">
+                          <span className={`w-1.5 h-1.5 rounded-full ${completion.headshot ? "bg-confirmed" : "bg-bone"}`} title="Headshot" />
+                          <span className={`w-1.5 h-1.5 rounded-full ${completion.bio ? "bg-confirmed" : "bg-bone"}`} title="Bio" />
+                          <span className={`w-1.5 h-1.5 rounded-full ${completion.birthday ? "bg-confirmed" : "bg-bone"}`} title="Birthday" />
+                          <span className={`w-1.5 h-1.5 rounded-full ${completion.emergency ? "bg-confirmed" : "bg-bone"}`} title="Emergency contact" />
+                        </span>
+                      )}
                     </div>
 
                     {personAssignments.length > 0 && (

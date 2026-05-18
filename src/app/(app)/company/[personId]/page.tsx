@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { EditProfile } from "./edit-profile";
 
 const MONTHS = [
   "", "January", "February", "March", "April", "May", "June",
@@ -266,15 +267,29 @@ export default async function MemberDetailPage({
         </div>
       )}
 
-      {/* Missing details prompt */}
-      {(isStaff || isSelf) && !details && (
-        <div className="bg-bone/30 border border-bone rounded-card px-5 py-4 text-center">
-          <p className="text-body-sm text-ash">
-            {isSelf
-              ? "You haven't submitted your emergency contact or allergy info yet."
-              : "This member hasn't submitted their private details yet."}
-          </p>
-        </div>
+      {/* Edit profile — self or staff */}
+      {(isStaff || isSelf) && (
+        <EditProfile
+          personId={personId}
+          isSelf={isSelf}
+          isStaff={isStaff}
+          current={{
+            bio: person.bio,
+            headshot_url: person.headshot_url,
+            birth_month: person.birth_month,
+            birth_day: person.birth_day,
+          }}
+          details={details ? {
+            birth_year: details.birth_year,
+            emergency_contact_name: details.emergency_contact_name,
+            emergency_contact_phone: details.emergency_contact_phone,
+            emergency_contact_relationship: details.emergency_contact_relationship,
+            allergies: details.allergies,
+            dietary_needs: details.dietary_needs,
+            w9_submitted: details.w9_submitted,
+            w9_submitted_at: details.w9_submitted_at,
+          } : null}
+        />
       )}
     </div>
   );
