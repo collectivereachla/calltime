@@ -7,6 +7,15 @@ import Link from "next/link";
 export default function NewProductionPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [acceptingApplications, setAcceptingApplications] = useState(true);
+  const [visibility, setVisibility] = useState("public");
+  const [applicationTypes, setApplicationTypes] = useState<string[]>(["audition", "crew", "design"]);
+
+  function toggleAppType(val: string) {
+    setApplicationTypes((prev) =>
+      prev.includes(val) ? prev.filter((t) => t !== val) : [...prev, val]
+    );
+  }
 
   async function handleSubmit(formData: FormData) {
     setError(null);
@@ -135,6 +144,104 @@ export default function NewProductionPage() {
             />
             <span className="text-body-sm text-ink">Choreography</span>
           </label>
+        </div>
+
+        {/* Open call */}
+        <div className="pt-4 border-t border-bone space-y-4">
+          <p className="text-body-xs text-muted uppercase tracking-wider">Open call</p>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              name="accepting_applications"
+              checked={acceptingApplications}
+              onChange={() => setAcceptingApplications(!acceptingApplications)}
+              className="w-4 h-4 rounded border-bone text-brick focus:ring-brick"
+            />
+            <span className="text-body-sm text-ink">Accepting applications</span>
+          </label>
+
+          {acceptingApplications && (
+            <>
+              <div>
+                <label className="block text-body-sm text-ash mb-1.5">Accepting</label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: "audition", label: "Auditions" },
+                    { value: "crew", label: "Crew" },
+                    { value: "design", label: "Designers" },
+                    { value: "music", label: "Musicians" },
+                  ].map((t) => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => toggleAppType(t.value)}
+                      className={`px-3 py-1.5 rounded-card text-body-sm border transition-colors ${
+                        applicationTypes.includes(t.value)
+                          ? "bg-ink text-paper border-ink"
+                          : "bg-card text-ash border-bone hover:border-ash"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="open_call_description" className="block text-body-sm text-ash mb-1.5">
+                  Open call description
+                </label>
+                <textarea
+                  id="open_call_description"
+                  name="open_call_description"
+                  placeholder="What you're looking for — roles, skills, anything applicants should know"
+                  rows={3}
+                  className="w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors resize-none"
+                />
+              </div>
+
+              <div className="max-w-xs">
+                <label htmlFor="open_call_deadline" className="block text-body-sm text-ash mb-1.5">
+                  Application deadline
+                </label>
+                <input
+                  id="open_call_deadline"
+                  name="open_call_deadline"
+                  type="date"
+                  className="w-full px-3 py-2.5 bg-card border border-bone rounded-card font-mono text-data-md text-ink focus:border-brick focus:outline-none transition-colors"
+                />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="block text-body-sm text-ash mb-1.5">Visibility</label>
+            <div className="flex gap-2 max-w-sm">
+              {[
+                { value: "public", label: "Public" },
+                { value: "unlisted", label: "Unlisted" },
+                { value: "private", label: "Private" },
+              ].map((v) => (
+                <button
+                  key={v.value}
+                  type="button"
+                  onClick={() => setVisibility(v.value)}
+                  className={`flex-1 px-3 py-2 rounded-card text-body-sm border transition-colors text-center ${
+                    visibility === v.value
+                      ? "bg-ink text-paper border-ink"
+                      : "bg-card text-ash border-bone hover:border-ash"
+                  }`}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Hidden inputs for form data */}
+          <input type="hidden" name="visibility" value={visibility} />
+          <input type="hidden" name="application_types" value={JSON.stringify(applicationTypes)} />
         </div>
 
         {/* Your role */}

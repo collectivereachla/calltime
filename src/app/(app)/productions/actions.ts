@@ -39,6 +39,12 @@ export async function createProduction(formData: FormData) {
   const closingDate = (formData.get("closing_date") as string) || null;
   const hasMusic = formData.get("has_music") === "on";
   const hasChoreography = formData.get("has_choreography") === "on";
+  const acceptingApplications = formData.get("accepting_applications") === "on";
+  const visibility = (formData.get("visibility") as string) || "private";
+  const openCallDescription = (formData.get("open_call_description") as string) || null;
+  const openCallDeadline = (formData.get("open_call_deadline") as string) || null;
+  const applicationTypesRaw = formData.get("application_types") as string;
+  const applicationTypes = applicationTypesRaw ? JSON.parse(applicationTypesRaw) : [];
 
   // Create the production
   const { data: production, error: prodError } = await supabase
@@ -53,6 +59,11 @@ export async function createProduction(formData: FormData) {
       closing_date: closingDate || null,
       has_music: hasMusic,
       has_choreography: hasChoreography,
+      accepting_applications: acceptingApplications,
+      visibility,
+      open_call_description: openCallDescription,
+      open_call_deadline: openCallDeadline || null,
+      application_types: applicationTypes,
       created_by: user.id,
     })
     .select("id")
