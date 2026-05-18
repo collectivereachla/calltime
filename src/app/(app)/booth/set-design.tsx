@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   saveDesignElement, deleteDesignElement, uploadDesignImage,
   saveDesignReference, deleteDesignReference,
+  saveSceneDesignNote, toggleMilestone,
 } from "./set-design-actions";
 
 interface Scene {
@@ -12,6 +13,7 @@ interface Scene {
   act: number;
   scene_number: number;
   title: string | null;
+  location: string | null;
 }
 
 interface Element {
@@ -33,11 +35,22 @@ interface Reference {
   created_at: string;
 }
 
+interface Milestone {
+  id: string;
+  milestone: string;
+  sort_order: number;
+  completed: boolean;
+  completed_at: string | null;
+  notes: string | null;
+}
+
 interface Props {
   productionId: string;
   scenes: Scene[];
   elements: Element[];
   references: Reference[];
+  milestones: Milestone[];
+  sceneNotes: { scene_id: string; content: string | null }[];
   canManage: boolean;
 }
 
@@ -63,9 +76,9 @@ function sceneLabel(s: Scene): string {
   return `${s.act === 1 ? "I" : "II"}.${s.scene_number}`;
 }
 
-export function SetDesign({ productionId, scenes, elements, references, canManage }: Props) {
+export function SetDesign({ productionId, scenes, elements, references, milestones, sceneNotes, canManage }: Props) {
   const router = useRouter();
-  const [view, setView] = useState<"pieces" | "scenes" | "references">("pieces");
+  const [view, setView] = useState<"progress" | "pieces" | "scenes" | "references">("progress");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showAddRef, setShowAddRef] = useState(false);
@@ -190,7 +203,7 @@ export function SetDesign({ productionId, scenes, elements, references, canManag
     <div>
       {/* Sub-nav */}
       <div className="flex gap-1 mb-6">
-        {(["pieces", "scenes", "references"] as const).map((v) => (
+        {(["progress", "pieces", "scenes", "references"] as const).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -198,7 +211,8 @@ export function SetDesign({ productionId, scenes, elements, references, canManag
               view === v ? "bg-ink/10 text-ink" : "text-ash hover:text-ink"
             }`}
           >
-            {v === "pieces" ? `Set Pieces (${elements.filter((e) => e.status !== "cut").length})` :
+            {v === "progress" ? `Progress (${milestones.filter((m) => m.completed).length}/${milestones.length})` :
+             v === "pieces" ? `Set Pieces (${elements.filter((e) => e.status !== "cut").length})` :
              v === "scenes" ? "Scene Breakdown" : `References (${references.length})`}
           </button>
         ))}
@@ -206,6 +220,68 @@ export function SetDesign({ productionId, scenes, elements, references, canManag
 
       {error && (
         <div className="text-body-xs text-brick bg-brick/5 border border-brick/20 rounded-card px-4 py-2 mb-4">{error}</div>
+      )}
+
+      {/* PROGRESS VIEW */}
+      {view === "progress" && (
+        <div className="space-y-6">
+          {/* Milestones checklist */}
+          <div>
+            <h3 className="text-body-xs text-muted uppercase tracking-wider mb-3">Design milestones</h3>
+            {milestones.length === 0 ? (
+              <p className="text-body-sm text-muted italic">No milestones set up yet.</p>
+            ) : (
+              <div className="bg-card border border-bone rounded-card divide-y divide-bone">
+                {milestones.map((m) => (
+                  <label key={m.id} className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-bone/20 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={m.completed}
+                      onChange={() => toggleMilestone(m.id, !m.completed).then(() => router.refresh())}
+                      disabled={!canManage}
+                      className="w-4 h-4 rounded border-bone text-confirmed focus:ring-confirmed"
+                    />
+                    <span className={`text-body-sm flex-1 ${m.completed ? "text-muted line-through" : "text-ink"}`}>
+                      {m.milestone}
+                    </span>
+                    {m.completed && m.completed_at && (
+                      <span className="text-body-xs text-muted font-mono">
+                        {new Date(m.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Quick stats */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-card border border-bone rounded-card px-4 py-3 text-center">
+              <p className="font-mono text-data-md text-ink">{elements.filter((e) => e.status !== "cut").length}</p>
+              <p className="text-body-xs text-muted">Set pieces</p>
+            </div>
+            <div className="bg-card border border-bone rounded-card px-4 py-3 text-center">
+              <p className="font-mono text-data-md text-ink">{elements.filter((e) => e.status === "complete").length}</p>
+              <p className="text-body-xs text-muted">Complete</p>
+            </div>
+            <div className="bg-card border border-bone rounded-card px-4 py-3 text-center">
+              <p className="font-mono text-data-md text-ink">{references.length}</p>
+              <p className="text-body-xs text-muted">References</p>
+            </div>
+          </div>
+
+          {/* Guidance for less experienced designers */}
+          <div className="bg-bone/20 border border-bone rounded-card px-5 py-4">
+            <h3 className="text-body-sm font-medium text-ink mb-2">Where to start</h3>
+            <div className="space-y-2 text-body-sm text-ash">
+              <p>Start with the <strong className="text-ink">Scene Breakdown</strong> tab. Read each scene's location and write what the audience needs to see — what tells the story of this place?</p>
+              <p>From those notes, identify the <strong className="text-ink">Set Pieces</strong> you need to build or source. A "cabin" might be a door frame + window flat + porch railing — break it into buildable parts.</p>
+              <p>Upload <strong className="text-ink">References</strong> — photos, sketches, mood boards — anything that helps communicate the vision. A good reference image is worth a thousand words in a design meeting.</p>
+              <p>The ground plan comes from your venue's technical specs. If you have one, upload it as a Reference with the "Ground Plan" category.</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* SET PIECES VIEW */}
@@ -333,18 +409,30 @@ export function SetDesign({ productionId, scenes, elements, references, canManag
       {/* SCENE BREAKDOWN VIEW */}
       {view === "scenes" && (
         <div className="space-y-3">
-          {sceneBreakdown.map(({ scene, pieces }) => (
-            <div key={scene.id} className="bg-card border border-bone rounded-card px-5 py-3">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-mono text-data-sm text-ink font-semibold">{sceneLabel(scene)}</span>
-                {scene.title && <span className="text-body-sm text-ash">{scene.title}</span>}
-                <span className="text-body-xs text-muted ml-auto">{pieces.length} piece{pieces.length !== 1 ? "s" : ""}</span>
-              </div>
-              {pieces.length > 0 ? (
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {pieces.map((p) => {
-                    const s = STATUS_LABELS[p.status];
-                    return (
+          <p className="text-body-xs text-muted mb-2">
+            Each scene's location comes from the script. Use the notes field to describe what the set should look like — what does the audience see? What tells the story of this place?
+          </p>
+          {sceneBreakdown.map(({ scene, pieces }) => {
+            const note = sceneNotes.find((n) => n.scene_id === scene.id);
+            return (
+              <div key={scene.id} className="bg-card border border-bone rounded-card px-5 py-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-mono text-data-sm text-ink font-semibold">{sceneLabel(scene)}</span>
+                  {scene.title && <span className="text-body-sm text-ash">{scene.title}</span>}
+                  <span className="text-body-xs text-muted ml-auto">{pieces.length} piece{pieces.length !== 1 ? "s" : ""}</span>
+                </div>
+
+                {/* Location from script */}
+                {scene.location && (
+                  <p className="text-body-sm text-ink mt-1">
+                    <span className="text-muted">Location:</span> <span className="font-medium">{scene.location}</span>
+                  </p>
+                )}
+
+                {/* Set pieces assigned */}
+                {pieces.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {pieces.map((p) => (
                       <span key={p.id} className={`text-body-xs px-2 py-0.5 rounded-full border ${
                         p.status === "complete" ? "border-confirmed/30 text-confirmed" :
                         p.status === "in_build" ? "border-brick/30 text-brick" :
@@ -352,14 +440,34 @@ export function SetDesign({ productionId, scenes, elements, references, canManag
                       }`}>
                         {p.name}
                       </span>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-body-xs text-muted italic">No set pieces assigned</p>
-              )}
-            </div>
-          ))}
+                    ))}
+                  </div>
+                )}
+
+                {/* Design notes — editable by staff */}
+                {canManage ? (
+                  <div className="mt-3">
+                    <EditableNote
+                      value={note?.content || ""}
+                      placeholder={scene.location
+                        ? `What does "${scene.location}" look like on stage? What set pieces are needed?`
+                        : "Describe the set for this scene..."}
+                      onSave={(content) => saveSceneDesignNote(scene.id, "set", content).then(() => router.refresh())}
+                    />
+                  </div>
+                ) : note?.content ? (
+                  <p className="text-body-sm text-ash mt-2 italic border-l-2 border-bone pl-3">{note.content}</p>
+                ) : null}
+
+                {/* Prompt if no pieces and no notes */}
+                {pieces.length === 0 && !note?.content && (
+                  <p className="text-body-xs text-tentative mt-2">
+                    ⚠ No set pieces or design notes yet for this scene.
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -446,6 +554,63 @@ export function SetDesign({ productionId, scenes, elements, references, canManag
           <img src={lightbox} alt="" className="max-w-full max-h-full object-contain rounded-card" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
+    </div>
+  );
+}
+
+// Inline editable note with save on blur/enter
+function EditableNote({ value, placeholder, onSave }: {
+  value: string;
+  placeholder: string;
+  onSave: (content: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  function handleSave() {
+    if (text.trim() !== value) {
+      setSaving(true);
+      onSave(text.trim());
+      setSaving(false);
+    }
+    setEditing(false);
+  }
+
+  if (!editing) {
+    return (
+      <div
+        onClick={() => { setEditing(true); setText(value); }}
+        className="cursor-pointer"
+      >
+        {value ? (
+          <p className="text-body-sm text-ash italic border-l-2 border-brick/30 pl-3">{value}</p>
+        ) : (
+          <p className="text-body-xs text-muted italic hover:text-ash transition-colors">+ Add design notes...</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSave(); }
+          if (e.key === "Escape") { setEditing(false); setText(value); }
+        }}
+        autoFocus
+        rows={3}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 bg-paper border border-bone rounded-card text-body-sm text-ink placeholder:text-muted focus:border-brick focus:outline-none resize-none"
+      />
+      <div className="flex gap-2 mt-1">
+        <button onClick={handleSave} disabled={saving} className="text-body-xs font-medium text-brick">{saving ? "Saving..." : "Save"}</button>
+        <button onClick={() => { setEditing(false); setText(value); }} className="text-body-xs text-muted">Cancel</button>
+      </div>
     </div>
   );
 }

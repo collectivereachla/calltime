@@ -125,3 +125,48 @@ export async function deleteDesignReference(id: string) {
   revalidatePath("/booth");
   return { success: true };
 }
+
+export async function saveSceneDesignNote(sceneId: string, department: string, content: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("scene_design_notes")
+    .upsert({ scene_id: sceneId, department, content: content.trim() || null, updated_at: new Date().toISOString() },
+      { onConflict: "scene_id,department" });
+  if (error) return { error: error.message };
+  revalidatePath("/booth");
+  return { success: true };
+}
+
+export async function toggleMilestone(id: string, completed: boolean) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("design_milestones")
+    .update({
+      completed,
+      completed_at: completed ? new Date().toISOString() : null,
+    })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/booth");
+  return { success: true };
+}
+
+export async function seedMilestones(productionId: string, department: string) {
+  const supabase = await createClient();
+  const templates: Record<string, string[]> = {
+    set: ["Script analysis & concept discussion", "Research & reference images", "Rough sketches / thumbnails", "Ground plan", "Renderings / color model", "Construction drawings", "Materials & paint list", "Build complete", "Paint complete", "Load-in", "Tech rehearsal ready"],
+    sound: ["Script analysis & sound world discussion", "Research & reference sounds", "Sound plot / cue list", "Source music selections", "Sound effects design", "System design & speaker plot", "Programming & levels set", "Paper tech complete", "Tech rehearsal ready"],
+    lights: ["Script analysis & concept discussion", "Research & reference images", "Light plot draft", "Color & template selections", "Light plot final", "Channel hookup & dimmer schedule", "Hang & focus", "Cue writing", "Paper tech complete", "Tech rehearsal ready"],
+  };
+  const items = templates[department] || templates.set;
+  for (let i = 0; i < items.length; i++) {
+    await supabase.from("design_milestones").upsert({
+      production_id: productionId,
+      department,
+      milestone: items[i],
+      sort_order: i + 1,
+    }, { onConflict: "production_id,department,milestone" });
+  }
+  revalidatePath("/booth");
+  return { success: true };
+}

@@ -184,6 +184,26 @@ export default async function BoothPage() {
     .eq("department", "set")
     .order("created_at", { ascending: false });
 
+  // Get design milestones
+  const { data: setMilestones } = await supabase
+    .from("design_milestones")
+    .select("id, milestone, sort_order, completed, completed_at, notes")
+    .eq("production_id", activeProduction.id)
+    .eq("department", "set")
+    .order("sort_order", { ascending: true });
+
+  // Get scene design notes for set
+  const sceneIds = scenes.map((s) => s.id);
+  let setSceneNotes: { scene_id: string; content: string | null }[] = [];
+  if (sceneIds.length > 0) {
+    const { data } = await supabase
+      .from("scene_design_notes")
+      .select("scene_id, content")
+      .in("scene_id", sceneIds)
+      .eq("department", "set");
+    setSceneNotes = data || [];
+  }
+
   return (
     <div className="max-w-full mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 mb-6">
@@ -214,11 +234,17 @@ export default async function BoothPage() {
         setDesignContent={
           <SetDesign
             productionId={activeProduction.id}
-            scenes={scenes.map((s) => ({
-              id: s.id, act: s.act, scene_number: s.scene_number, title: s.title,
-            }))}
+            scenes={scenes.map((s) => {
+              const full = (smScenesData as unknown as { id: string; location: string | null }[] || []).find((fs) => fs.id === s.id);
+              return {
+                id: s.id, act: s.act, scene_number: s.scene_number, title: s.title,
+                location: full?.location || null,
+              };
+            })}
             elements={(setElements || []) as any}
             references={(setReferences || []) as any}
+            milestones={(setMilestones || []) as any}
+            sceneNotes={setSceneNotes}
             canManage={canManage}
           />
         }
