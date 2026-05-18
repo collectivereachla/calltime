@@ -137,3 +137,50 @@ export async function searchScript(
 
   return { lines: lines || [], annotations };
 }
+
+export async function createScriptVersion(
+  sourceScriptId: string,
+  versionLabel: string,
+  versionNotes: string | null,
+  copyAnnotations: boolean
+) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("create_script_version", {
+    p_source_script_id: sourceScriptId,
+    p_version_label: versionLabel,
+    p_version_notes: versionNotes,
+    p_copy_annotations: copyAnnotations,
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/spine");
+  return { success: true, newScriptId: data };
+}
+
+export async function lockScriptVersion(scriptId: string, locked: boolean) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("lock_script_version", {
+    p_script_id: scriptId,
+    p_locked: locked,
+  });
+
+  if (error) return { error: error.message };
+  revalidatePath("/spine");
+  return { success: true };
+}
+
+export async function updateVersionNotes(scriptId: string, notes: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("update_script_version_notes", {
+    p_script_id: scriptId,
+    p_version_notes: notes,
+  });
+
+  if (error) return { error: error.message };
+  revalidatePath("/spine");
+  return { success: true };
+}

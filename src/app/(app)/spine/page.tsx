@@ -1,7 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { SpineLayout } from "./spine-layout";
 
-export default async function SpinePage() {
+interface SearchParams {
+  v?: string;
+}
+
+export default async function SpinePage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -41,23 +50,55 @@ export default async function SpinePage() {
 
   const productionIds = productions?.map((p) => p.id) || [];
 
-  let scripts: {
+  // Fetch all versions for version selector
+  let versions: {
     id: string;
     title: string;
     version: string;
-    production_id: string;
-    productions: { title: string };
+    is_locked: boolean;
+    version_notes: string | null;
+    created_by: string | null;
+    created_by_name: string | null;
+    created_at: string;
+    line_count: number;
+    annotation_count: number;
   }[] = [];
 
   if (productionIds.length > 0) {
-    const { data } = await supabase
-      .from("scripts")
-      .select("id, title, version, production_id, productions(title)")
-      .in("production_id", productionIds);
-    scripts = (data as unknown as typeof scripts) || [];
+    const { data } = await supabase.rpc("get_script_versions", {
+      p_production_id: productionIds[0],
+    });
+    versions = (data as typeof versions) || [];
   }
 
-  const activeScript = scripts[0] || null;
+  // Determine which version to show
+  const requestedVersionId = params.v;
+  let activeScript: { id: string; title: string; version: string; is_locked: boolean } | null = null;
+
+  if (requestedVersionId) {
+    const found = versions.find((v) => v.id === requestedVersionId);
+    if (found) {
+      activeScript = {
+        id: found.id,
+        title: found.title,
+        version: found.version,
+        is_locked: found.is_locked,
+      };
+    }
+  }
+
+  // Default to the working (unlocked) version
+  if (!activeScript) {
+    const working = versions.find((v) => !v.is_locked);
+    if (working) {
+      activeScript = {
+        id: working.id,
+        title: working.title,
+        version: working.version,
+        is_locked: working.is_locked,
+      };
+    }
+  }
 
   let lines: {
     id: string;
@@ -111,7 +152,6 @@ export default async function SpinePage() {
     annotations = data || [];
   }
 
-  // Get all distinct characters in the script for the filter dropdown
   const allCharacters = Array.from(
     new Set(
       lines
@@ -121,11 +161,11 @@ export default async function SpinePage() {
   ).sort();
 
   let myCharacters: string[] = [];
-  if (activeScript) {
+  if (activeScript && productionIds.length > 0) {
     const { data: assignments } = await supabase
       .from("production_assignments")
       .select("role_title")
-      .eq("production_id", activeScript.production_id)
+      .eq("production_id", productionIds[0])
       .eq("person_id", person!.id);
     myCharacters = assignments?.map((a) => a.role_title) || [];
   }
@@ -167,6 +207,10 @@ export default async function SpinePage() {
           allCharacters={allCharacters}
           canManage={canManage}
           personId={person!.id}
+          versions={versions}
+          activeVersionId={activeScript.id}
+          isLocked={activeScript.is_locked}
+          productionId={productionIds[0]}
         />
       )}
     </div>

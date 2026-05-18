@@ -118,6 +118,8 @@ interface Props {
   allCharacters: string[];
   canManage: boolean;
   personId: string;
+  isLocked?: boolean;
+  [key: string]: unknown;
 }
 
 export function SpineViewer({
@@ -130,6 +132,7 @@ export function SpineViewer({
   allCharacters,
   canManage,
   personId,
+  isLocked = false,
 }: Props) {
   // Group lines by act.scene
   const sceneKeys: string[] = [];
@@ -610,7 +613,7 @@ export function SpineViewer({
             const lineAnnotations = annotationsByLine.get(line.id) || [];
             const hasAnnotations = lineAnnotations.length > 0;
             const isAnnotating = annotatingLineId === line.id;
-            const canAddHere = canManage || (line.character && isMyCharacter(line.character || ""));
+            const canAddHere = !isLocked && (canManage || (line.character && isMyCharacter(line.character || "")));
             const sceneLineNo = lineNumberMap.get(line.id);
 
             // Auto-detect speaker changes for character name headers
@@ -674,7 +677,7 @@ export function SpineViewer({
                 {noteView !== "none" && lineAnnotations.map((a) => {
                   const isEditing = editingAnnotationId === a.id;
                   const isPersonal = a.visibility === "personal";
-                  const canEdit = canManage || (isPersonal && a.person_id === personId);
+                  const canEdit = !isLocked && (canManage || (isPersonal && a.person_id === personId));
 
                   return (
                     <div

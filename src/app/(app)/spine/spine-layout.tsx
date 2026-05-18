@@ -4,6 +4,7 @@ import { useState } from "react";
 import { SpineViewer } from "./spine-viewer";
 import { LineLab } from "./line-lab";
 import { ScriptReports } from "./script-reports";
+import { VersionBar } from "./version-bar";
 
 interface ScriptLine {
   id: string;
@@ -29,6 +30,19 @@ interface Annotation {
   updated_at: string;
 }
 
+export interface ScriptVersion {
+  id: string;
+  title: string;
+  version: string;
+  is_locked: boolean;
+  version_notes: string | null;
+  created_by: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  line_count: number;
+  annotation_count: number;
+}
+
 type Tab = "script" | "linelab" | "reports";
 
 interface Props {
@@ -41,6 +55,10 @@ interface Props {
   allCharacters: string[];
   canManage: boolean;
   personId: string;
+  versions: ScriptVersion[];
+  activeVersionId: string;
+  isLocked: boolean;
+  productionId: string;
 }
 
 export function SpineLayout(props: Props) {
@@ -54,6 +72,27 @@ export function SpineLayout(props: Props) {
 
   return (
     <div>
+      {/* Version bar — shown when multiple versions exist or staff can manage */}
+      {(props.versions.length > 1 || props.canManage) && (
+        <VersionBar
+          versions={props.versions}
+          activeVersionId={props.activeVersionId}
+          isLocked={props.isLocked}
+          canManage={props.canManage}
+          productionId={props.productionId}
+        />
+      )}
+
+      {/* Locked banner */}
+      {props.isLocked && (
+        <div className="flex items-center gap-2 px-4 py-2.5 mb-4 bg-bone/40 border border-bone rounded-card">
+          <span className="text-body-xs">🔒</span>
+          <span className="text-body-sm text-ash">
+            This is a locked version. Annotations are read-only.
+          </span>
+        </div>
+      )}
+
       {/* Tab bar */}
       <div className="flex items-center gap-1 mb-6 border-b border-bone">
         {tabs
