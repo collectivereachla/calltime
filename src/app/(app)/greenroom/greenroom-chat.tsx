@@ -70,7 +70,7 @@ export function GreenroomChat({
   const [uploading, setUploading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(initialMessages.length >= 50);
-  const [pickerOpenFor, setPickerOpenFor] = useState<string | null>(null);
+  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -259,7 +259,7 @@ export function GreenroomChat({
   }
 
   async function toggleReaction(messageId: string, emoji: string) {
-    setPickerOpenFor(null);
+    setActiveMessageId(null);
     const msgReactions = reactions.get(messageId) || [];
     const existing = msgReactions.find((r) => r.person_id === personId && r.emoji === emoji);
 
@@ -373,7 +373,7 @@ export function GreenroomChat({
 
   function renderReactions(messageId: string) {
     const msgReactions = reactions.get(messageId) || [];
-    if (msgReactions.length === 0 && pickerOpenFor !== messageId) return null;
+    if (msgReactions.length === 0) return null;
 
     // Group by emoji
     const grouped = new Map<string, { count: number; mine: boolean }>();
@@ -389,7 +389,7 @@ export function GreenroomChat({
         {Array.from(grouped.entries()).map(([emoji, { count, mine }]) => (
           <button
             key={emoji}
-            onClick={() => toggleReaction(messageId, emoji)}
+            onClick={(e) => { e.stopPropagation(); toggleReaction(messageId, emoji); }}
             className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-body-xs transition-colors ${
               mine
                 ? "bg-brick/10 border border-brick/30 text-brick"
@@ -400,27 +400,6 @@ export function GreenroomChat({
             <span className="font-mono text-[10px]">{count}</span>
           </button>
         ))}
-        {/* Add reaction button */}
-        <button
-          onClick={() => setPickerOpenFor(pickerOpenFor === messageId ? null : messageId)}
-          className="w-6 h-6 rounded-full bg-bone/30 text-muted hover:text-ink hover:bg-bone/60 text-body-xs transition-colors flex items-center justify-center"
-        >
-          +
-        </button>
-        {/* Emoji picker */}
-        {pickerOpenFor === messageId && (
-          <div className="flex gap-1 bg-card border border-bone rounded-card px-2 py-1 shadow-sm">
-            {REACTION_EMOJIS.map((emoji) => (
-              <button
-                key={emoji}
-                onClick={() => toggleReaction(messageId, emoji)}
-                className="w-7 h-7 rounded hover:bg-bone/50 flex items-center justify-center transition-colors"
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     );
   }
@@ -438,7 +417,7 @@ export function GreenroomChat({
         ref={scrollRef}
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-4 md:px-8 py-4"
-        onClick={() => { if (pickerOpenFor) setPickerOpenFor(null); }}
+        onClick={() => setActiveMessageId(null)}
       >
         {hasMore && (
           <div className="text-center mb-4">
@@ -488,7 +467,12 @@ export function GreenroomChat({
                   </div>
                 )}
 
-                <div className="flex items-start gap-2 pl-8">
+                <div
+                  className="flex items-start gap-2 pl-8 cursor-pointer"
+                  onClick={() => {
+                    if (!isOptimistic) setActiveMessageId(activeMessageId === msg.id ? null : msg.id);
+                  }}
+                >
                   <div className="flex-1 min-w-0">
                     {/* Text content — skip if it's just the auto-generated file label */}
                     {msg.content && !(msg.attachment_url && msg.content === (msg.attachment_name || "shared a file")) && (
@@ -498,16 +482,30 @@ export function GreenroomChat({
                     )}
                     {renderAttachment(msg)}
                   </div>
-                  {canDelete && !isOptimistic && (
-                    <button
-                      onClick={() => deleteMessage(msg.id)}
-                      className="opacity-0 group-hover:opacity-100 text-muted hover:text-brick text-body-xs transition-opacity shrink-0 mt-1"
-                      title="Delete"
-                    >
-                      ×
-                    </button>
-                  )}
                 </div>
+
+                {/* Action bar — tap on mobile, hover on desktop */}
+                {!isOptimistic && (activeMessageId === msg.id || undefined) && (
+                  <div className="flex items-center gap-1 pl-8 mt-1">
+                    {REACTION_EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); setActiveMessageId(null); }}
+                        className="w-7 h-7 rounded hover:bg-bone/50 flex items-center justify-center transition-colors text-sm"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                    {canDelete && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteMessage(msg.id); setActiveMessageId(null); }}
+                        className="ml-1 px-2 py-1 text-body-xs text-muted hover:text-brick transition-colors"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {!isOptimistic && renderReactions(msg.id)}
               </div>
