@@ -42,6 +42,18 @@ export default async function AppLayout({
 
   const displayName = person.preferred_name || person.full_name;
 
+  // Count contracts awaiting countersign (owner badge)
+  const isOwner = memberships.some((m) => m.role === "owner");
+  let pendingCountersignCount = 0;
+  if (isOwner) {
+    const orgId = (memberships[0].organizations as unknown as { id: string }).id;
+    const { count } = await supabase
+      .from("contracts")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "signed");
+    pendingCountersignCount = count || 0;
+  }
+
   return (
     <div className="min-h-screen flex">
       <AppNav
@@ -52,6 +64,7 @@ export default async function AppLayout({
           slug: (m.organizations as unknown as { id: string; name: string; slug: string }).slug,
           role: m.role,
         }))}
+        badges={{ ledger: pendingCountersignCount }}
       />
       <main className="flex-1 min-w-0 pt-14 pb-16 md:pt-0 md:pb-0">
         {children}

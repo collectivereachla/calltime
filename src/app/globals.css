@@ -54,3 +54,69 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-ash);
 }
+
+/* Print styles — contracts, schedules, scripts */
+@media print {
+  /* Hide app chrome */
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset layout */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Clean card appearance */
+  .bg-card {
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .rounded-card {
+    border-radius: 0 !important;
+  }
+
+  /* Signature images print clearly */
+  img[alt*="Signature"],
+  img[alt*="signature"],
+  img[alt*="countersign"] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    max-height: 60px;
+  }
+
+  /* Status badges print */
+  .bg-confirmed\/5,
+  .bg-confirmed\/10,
+  .bg-tentative\/10,
+  .bg-conflict\/10 {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Page margins */
+  @page {
+    margin: 0.75in;
+    size: letter;
+  }
+
+  /* Avoid breaks in the middle of sections */
+  h2, h3, p {
+    orphans: 3;
+    widows: 3;
+  }
+
+  h2, h3 {
+    page-break-after: avoid;
+  }
+}

@@ -18,6 +18,10 @@ interface Contract {
   template_id: string;
   production_id: string;
   contract_body: string | null;
+  signature_typed: string | null;
+  signature_draw_url: string | null;
+  countersigned_typed: string | null;
+  countersigned_draw_url: string | null;
 }
 
 interface Template {

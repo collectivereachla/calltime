@@ -15,6 +15,7 @@ interface Org {
 interface AppNavProps {
   displayName: string;
   orgs: Org[];
+  badges?: Record<string, number>;
 }
 
 const rooms = [
@@ -31,9 +32,14 @@ const rooms = [
 
 const mobileRooms = rooms.filter((r) => r.mobile && !r.disabled);
 
-export function AppNav({ displayName, orgs }: AppNavProps) {
+export function AppNav({ displayName, orgs, badges = {} }: AppNavProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
+
+  function getBadge(room: { path: string }) {
+    const key = room.path.replace("/", "");
+    return badges[key] || 0;
+  }
 
   return (
     <>
@@ -72,6 +78,11 @@ export function AppNav({ displayName, orgs }: AppNavProps) {
                 }`}>
                 <span className={`text-xs w-4 text-center ${isActive ? "text-brick" : "text-ash"}`}>{room.icon}</span>
                 {room.name}
+                {getBadge(room) > 0 && (
+                  <span className="ml-auto text-[10px] font-medium bg-brick text-paper rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                    {getBadge(room)}
+                  </span>
+                )}
               </Link>
             );
           })}

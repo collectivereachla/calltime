@@ -55,6 +55,10 @@ interface Contract {
   template_id: string;
   production_id: string;
   contract_body: string | null;
+  signature_typed: string | null;
+  signature_draw_url: string | null;
+  countersigned_typed: string | null;
+  countersigned_draw_url: string | null;
 }
 
 interface Template {
@@ -218,7 +222,7 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
       <div>
         <button
           onClick={() => setSelectedId(null)}
-          className="text-body-sm text-ash hover:text-ink mb-4 transition-colors"
+          className="text-body-sm text-ash hover:text-ink mb-4 transition-colors print:hidden"
         >
           ← Back to contracts
         </button>
@@ -260,6 +264,15 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
                 <span className={`text-body-xs font-medium px-2 py-1 rounded-full ${statusColor(selected.status)}`}>
                   {statusLabel(selected.status)}
                 </span>
+                {showContent && (
+                  <button
+                    onClick={() => window.print()}
+                    className="text-body-xs text-ash hover:text-ink transition-colors print:hidden"
+                    title="Print contract"
+                  >
+                    ⎙
+                  </button>
+                )}
                 {canSeeContent && selected.status === "pending" && (
                   <button
                     onClick={() => handleDeleteContract(selected.id)}
@@ -316,26 +329,69 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
               })}
             </div>
 
-            {/* Signature status */}
+            {/* Signatures */}
             {selected.signed_at && (
-              <div className="mt-8 pt-4 border-t border-bone">
-                <p className="text-body-sm text-confirmed font-medium">
-                  ✓ Signed by {selected.person_name} on{" "}
-                  {new Date(selected.signed_at).toLocaleDateString("en-US", {
-                    month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
-                  })}
-                </p>
-              </div>
-            )}
+              <div className="mt-8 pt-6 border-t border-bone space-y-6">
+                {/* Signee signature */}
+                <div>
+                  <p className="text-body-xs text-muted uppercase tracking-wider mb-2">
+                    {selected.person_name} — Signed
+                  </p>
+                  {selected.signature_draw_url && (
+                    <div className="border border-bone rounded bg-white px-4 py-2 inline-block">
+                      <img
+                        src={selected.signature_draw_url}
+                        alt={`Signature of ${selected.person_name}`}
+                        className="h-16 w-auto"
+                      />
+                    </div>
+                  )}
+                  <div className="mt-1 flex items-baseline gap-4">
+                    {selected.signature_typed && (
+                      <p className="text-body-md text-ink font-display italic">{selected.signature_typed}</p>
+                    )}
+                    <p className="text-body-xs text-ash">
+                      {new Date(selected.signed_at).toLocaleDateString("en-US", {
+                        month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                </div>
 
-            {selected.countersigned_at && (
-              <div className="mt-2">
-                <p className="text-body-sm text-confirmed font-medium">
-                  ✓ Countersigned on{" "}
-                  {new Date(selected.countersigned_at).toLocaleDateString("en-US", {
-                    month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
-                  })}
-                </p>
+                {/* Countersignature */}
+                {selected.countersigned_at && (
+                  <div>
+                    <p className="text-body-xs text-muted uppercase tracking-wider mb-2">
+                      Director / Producer — Countersigned
+                    </p>
+                    {selected.countersigned_draw_url && (
+                      <div className="border border-bone rounded bg-white px-4 py-2 inline-block">
+                        <img
+                          src={selected.countersigned_draw_url}
+                          alt="Director countersignature"
+                          className="h-16 w-auto"
+                        />
+                      </div>
+                    )}
+                    <div className="mt-1 flex items-baseline gap-4">
+                      {selected.countersigned_typed && (
+                        <p className="text-body-md text-ink font-display italic">{selected.countersigned_typed}</p>
+                      )}
+                      <p className="text-body-xs text-ash">
+                        {new Date(selected.countersigned_at).toLocaleDateString("en-US", {
+                          month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Contract complete badge */}
+                {selected.status === "countersigned" && (
+                  <div className="bg-confirmed/5 border border-confirmed/20 rounded-card px-4 py-3 text-center">
+                    <p className="text-body-sm text-confirmed font-medium">✓ Contract fully executed</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -384,7 +440,7 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
             </div>
           )}
           {canSign && showContent && (
-            <div className="px-6 py-6 bg-paper border-t border-bone">
+            <div className="px-6 py-6 bg-paper border-t border-bone print:hidden">
               <h3 className="font-display text-display-sm text-ink mb-3">Sign this contract</h3>
               <p className="text-body-sm text-ash mb-4">
                 Sign below and type your full legal name to agree to the terms outlined in this agreement.
@@ -431,7 +487,7 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
 
           {/* Countersign area — owners only */}
           {canCountersign && (
-            <div className="px-6 py-6 bg-paper border-t border-bone">
+            <div className="px-6 py-6 bg-paper border-t border-bone print:hidden">
               <h3 className="font-display text-display-sm text-ink mb-3">Countersign</h3>
               <p className="text-body-sm text-ash mb-4">
                 {selected.person_name} has signed. Sign below and type your name to countersign.
