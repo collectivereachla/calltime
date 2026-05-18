@@ -471,7 +471,8 @@ export function GreenroomChat({
 
                 <div
                   className="flex items-start gap-2 pl-8 cursor-pointer"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     if (!isOptimistic) setActiveMessageId(activeMessageId === msg.id ? null : msg.id);
                   }}
                 >
@@ -487,7 +488,7 @@ export function GreenroomChat({
                 </div>
 
                 {/* Action bar — tap on mobile, hover on desktop */}
-                {!isOptimistic && (activeMessageId === msg.id || undefined) && (
+                {!isOptimistic && activeMessageId === msg.id && (
                   <div className="flex items-center gap-1 pl-8 mt-1">
                     {REACTION_EMOJIS.map((emoji) => (
                       <button
