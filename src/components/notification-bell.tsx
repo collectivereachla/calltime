@@ -54,6 +54,8 @@ export function NotificationBell({ unreadCount }: Props) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -62,7 +64,9 @@ export function NotificationBell({ unreadCount }: Props) {
     function handleClick(e: MouseEvent) {
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
+        !dropdownRef.current.contains(e.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target as Node)
       ) {
         setOpen(false);
       }
@@ -77,6 +81,18 @@ export function NotificationBell({ unreadCount }: Props) {
       const data = await getNotifications(15);
       setNotifications(data as Notification[]);
       setLoading(false);
+
+      // Position dropdown relative to button
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        const dropdownWidth = 340;
+        let left = rect.left;
+        // If dropdown would go off right edge, align to right edge of button
+        if (left + dropdownWidth > window.innerWidth - 16) {
+          left = rect.right - dropdownWidth;
+        }
+        setDropdownPos({ top: rect.bottom + 8, left });
+      }
     }
     setOpen(!open);
   }
@@ -106,8 +122,9 @@ export function NotificationBell({ unreadCount }: Props) {
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative">
       <button
+        ref={buttonRef}
         onClick={toggleOpen}
         className="relative p-1.5 text-ash hover:text-ink transition-colors"
         title="Notifications"
@@ -132,8 +149,12 @@ export function NotificationBell({ unreadCount }: Props) {
         )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-bone rounded-card shadow-lg overflow-hidden z-50">
+      {open && dropdownPos && (
+        <div
+          ref={dropdownRef}
+          className="fixed w-[340px] bg-card border border-bone rounded-card shadow-lg overflow-hidden z-50"
+          style={{ top: dropdownPos.top, left: dropdownPos.left }}
+        >
           <div className="px-4 py-3 border-b border-bone flex items-center justify-between">
             <p className="text-body-sm font-medium text-ink">Notifications</p>
             {notifications.some((n) => !n.read_at) && (
@@ -173,7 +194,7 @@ export function NotificationBell({ unreadCount }: Props) {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p
-                      className={`text-body-sm truncate ${
+                      className={`text-body-sm ${
                         !notif.read_at
                           ? "text-ink font-medium"
                           : "text-ash"
@@ -182,7 +203,7 @@ export function NotificationBell({ unreadCount }: Props) {
                       {notif.title}
                     </p>
                     {notif.body && (
-                      <p className="text-body-xs text-muted truncate mt-0.5">
+                      <p className="text-body-xs text-muted mt-0.5">
                         {notif.body}
                       </p>
                     )}
