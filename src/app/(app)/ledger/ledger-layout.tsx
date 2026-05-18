@@ -78,6 +78,9 @@ interface Props {
   personId: string;
   personName: string;
   productionId: string;
+  orgName: string;
+  productions: { id: string; title: string; first_rehearsal: string | null; opening_date: string | null; closing_date: string | null }[];
+  systemTemplates: { id: string; contract_type: string; title: string; body_markdown: string; is_system: boolean }[];
 }
 
 export function LedgerLayout(props: Props) {
@@ -126,6 +129,8 @@ export function LedgerLayout(props: Props) {
           canSeeContent={props.canSeeContent}
           personId={props.personId}
           personName={props.personName}
+          orgName={props.orgName}
+          productions={props.productions}
         />
       )}
 
@@ -144,6 +149,7 @@ export function LedgerLayout(props: Props) {
           templates={props.allTemplates}
           productionId={props.productionId}
           contractCounts={contractCounts}
+          systemTemplates={props.systemTemplates}
         />
       )}
     </div>

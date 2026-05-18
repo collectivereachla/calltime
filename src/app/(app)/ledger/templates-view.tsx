@@ -14,7 +14,8 @@ interface Template {
 interface Props {
   templates: Template[];
   productionId: string;
-  contractCounts: Record<string, number>; // template_id -> count of contracts
+  contractCounts: Record<string, number>;
+  systemTemplates: Template[];
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -35,7 +36,7 @@ function typeLabel(type: string) {
   return TYPE_LABELS[type] || type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function TemplatesView({ templates, productionId, contractCounts }: Props) {
+export function TemplatesView({ templates, productionId, contractCounts, systemTemplates }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -103,7 +104,7 @@ export function TemplatesView({ templates, productionId, contractCounts }: Props
     fd.set("production_id", productionId);
     fd.set("contract_type", newType);
     fd.set("title", newTitle.trim());
-    fd.set("body_markdown", `**${newTitle.trim()}**\n\nContract body goes here.\n\nUse {{PERSON_NAME}}, {{ROLE_TITLE}}, and {{COMPENSATION}} as placeholders.`);
+    fd.set("body_markdown", `# ${newTitle.trim()}\n\n**Production:** {{production_title}}\n**Organization:** {{organization_name}}\n**Name:** {{performer_name}}\n**Role:** {{role_title}}\n\n---\n\n**Compensation:** {{compensation}}\n**Period:** {{start_date}} – {{end_date}}\n\nContract terms go here.\n\n---\n\n**By signing below, both parties agree to the terms outlined above.**`);
     const result = await createTemplate(fd);
     setSaving(false);
     if (result.error) alert(result.error);
@@ -113,6 +114,19 @@ export function TemplatesView({ templates, productionId, contractCounts }: Props
       setNewTitle("");
       router.refresh();
     }
+  }
+
+  async function forkSystemTemplate(sys: Template) {
+    setSaving(true);
+    const fd = new FormData();
+    fd.set("production_id", productionId);
+    fd.set("contract_type", sys.contract_type);
+    fd.set("title", sys.title);
+    fd.set("body_markdown", sys.body_markdown);
+    const result = await createTemplate(fd);
+    setSaving(false);
+    if (result.error) alert(result.error);
+    else router.refresh();
   }
 
   // Detail / edit view
@@ -188,7 +202,7 @@ export function TemplatesView({ templates, productionId, contractCounts }: Props
                 <div className="bg-paper border border-bone rounded-card px-4 py-3">
                   <p className="text-body-xs text-muted font-medium mb-1">Available placeholders</p>
                   <p className="text-body-xs text-ash font-mono">
-                    {"{{PERSON_NAME}}"} · {"{{ROLE_TITLE}}"} · {"{{COMPENSATION}}"}
+                    {"{{performer_name}}"} · {"{{role_title}}"} · {"{{compensation}}"} · {"{{production_title}}"} · {"{{organization_name}}"} · {"{{start_date}}"} · {"{{end_date}}"} · {"{{performance_dates}}"}
                   </p>
                 </div>
 
@@ -315,6 +329,43 @@ export function TemplatesView({ templates, productionId, contractCounts }: Props
       {templates.length === 0 && (
         <div className="bg-card border border-bone rounded-card px-6 py-8 text-center">
           <p className="text-body-md text-ash">No templates found for this production.</p>
+        </div>
+      )}
+
+      {/* System templates — available to fork */}
+      {systemTemplates.length > 0 && (
+        <div className="mt-8">
+          <p className="text-body-xs text-muted uppercase tracking-wider mb-3">
+            System templates
+          </p>
+          <p className="text-body-sm text-ash mb-4">
+            Starter templates you can add to this production and customize.
+          </p>
+          <div className="space-y-2">
+            {systemTemplates
+              .filter((sys) => !templates.some((t) => t.contract_type === sys.contract_type))
+              .map((sys) => (
+                <div
+                  key={sys.id}
+                  className="bg-card border border-bone/60 border-dashed rounded-card px-4 py-3 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-body-md text-ash">{sys.title}</p>
+                    <p className="text-body-xs text-muted">{typeLabel(sys.contract_type)}</p>
+                  </div>
+                  <button
+                    onClick={() => forkSystemTemplate(sys)}
+                    disabled={saving}
+                    className="text-body-sm text-brick hover:text-brick/80 font-medium transition-colors shrink-0 disabled:opacity-40"
+                  >
+                    + Add
+                  </button>
+                </div>
+              ))}
+          </div>
+          {systemTemplates.filter((sys) => !templates.some((t) => t.contract_type === sys.contract_type)).length === 0 && (
+            <p className="text-body-sm text-muted">All system templates are already in use.</p>
+          )}
         </div>
       )}
     </div>

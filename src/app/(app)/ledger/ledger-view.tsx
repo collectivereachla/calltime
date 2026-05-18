@@ -75,6 +75,8 @@ interface Props {
   canSeeContent: boolean;
   personId: string;
   personName: string;
+  orgName: string;
+  productions: { id: string; title: string; first_rehearsal: string | null; opening_date: string | null; closing_date: string | null }[];
 }
 
 type StatusFilter = "all" | "pending" | "signed" | "countersigned";
@@ -98,11 +100,33 @@ function statusLabel(status: string, viewedAt?: string | null, isOwnerView?: boo
   }
 }
 
-function renderContractBody(template: Template, contract: Contract) {
+function formatDate(d: string | null) {
+  if (!d) return "TBD";
+  return new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+function renderContractBody(
+  template: Template,
+  contract: Contract,
+  context: { orgName: string; productionTitle: string; startDate: string | null; endDate: string | null; openingDate: string | null; closingDate: string | null }
+) {
   // Prefer pre-rendered contract_body (personalized with signature block)
   let body = contract.contract_body || template.body_markdown;
   if (!contract.contract_body) {
-    // Fallback: render from template with placeholder replacement
+    // System template variables (lowercase)
+    body = body.replace(/\{\{production_title\}\}/g, context.productionTitle);
+    body = body.replace(/\{\{organization_name\}\}/g, context.orgName);
+    body = body.replace(/\{\{performer_name\}\}/g, contract.person_name);
+    body = body.replace(/\{\{role_title\}\}/g, contract.role_title);
+    body = body.replace(/\{\{compensation\}\}/g, contract.compensation || "TBD");
+    body = body.replace(/\{\{start_date\}\}/g, formatDate(context.startDate));
+    body = body.replace(/\{\{end_date\}\}/g, formatDate(context.endDate));
+    body = body.replace(/\{\{performance_dates\}\}/g,
+      context.openingDate ? `${formatDate(context.openingDate)} – ${formatDate(context.closingDate)}` : "TBD"
+    );
+    body = body.replace(/\{\{design_budget\}\}/g, "TBD");
+
+    // Legacy BTE template variables (uppercase)
     body = body.replace(/\{\{PERSON_NAME\}\}/g, contract.person_name);
     body = body.replace(/\{\{NAME\}\}/g, contract.person_name);
     body = body.replace(/\{\{ROLE_TITLE\}\}/g, contract.role_title);
@@ -119,7 +143,7 @@ function renderContractBody(template: Template, contract: Contract) {
   return body;
 }
 
-export function LedgerView({ contracts, templates, canManage, canSeeContent, personId, personName }: Props) {
+export function LedgerView({ contracts, templates, canManage, canSeeContent, personId, personName, orgName, productions }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [signatureName, setSignatureName] = useState("");
@@ -211,7 +235,15 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
 
   // Contract detail view
   if (selected && template) {
-    const body = renderContractBody(template, selected);
+    const prod = productions.find((p) => p.id === selected.production_id);
+    const body = renderContractBody(template, selected, {
+      orgName,
+      productionTitle: prod?.title || "",
+      startDate: prod?.first_rehearsal || null,
+      endDate: prod?.closing_date || null,
+      openingDate: prod?.opening_date || null,
+      closingDate: prod?.closing_date || null,
+    });
     const isMine = selected.person_id === personId;
     const canSign = isMine && selected.status === "pending";
     const canCountersign = canSeeContent && selected.status === "signed";

@@ -31,9 +31,11 @@ export default async function LedgerPage() {
   const canSeeContent = membership.role === "owner";
   const orgId = (membership.organizations as unknown as { id: string }).id;
 
+  const orgName = (membership.organizations as unknown as { id: string; name: string }).name;
+
   const { data: productions } = await supabase
     .from("productions")
-    .select("id, title")
+    .select("id, title, first_rehearsal, opening_date, closing_date")
     .eq("org_id", orgId)
     .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
     .order("opening_date", { ascending: true });
@@ -101,15 +103,34 @@ export default async function LedgerPage() {
     contract_type: string;
     title: string;
     body_markdown: string;
+    is_system: boolean;
   }[] = [];
 
   if (canSeeContent && productionIds.length > 0) {
     const { data } = await supabase
       .from("contract_templates")
-      .select("id, contract_type, title, body_markdown")
+      .select("id, contract_type, title, body_markdown, is_system")
       .in("production_id", productionIds)
       .order("title");
-    allTemplates = data || [];
+    allTemplates = (data || []).map((t) => ({ ...t, is_system: false }));
+  }
+
+  // System templates (available to all orgs)
+  let systemTemplates: {
+    id: string;
+    contract_type: string;
+    title: string;
+    body_markdown: string;
+    is_system: boolean;
+  }[] = [];
+
+  if (canSeeContent) {
+    const { data } = await supabase
+      .from("contract_templates")
+      .select("id, contract_type, title, body_markdown, is_system")
+      .eq("is_system", true)
+      .order("title");
+    systemTemplates = data || [];
   }
 
   // Load budget items (owner/production only)
@@ -195,6 +216,9 @@ export default async function LedgerPage() {
           personId={person!.id}
           personName={person!.full_name}
           productionId={productionIds[0] || ""}
+          orgName={orgName}
+          productions={productions || []}
+          systemTemplates={systemTemplates}
         />
       )}
     </div>
