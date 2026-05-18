@@ -161,6 +161,7 @@ export function SpineViewer({
   const [editText, setEditText] = useState("");
   const [saving, setSaving] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>(initialAnnotations);
+  const [printAll, setPrintAll] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const annotationInputRef = useRef<HTMLTextAreaElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -260,6 +261,16 @@ export function SpineViewer({
 
     return () => { supabase.removeChannel(channel); };
   }, []);
+
+  // Print full script: render all scenes, trigger print, then reset
+  useEffect(() => {
+    if (!printAll) return;
+    const timer = setTimeout(() => {
+      window.print();
+      setPrintAll(false);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [printAll]);
 
   const isMyCharacter = useCallback(
     (name: string) => {
@@ -383,7 +394,7 @@ export function SpineViewer({
   return (
     <div className="flex gap-6">
       {/* Desktop sidebar nav */}
-      <nav className="hidden lg:block w-52 shrink-0">
+      <nav className="hidden lg:block w-52 shrink-0 print:hidden">
         <div className="sticky top-24 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
           {/* Search */}
           <div>
@@ -494,7 +505,7 @@ export function SpineViewer({
       </nav>
 
       {/* Mobile FABs */}
-      <div className="lg:hidden fixed bottom-20 right-4 z-30 flex gap-2">
+      <div className="lg:hidden fixed bottom-20 right-4 z-30 flex gap-2 print:hidden">
         <button
           onClick={() => setNoteView(noteView === "none" ? "all" : noteView === "all" ? "mine" : "none")}
           className="bg-card text-ash border border-bone px-3 py-2 rounded-full text-body-xs font-medium shadow-lg"
@@ -577,7 +588,7 @@ export function SpineViewer({
       )}
 
       {/* Script content */}
-      <div ref={contentRef} className="flex-1 min-w-0">
+      <div ref={contentRef} className={`flex-1 min-w-0 ${printAll ? "print:hidden" : ""}`}>
         {/* Scene header */}
         <div className="mb-6 pb-4 border-b border-bone">
           <div className="flex items-center justify-between">
@@ -591,7 +602,23 @@ export function SpineViewer({
                 <span className="text-body-sm text-ash">— {currentMeta.title}</span>
               )}
             </div>
-            <span className="font-mono text-data-sm text-muted">p. {pageNumber}</span>
+            <div className="flex items-center gap-2 print:hidden">
+              <button
+                onClick={() => window.print()}
+                className="px-2 py-1 text-body-xs text-muted hover:text-ink transition-colors"
+                title="Print this scene"
+              >
+                ⎙ Scene
+              </button>
+              <button
+                onClick={() => setPrintAll(true)}
+                className="px-2 py-1 text-body-xs text-muted hover:text-ink transition-colors"
+                title="Print full script"
+              >
+                ⎙ Full
+              </button>
+              <span className="font-mono text-data-sm text-muted">p. {pageNumber}</span>
+            </div>
           </div>
           {currentMeta?.setting && (
             <p className="text-body-sm text-ash mt-2 italic">{currentMeta.setting}</p>
@@ -663,7 +690,7 @@ export function SpineViewer({
 
                   {/* Add note indicator */}
                   {canAddHere && (
-                    <span className="absolute -left-6 top-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted text-body-xs select-none">
+                    <span className="absolute -left-6 top-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted text-body-xs select-none print:hidden">
                       +
                     </span>
                   )}
@@ -724,7 +751,7 @@ export function SpineViewer({
                         )}
 
                         {canEdit && !isEditing && (
-                          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
                             <button
                               onClick={(e) => { e.stopPropagation(); setEditingAnnotationId(a.id); setEditText(a.content); }}
                               className="text-muted hover:text-ink text-body-xs"
@@ -748,7 +775,7 @@ export function SpineViewer({
 
                 {/* Annotation input */}
                 {isAnnotating && (
-                  <div className="ml-4 mt-1 mb-3" onClick={(e) => e.stopPropagation()}>
+                  <div className="ml-4 mt-1 mb-3 print:hidden" onClick={(e) => e.stopPropagation()}>
                     <div className={`p-3 rounded border ${annotationIsPersonal ? "border-blue-300 bg-blue-50/50" : "border-bone bg-card"}`}>
                       {annotationIsPersonal && (
                         <p className="text-body-xs text-blue-600 font-medium mb-2">
@@ -818,7 +845,7 @@ export function SpineViewer({
         </div>
 
         {/* Prev/Next */}
-        <div className="flex items-center justify-between pt-4 border-t border-bone">
+        <div className="flex items-center justify-between pt-4 border-t border-bone print:hidden">
           <button
             onClick={() => setActiveSceneKey(sceneKeys[Math.max(0, sceneIdx - 1)])}
             disabled={sceneIdx === 0}
@@ -838,6 +865,86 @@ export function SpineViewer({
           </button>
         </div>
       </div>
+
+      {/* Full-script print view — rendered when printAll, hidden on screen */}
+      {printAll && (
+        <div className="hidden print:block flex-1 min-w-0">
+          <div className="mb-8 text-center">
+            <h1 className="font-display text-display-md text-ink">{scriptTitle}</h1>
+            <p className="text-body-sm text-muted mt-1">
+              {noteView === "none" ? "Clean script" : noteView === "mine" ? "My blocking" : "Full blocking notes"}
+            </p>
+          </div>
+          {sceneKeys.map((key) => {
+            const [a, s] = key.split("-").map(Number);
+            const sceneLines = (sceneMap.get(key) || []).filter((l) => l.line_type !== "character_name");
+            const meta = sceneMeta.find((m) => m.act === a && m.scene === s);
+
+            return (
+              <div key={key} className="mb-8" style={{ pageBreakBefore: a > 0 && s === 1 ? "always" : "auto" }}>
+                {/* Scene header */}
+                <div className="mb-4 pb-2 border-b border-bone">
+                  <span className="font-mono text-data-sm text-muted">
+                    {a > 0 ? `Act ${a === 1 ? "I" : "II"} · Scene ${s}` : scriptTitle}
+                  </span>
+                  {meta?.title && (
+                    <span className="text-body-sm text-ash ml-2">— {meta.title}</span>
+                  )}
+                  {meta?.setting && (
+                    <p className="text-body-sm text-ash mt-1 italic">{meta.setting}</p>
+                  )}
+                </div>
+
+                {/* Lines */}
+                <div className="space-y-0.5">
+                  {sceneLines.map((line, idx) => {
+                    const prevLine = idx > 0 ? sceneLines[idx - 1] : null;
+                    const showCharHeader =
+                      line.line_type === "dialogue" &&
+                      line.character &&
+                      (!prevLine ||
+                        prevLine.character !== line.character ||
+                        prevLine.line_type === "stage_direction" ||
+                        prevLine.line_type === "setting" ||
+                        prevLine.line_type === "song_title" ||
+                        prevLine.line_type === "song" ||
+                        prevLine.line_type === "song_direction");
+
+                    const lineAnnotations = annotationsByLine.get(line.id) || [];
+
+                    return (
+                      <div key={line.id}>
+                        {showCharHeader && (
+                          <p className={`font-mono text-data-sm uppercase tracking-wider mt-5 mb-0.5 ${
+                            isMyCharacter(line.character!) ? "text-brick font-bold" : "text-ink font-semibold"
+                          }`}>
+                            {line.character}
+                          </p>
+                        )}
+                        {renderLine(line, isMyCharacter)}
+                        {noteView !== "none" && lineAnnotations.map((a) => (
+                          <div
+                            key={a.id}
+                            className={`ml-4 mt-0.5 mb-1 px-2 py-1 text-body-sm italic border-l-2 ${
+                              a.visibility === "personal"
+                                ? "border-blue-400/40 text-blue-700"
+                                : a.is_pinned
+                                ? "border-amber-400/60 text-amber-700"
+                                : "border-brick/40 text-ash"
+                            }`}
+                          >
+                            {renderAnnotationContent(a.content, a.tagged_characters)}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

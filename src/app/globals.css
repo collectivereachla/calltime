@@ -152,3 +152,17 @@ body {
     display: flex !important;
   }
 }
+
+/* Spine print additions - appended */
+@media print {
+  .border-brick\/40,
+  .border-brick\/30,
+  .border-blue-400\/40,
+  .border-amber-400\/60,
+  .text-brick,
+  .text-blue-700,
+  .text-amber-700 {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

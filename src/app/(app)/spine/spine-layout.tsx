@@ -74,6 +74,7 @@ export function SpineLayout(props: Props) {
     <div>
       {/* Version bar — shown when multiple versions exist or staff can manage */}
       {(props.versions.length > 1 || props.canManage) && (
+        <div className="print:hidden">
         <VersionBar
           versions={props.versions}
           activeVersionId={props.activeVersionId}
@@ -81,11 +82,12 @@ export function SpineLayout(props: Props) {
           canManage={props.canManage}
           productionId={props.productionId}
         />
+        </div>
       )}
 
       {/* Locked banner */}
       {props.isLocked && (
-        <div className="flex items-center gap-2 px-4 py-2.5 mb-4 bg-bone/40 border border-bone rounded-card">
+        <div className="flex items-center gap-2 px-4 py-2.5 mb-4 bg-bone/40 border border-bone rounded-card print:hidden">
           <span className="text-body-xs">🔒</span>
           <span className="text-body-sm text-ash">
             This is a locked version. Annotations are read-only.
@@ -94,7 +96,7 @@ export function SpineLayout(props: Props) {
       )}
 
       {/* Tab bar */}
-      <div className="flex items-center gap-1 mb-6 border-b border-bone">
+      <div className="flex items-center gap-1 mb-6 border-b border-bone print:hidden">
         {tabs
           .filter((t) => !t.staffOnly || props.canManage)
           .map((t) => (
