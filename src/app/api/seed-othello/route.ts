@@ -4,10 +4,9 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-export async function POST(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const secret = searchParams.get("secret");
+async function seedOthello(secret: string | null) {
   if (secret !== "othello2026") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -19,41 +18,30 @@ export async function POST(request: Request) {
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Check if already seeded
   const { count } = await supabase
     .from("script_lines")
     .select("*", { count: "exact", head: true })
     .eq("script_id", "5fdad1c9-7680-4fa8-910e-7beea1fd425d");
 
   if (count && count > 0) {
-    return NextResponse.json({
-      message: `Already seeded with ${count} lines`,
-      skipped: true,
-    });
+    return NextResponse.json({ message: `Already seeded: ${count} lines`, skipped: true });
   }
 
-  // Read the data file
   let data;
   try {
     const filePath = join(process.cwd(), "src/app/api/seed-othello/data.json");
-    const raw = readFileSync(filePath, "utf-8");
-    data = JSON.parse(raw);
+    data = JSON.parse(readFileSync(filePath, "utf-8"));
   } catch {
     return NextResponse.json({ error: "Could not read data file" }, { status: 500 });
   }
 
-  // Insert in chunks using the RPC function
   const chunkSize = 100;
   let totalInserted = 0;
   const errors: string[] = [];
 
   for (let i = 0; i < data.length; i += chunkSize) {
     const chunk = data.slice(i, i + chunkSize);
-    const { data: result, error } = await supabase.rpc(
-      "insert_script_lines_json",
-      { data: chunk }
-    );
-
+    const { data: result, error } = await supabase.rpc("insert_script_lines_json", { data: chunk });
     if (error) {
       errors.push(`Chunk ${i / chunkSize}: ${error.message}`);
     } else {
@@ -68,8 +56,16 @@ export async function POST(request: Request) {
   });
 }
 
-export async function GET() {
-  return NextResponse.json({
-    info: "POST with ?secret=othello2026 to seed Othello",
-  });
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const secret = searchParams.get("secret");
+  if (!secret) {
+    return NextResponse.json({ info: "Add ?secret=othello2026 to seed" });
+  }
+  return seedOthello(secret);
+}
+
+export async function POST(request: Request) {
+  const { searchParams } = new URL(request.url);
+  return seedOthello(searchParams.get("secret"));
 }
