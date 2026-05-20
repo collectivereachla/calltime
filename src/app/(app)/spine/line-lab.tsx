@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 
 interface ScriptLine {
   id: string;
@@ -12,6 +12,22 @@ interface ScriptLine {
   content: string;
 }
 
+interface VerseAnalysis {
+  lines: {
+    original: string;
+    scansion: string;
+    feet: string;
+    meter: string;
+    syllable_count: number;
+    is_regular: boolean;
+    note: string;
+  }[];
+  paraphrase: string;
+  verse_or_prose: string;
+  context_note: string;
+  acting_note: string;
+}
+
 interface Props {
   lines: ScriptLine[];
   myCharacters: string[];
@@ -19,7 +35,7 @@ interface Props {
   scriptTitle: string;
 }
 
-type Mode = "notecards" | "first-letter";
+type Mode = "notecards" | "first-letter" | "verse-coach";
 
 function firstLetterTransform(text: string): string {
   // Replace each word with its first letter, preserving punctuation attached to words
@@ -37,6 +53,39 @@ export function LineLab({ lines, myCharacters, allCharacters, scriptTitle }: Pro
   const [currentCardIdx, setCurrentCardIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [showFirstLetter, setShowFirstLetter] = useState(true);
+
+  // Verse coach state
+  const [verseAnalysis, setVerseAnalysis] = useState<VerseAnalysis | null>(null);
+  const [verseLoading, setVerseLoading] = useState(false);
+  const [verseError, setVerseError] = useState<string | null>(null);
+  const [analyzedLineId, setAnalyzedLineId] = useState<string | null>(null);
+  const [verseInput, setVerseInput] = useState("");
+
+  const analyzeVerse = useCallback(async (text: string, lineId?: string) => {
+    if (!text.trim()) return;
+    setVerseLoading(true);
+    setVerseError(null);
+    setVerseAnalysis(null);
+    setAnalyzedLineId(lineId || null);
+
+    try {
+      const res = await fetch("/api/verse-coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setVerseError(data.error || `Error ${res.status}`);
+        return;
+      }
+      setVerseAnalysis(data);
+    } catch (err: unknown) {
+      setVerseError(err instanceof Error ? err.message : "Analysis failed");
+    } finally {
+      setVerseLoading(false);
+    }
+  }, []);
 
   // Filter out non-dialogue lines and character_name rows
   const dialogueLines = useMemo(() =>
@@ -145,6 +194,14 @@ export function LineLab({ lines, myCharacters, allCharacters, scriptTitle }: Pro
             }`}
           >
             First Letters
+          </button>
+          <button
+            onClick={() => setMode("verse-coach")}
+            className={`px-4 py-2 text-body-sm font-medium transition-colors ${
+              mode === "verse-coach" ? "bg-ink text-paper" : "bg-card text-ash hover:text-ink"
+            }`}
+          >
+            Verse Coach
           </button>
         </div>
 
@@ -273,6 +330,166 @@ export function LineLab({ lines, myCharacters, allCharacters, scriptTitle }: Pro
               <p className="text-body-md text-ash">No lines found for this character.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* VERSE COACH MODE */}
+      {mode === "verse-coach" && (
+        <div className="max-w-2xl mx-auto space-y-6">
+          {/* Free input */}
+          <div>
+            <p className="text-body-sm text-ash mb-3">
+              Paste any line, or tap one of your lines below to scan its meter.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={verseInput}
+                onChange={(e) => setVerseInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && verseInput.trim()) {
+                    analyzeVerse(verseInput);
+                  }
+                }}
+                placeholder="Paste a line of verse..."
+                className="flex-1 px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors font-serif"
+              />
+              <button
+                onClick={() => analyzeVerse(verseInput)}
+                disabled={verseLoading || !verseInput.trim()}
+                className="px-4 py-2.5 bg-ink text-paper rounded-card text-body-sm font-medium hover:bg-ink/90 transition-colors disabled:opacity-40"
+              >
+                {verseLoading ? "..." : "Scan"}
+              </button>
+            </div>
+          </div>
+
+          {/* Error */}
+          {verseError && (
+            <div className="px-4 py-3 bg-brick/5 border border-brick/20 rounded-card">
+              <p className="text-body-sm text-brick">{verseError}</p>
+            </div>
+          )}
+
+          {/* Analysis results */}
+          {verseAnalysis && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              {/* Verse/Prose badge */}
+              <div className="flex items-center gap-3">
+                <span className={`px-3 py-1 rounded text-data-sm font-semibold uppercase tracking-wider ${
+                  verseAnalysis.verse_or_prose === "verse"
+                    ? "bg-confirmed/10 text-confirmed"
+                    : "bg-tentative/10 text-tentative"
+                }`}>
+                  {verseAnalysis.verse_or_prose}
+                </span>
+                {verseAnalysis.context_note && (
+                  <span className="text-body-xs text-ash italic">{verseAnalysis.context_note}</span>
+                )}
+              </div>
+
+              {/* Scansion card */}
+              <div className="bg-card border border-bone rounded-card p-5 space-y-5">
+                <p className="font-mono text-data-sm text-muted uppercase tracking-wider">Scansion</p>
+                {verseAnalysis.lines?.map((line, i) => (
+                  <div key={i} className={i < verseAnalysis.lines.length - 1 ? "pb-5 border-b border-bone/50" : ""}>
+                    <p className="font-serif text-body-lg text-ink leading-relaxed">{line.original}</p>
+
+                    {/* Stress marks */}
+                    <div className="flex flex-wrap gap-0.5 mt-1.5 font-mono">
+                      {line.scansion.split(/\s+/).map((s, j) => (
+                        <span key={j} className={`text-base ${s === "/" ? "text-brick font-bold" : "text-muted"}`}>
+                          {s === "/" ? "′" : "˘"}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Feet */}
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {line.feet.split(",").map((foot, j) => {
+                        const f = foot.trim().toLowerCase();
+                        const color = f === "trochee" ? "bg-brick text-paper"
+                          : f === "spondee" ? "bg-confirmed text-paper"
+                          : f === "pyrrhic" ? "bg-muted text-paper"
+                          : "bg-bone text-ink";
+                        return (
+                          <span key={j} className={`px-2 py-0.5 rounded text-data-sm font-medium uppercase tracking-wide ${color}`}>
+                            {foot.trim()}
+                          </span>
+                        );
+                      })}
+                    </div>
+
+                    {/* Meta */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="font-mono text-data-sm text-muted">
+                        {line.syllable_count} syl · {line.meter}
+                      </span>
+                      {!line.is_regular && (
+                        <span className="text-data-sm text-brick font-semibold">⚡ irregular</span>
+                      )}
+                    </div>
+
+                    {/* Note on irregularity */}
+                    {line.note && (
+                      <p className="text-body-sm text-ash italic mt-2 pl-3 border-l-2 border-brick/30">
+                        {line.note}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Paraphrase */}
+              {verseAnalysis.paraphrase && (
+                <div className="bg-card border border-bone rounded-card p-5">
+                  <p className="font-mono text-data-sm text-muted uppercase tracking-wider mb-2">In plain English</p>
+                  <p className="font-serif text-body-md text-ink leading-relaxed">{verseAnalysis.paraphrase}</p>
+                </div>
+              )}
+
+              {/* Acting note */}
+              {verseAnalysis.acting_note && (
+                <div className="bg-brick/5 border border-brick/15 rounded-card p-5">
+                  <p className="font-mono text-data-sm text-brick uppercase tracking-wider mb-2">Acting note</p>
+                  <p className="text-body-sm text-ink leading-relaxed">{verseAnalysis.acting_note}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tappable character lines */}
+          <div>
+            <p className="font-mono text-data-sm text-muted uppercase tracking-wider mb-3">
+              {selectedCharacter}&apos;s lines — tap to scan
+            </p>
+            <div className="space-y-2">
+              {dialogueLines
+                .filter((l) => l.character && matchesCharacter(l.character, selectedCharacter))
+                .map((line) => (
+                  <button
+                    key={line.id}
+                    onClick={() => {
+                      setVerseInput(line.content);
+                      analyzeVerse(line.content, line.id);
+                    }}
+                    disabled={verseLoading}
+                    className={`w-full text-left px-4 py-3 rounded-card border transition-colors ${
+                      analyzedLineId === line.id
+                        ? "border-brick/40 bg-brick/5"
+                        : "border-bone bg-card hover:border-ash"
+                    } disabled:opacity-50`}
+                  >
+                    <span className="font-mono text-data-sm text-muted mr-2">
+                      {line.act}.{line.scene}
+                    </span>
+                    <span className="text-body-sm text-ink">
+                      {line.content.length > 120 ? line.content.slice(0, 120) + "..." : line.content}
+                    </span>
+                  </button>
+                ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
