@@ -73,16 +73,17 @@ export async function createProduction(formData: FormData) {
     return { error: prodError.message };
   }
 
-  // Auto-assign creator with their org-level access tier
+  // Auto-assign creator with admin access
   const creatorRole = (formData.get("creator_role") as string) || "Director";
+  const creatorDepartment = (formData.get("creator_department") as string) || "directing";
   const { error: assignError } = await supabase
     .from("production_assignments")
     .insert({
       production_id: production.id,
       person_id: person.id,
       role_title: creatorRole,
-      department: "directing",
-      access_tier: membership.role, // owner stays owner, production stays production
+      department: creatorDepartment,
+      access_tier: "admin", // creator always gets full access
     });
 
   if (assignError) {

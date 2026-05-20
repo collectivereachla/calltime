@@ -98,6 +98,21 @@ export default async function ProductionPage({ params }: Props) {
     "marketing",
   ];
 
+  // Get all org members for the member picker (exclude already assigned)
+  const { data: orgMembersRaw } = await supabase
+    .from("org_memberships")
+    .select("person_id, people(id, full_name, preferred_name, email, phone)")
+    .eq("org_id", org.id)
+    .eq("status", "active");
+
+  const assignedPersonIds = new Set(assignments?.map(a => (a.people as unknown as { id: string }).id) || []);
+  const orgMembers = (orgMembersRaw || [])
+    .filter(m => m.people && !assignedPersonIds.has((m.people as unknown as { id: string }).id))
+    .map(m => {
+      const p = m.people as unknown as { id: string; full_name: string; preferred_name: string | null; email: string | null; phone: string | null };
+      return { person_id: p.id, name: p.preferred_name || p.full_name, full_name: p.full_name, email: p.email, phone: p.phone };
+    });
+
   const deptLabels: Record<string, string> = {
     directing: "Directing",
     stage_management: "Stage Management",
@@ -244,7 +259,7 @@ export default async function ProductionPage({ params }: Props) {
 
       {/* Add person form — only for directors/admins */}
       {canManage && (
-        <AddPersonForm productionId={id} />
+        <AddPersonForm productionId={id} orgMembers={orgMembers} />
       )}
     </div>
   );

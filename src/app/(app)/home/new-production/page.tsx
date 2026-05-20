@@ -245,19 +245,43 @@ export default function NewProductionPage() {
         </div>
 
         {/* Your role */}
-        <div>
-          <label htmlFor="creator_role" className="block text-body-sm text-ash mb-1.5">
-            Your role on this production
-          </label>
-          <input
-            id="creator_role"
-            name="creator_role"
-            type="text"
-            defaultValue="Director"
-            className="w-full max-w-xs px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink focus:border-brick focus:outline-none transition-colors"
-          />
-          <p className="text-body-xs text-muted mt-1">
-            You&rsquo;ll be assigned as director with full access.
+        <div className="pt-4 border-t border-bone">
+          <p className="text-body-xs text-muted uppercase tracking-wider mb-4">Your role on this production</p>
+          <div className="grid grid-cols-2 gap-3 max-w-md">
+            <div>
+              <label htmlFor="creator_role" className="block text-body-sm text-ash mb-1.5">
+                Role title
+              </label>
+              <input
+                id="creator_role"
+                name="creator_role"
+                type="text"
+                defaultValue="Director"
+                className="w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink focus:border-brick focus:outline-none transition-colors"
+              />
+            </div>
+            <div>
+              <label htmlFor="creator_department" className="block text-body-sm text-ash mb-1.5">
+                Department
+              </label>
+              <select
+                id="creator_department"
+                name="creator_department"
+                defaultValue="directing"
+                className="w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink focus:border-brick focus:outline-none transition-colors"
+              >
+                <option value="directing">Directing</option>
+                <option value="cast">Cast</option>
+                <option value="production">Production</option>
+                <option value="stage_management">Stage Management</option>
+                <option value="design">Design</option>
+                <option value="music">Music</option>
+                <option value="crew">Crew</option>
+              </select>
+            </div>
+          </div>
+          <p className="text-body-xs text-muted mt-1.5">
+            You&rsquo;ll always have full admin access regardless of your role.
           </p>
         </div>
 
