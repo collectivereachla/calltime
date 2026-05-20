@@ -318,9 +318,6 @@ export function TemplatesView({ templates, productionId, contractCounts, systemT
                   {typeLabel(t.contract_type)} · {count} contract{count !== 1 ? "s" : ""}
                 </p>
               </div>
-              <span className="text-body-xs text-muted font-mono shrink-0">
-                {Math.round(t.body_markdown.length / 100) * 100}+ chars
-              </span>
             </button>
           );
         })}
