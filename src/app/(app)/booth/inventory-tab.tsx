@@ -14,9 +14,16 @@ interface CastMember {
   person_id: string; name: string; role_title: string;
 }
 
+interface MeasurementEntry {
+  id: string; person_id: string; fitting_status: string;
+  height: string | null; chest_bust: string | null; waist: string | null;
+  hip: string | null; inseam: string | null; shoe: string | null;
+}
+
 interface Props {
   items: InventoryItem[];
   cast: CastMember[];
+  measurements: MeasurementEntry[];
   productionId: string;
 }
 
@@ -25,9 +32,12 @@ const catLabels: Record<string, string> = {
   accessories: "Accessories", shoes: "Shoes", hats: "Hats", other: "Other"
 };
 
-export function InventoryTab({ items, cast, productionId }: Props) {
+export function InventoryTab({ items, cast, measurements, productionId }: Props) {
   const [loading, setLoading] = useState<string | null>(null);
   const router = useRouter();
+
+  const measurementMap = new Map<string, MeasurementEntry>();
+  for (const m of measurements) measurementMap.set(m.person_id, m);
 
   async function handleAssign(itemId: string, personId: string) {
     setLoading(itemId);
@@ -110,6 +120,17 @@ export function InventoryTab({ items, cast, productionId }: Props) {
                             </option>
                           ))}
                         </select>
+                        {assignedPerson && (() => {
+                          const m = measurementMap.get(assignedPerson.person_id);
+                          if (!m) return null;
+                          const dims = [m.chest_bust && `Ch ${m.chest_bust}`, m.waist && `W ${m.waist}`, m.hip && `H ${m.hip}`, m.shoe && `Sh ${m.shoe}`].filter(Boolean);
+                          if (dims.length === 0) return null;
+                          return (
+                            <p className="text-[9px] text-muted mt-1 font-mono leading-tight">
+                              {dims.join(" · ")}
+                            </p>
+                          );
+                        })()}
                       </div>
                     </div>
                   );

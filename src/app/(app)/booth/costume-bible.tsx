@@ -113,6 +113,7 @@ export function CostumeBible({ productionId, scenes, cast, costumeEntries, parad
           scenes={scenes}
           cast={cast}
           entries={costumeEntries}
+          inventoryItems={inventoryItems}
         />
       )}
 
@@ -222,6 +223,7 @@ export function CostumeBible({ productionId, scenes, cast, costumeEntries, parad
                   <th className="px-2 py-2 text-center text-body-xs text-muted uppercase border-b border-bone">Inseam</th>
                   <th className="px-2 py-2 text-center text-body-xs text-muted uppercase border-b border-bone">Shoe</th>
                   <th className="px-2 py-2 text-left text-body-xs text-muted uppercase border-b border-bone">Notes</th>
+                  <th className="px-2 py-2 text-left text-body-xs text-muted uppercase border-b border-bone">Pulled</th>
                 </tr>
               </thead>
               <tbody>
@@ -292,6 +294,17 @@ export function CostumeBible({ productionId, scenes, cast, costumeEntries, parad
                       <td className="px-2 py-2 border-b border-bone text-center font-mono text-data-sm text-ink">{m?.inseam || "—"}</td>
                       <td className="px-2 py-2 border-b border-bone text-center font-mono text-data-sm text-ink">{m?.shoe || "—"}</td>
                       <td className="px-2 py-2 border-b border-bone text-body-xs text-muted max-w-[150px] truncate">{m?.notes || "—"}</td>
+                      <td className="px-2 py-2 border-b border-bone text-body-xs text-ash max-w-[180px]">
+                        {(() => {
+                          const items = inventoryItems.filter(i => i.assigned_to_person_id === member.person_id);
+                          if (items.length === 0) return <span className="text-muted">—</span>;
+                          return items.map(i => (
+                            <span key={i.id} className="inline-block mr-1 mb-0.5 px-1.5 py-0.5 rounded bg-brick/8 text-[10px] text-brick">
+                              {i.item_name}{i.size ? ` (${i.size})` : ""}
+                            </span>
+                          ));
+                        })()}
+                      </td>
                     </tr>
                   );
                 })}
@@ -302,7 +315,7 @@ export function CostumeBible({ productionId, scenes, cast, costumeEntries, parad
       )}
       {/* Inventory tab */}
       {tab === "inventory" && (
-        <InventoryTab items={inventoryItems} cast={cast} productionId={productionId} />
+        <InventoryTab items={inventoryItems} cast={cast} measurements={measurementEntries} productionId={productionId} />
       )}
     </div>
   );

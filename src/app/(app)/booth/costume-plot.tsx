@@ -28,11 +28,17 @@ interface CostumeEntry {
   image_url: string | null;
 }
 
+interface InventoryItem {
+  id: string; item_name: string; category: string; size: string | null;
+  thumbnail_url: string | null; assigned_to_person_id: string | null;
+}
+
 interface Props {
   productionId: string;
   scenes: Scene[];
   cast: CastMember[];
   entries: CostumeEntry[];
+  inventoryItems: InventoryItem[];
 }
 
 const statusColors: Record<string, string> = {
@@ -49,7 +55,7 @@ const statusDot: Record<string, string> = {
   ready: "bg-confirmed",
 };
 
-export function CostumePlot({ productionId, scenes, cast, entries }: Props) {
+export function CostumePlot({ productionId, scenes, cast, entries, inventoryItems }: Props) {
   const [editing, setEditing] = useState<string | null>(null); // "personId-sceneId"
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +143,7 @@ export function CostumePlot({ productionId, scenes, cast, entries }: Props) {
                     const isEditing = editing === key;
 
                     if (isEditing) {
+                      const assignedItems = inventoryItems.filter(i => i.assigned_to_person_id === member.person_id);
                       return (
                         <td key={scene.id} className="px-1 py-1 border-b border-bone align-top" colSpan={1}>
                           <form action={handleSave} className="space-y-1">
@@ -168,6 +175,16 @@ export function CostumePlot({ productionId, scenes, cast, entries }: Props) {
                               <option value="fitted">Fitted</option>
                               <option value="ready">Ready</option>
                             </select>
+                            {assignedItems.length > 0 && (
+                              <div className="bg-bone/20 rounded px-1.5 py-1">
+                                <p className="text-[9px] text-muted uppercase tracking-wider mb-0.5">Pulled items</p>
+                                {assignedItems.map(item => (
+                                  <p key={item.id} className="text-[10px] text-ash truncate">
+                                    {item.item_name}{item.size ? ` (${item.size})` : ""}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
                             <div className="flex gap-1">
                               <button type="submit" disabled={loading}
                                 className="px-2 py-0.5 bg-ink text-paper text-[10px] rounded hover:bg-ink/90 disabled:opacity-50">
