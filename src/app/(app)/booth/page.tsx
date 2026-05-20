@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { CostumeBible } from "./costume-bible";
 import { SetDesign } from "./set-design";
 import { StageManagement } from "./stage-management";
+import { DesignRoom } from "./design-room";
+import { LIGHTING_CONFIG, SOUND_CONFIG } from "./design-configs";
 import { BoothTabs } from "./booth-tabs";
 import { getActiveProductionId } from "@/lib/active-production";
 
@@ -245,6 +247,59 @@ export default async function BoothPage() {
     setSceneNotes = data || [];
   }
 
+  // Helper to fetch design data for a department
+  async function fetchDeptData(dept: string) {
+    const [elemRes, refRes, msRes] = await Promise.all([
+      supabase
+        .from("design_elements")
+        .select("id, name, description, status, image_url, notes, scene_ids, sort_order")
+        .eq("production_id", activeProduction!.id)
+        .eq("department", dept)
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("design_references")
+        .select("id, title, description, image_url, category, created_at")
+        .eq("production_id", activeProduction!.id)
+        .eq("department", dept)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("design_milestones")
+        .select("id, milestone, sort_order, completed, completed_at, notes")
+        .eq("production_id", activeProduction!.id)
+        .eq("department", dept)
+        .order("sort_order", { ascending: true }),
+    ]);
+    let deptSceneNotes: { scene_id: string; content: string | null }[] = [];
+    if (sceneIds.length > 0) {
+      const { data } = await supabase
+        .from("scene_design_notes")
+        .select("scene_id, content")
+        .in("scene_id", sceneIds)
+        .eq("department", dept);
+      deptSceneNotes = data || [];
+    }
+    return {
+      elements: (elemRes.data || []) as { id: string; name: string; description: string | null; status: string; image_url: string | null; notes: string | null; scene_ids: string[] }[],
+      references: (refRes.data || []) as { id: string; title: string; description: string | null; image_url: string; category: string; created_at: string }[],
+      milestones: (msRes.data || []) as { id: string; milestone: string; sort_order: number; completed: boolean; completed_at: string | null; notes: string | null }[],
+      sceneNotes: deptSceneNotes,
+    };
+  }
+
+  const [lightingData, soundData] = await Promise.all([
+    fetchDeptData("lights"),
+    fetchDeptData("sound"),
+  ]);
+
+  // Build scene list with locations for design rooms
+  const designScenes = scenes.map((s) => {
+    const full = (smScenesData as unknown as { id: string; location: string | null }[] || []).find((fs) => fs.id === s.id);
+    return {
+      id: s.id, act: s.act, scene_number: s.scene_number, title: s.title,
+      location: full?.location || null,
+    };
+  });
+
   return (
     <div className="max-w-full mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 mb-6">
@@ -275,18 +330,36 @@ export default async function BoothPage() {
         setDesignContent={
           <SetDesign
             productionId={activeProduction.id}
-            scenes={scenes.map((s) => {
-              const full = (smScenesData as unknown as { id: string; location: string | null }[] || []).find((fs) => fs.id === s.id);
-              return {
-                id: s.id, act: s.act, scene_number: s.scene_number, title: s.title,
-                location: full?.location || null,
-              };
-            })}
+            scenes={designScenes}
             elements={(setElements || []) as any}
             references={(setReferences || []) as any}
             milestones={(setMilestones || []) as any}
             sceneNotes={setSceneNotes}
             stageConfig={stageConfig || null}
+            canManage={canManage}
+          />
+        }
+        lightingContent={
+          <DesignRoom
+            config={LIGHTING_CONFIG}
+            productionId={activeProduction.id}
+            scenes={designScenes}
+            elements={lightingData.elements}
+            references={lightingData.references}
+            milestones={lightingData.milestones}
+            sceneNotes={lightingData.sceneNotes}
+            canManage={canManage}
+          />
+        }
+        soundContent={
+          <DesignRoom
+            config={SOUND_CONFIG}
+            productionId={activeProduction.id}
+            scenes={designScenes}
+            elements={soundData.elements}
+            references={soundData.references}
+            milestones={soundData.milestones}
+            sceneNotes={soundData.sceneNotes}
             canManage={canManage}
           />
         }

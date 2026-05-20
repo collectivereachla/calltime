@@ -5,17 +5,23 @@ import { useState } from "react";
 interface Props {
   costumeContent: React.ReactNode;
   setDesignContent: React.ReactNode;
+  lightingContent: React.ReactNode;
+  soundContent: React.ReactNode;
   smContent: React.ReactNode;
 }
 
-export function BoothTabs({ costumeContent, setDesignContent, smContent }: Props) {
-  const [dept, setDept] = useState<"costume" | "set" | "sm">("costume");
+const tabs = [
+  { key: "costume" as const, label: "Costume" },
+  { key: "set" as const, label: "Set" },
+  { key: "lights" as const, label: "Lighting" },
+  { key: "sound" as const, label: "Sound" },
+  { key: "sm" as const, label: "Stage Mgmt" },
+];
 
-  const tabs = [
-    { key: "costume" as const, label: "Costume Design" },
-    { key: "set" as const, label: "Set Design" },
-    { key: "sm" as const, label: "Stage Management" },
-  ];
+type TabKey = typeof tabs[number]["key"];
+
+export function BoothTabs({ costumeContent, setDesignContent, lightingContent, soundContent, smContent }: Props) {
+  const [dept, setDept] = useState<TabKey>("costume");
 
   return (
     <div>
@@ -35,6 +41,8 @@ export function BoothTabs({ costumeContent, setDesignContent, smContent }: Props
 
       {dept === "costume" && costumeContent}
       {dept === "set" && setDesignContent}
+      {dept === "lights" && lightingContent}
+      {dept === "sound" && soundContent}
       {dept === "sm" && smContent}
     </div>
   );
