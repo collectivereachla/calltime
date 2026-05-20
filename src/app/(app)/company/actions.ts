@@ -90,3 +90,49 @@ export async function removeMember(orgId: string, personId: string) {
   revalidatePath("/company");
   return { success: true };
 }
+
+export async function removeFromProduction(
+  productionId: string,
+  personId: string
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: person } = await supabase
+    .from("people").select("id").eq("user_id", user.id).single();
+  if (!person) return { error: "No person record" };
+
+  const { data: membership } = await supabase
+    .from("org_memberships")
+    .select("role")
+    .eq("person_id", person.id)
+    .in("role", ["owner", "production"])
+    .limit(1)
+    .single();
+
+  if (!membership) return { error: "Not authorized" };
+
+  // Deactivate all assignments for this person in this production
+  const { error: aErr } = await supabase
+    .from("production_assignments")
+    .update({ active: false })
+    .eq("production_id", productionId)
+    .eq("person_id", personId);
+
+  if (aErr) return { error: aErr.message };
+
+  // Void any pending/draft contracts
+  const { error: cErr } = await supabase
+    .from("contracts")
+    .update({ status: "void" })
+    .eq("production_id", productionId)
+    .eq("person_id", personId)
+    .in("status", ["pending", "draft"]);
+
+  if (cErr) return { error: cErr.message };
+
+  revalidatePath("/company");
+  revalidatePath("/ledger");
+  return { success: true };
+}

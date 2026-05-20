@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateMember, updateMemberRole, updateAssignment, addAssignment, removeMember } from "./actions";
+import { updateMember, updateMemberRole, updateAssignment, addAssignment, removeMember, removeFromProduction } from "./actions";
 import { useRouter } from "next/navigation";
 import { PhotoUpload } from "@/components/photo-upload";
 
@@ -56,6 +56,7 @@ interface Assignment {
   access_tier: string;
   casting_structure: string | null;
   production_title: string;
+  production_id: string;
 }
 
 interface Production {
@@ -313,10 +314,26 @@ export function EditMemberButton({ person, orgId, orgRole, assignments, producti
                   </select>
                 </div>
               </div>
-              <button type="submit" disabled={loading}
-                className="px-4 py-1.5 bg-ink text-paper text-body-xs font-medium rounded-card hover:bg-ink/90 transition-colors disabled:opacity-50">
-                {loading ? "Saving..." : "Save"}
-              </button>
+              <div className="flex items-center gap-3">
+                <button type="submit" disabled={loading}
+                  className="px-4 py-1.5 bg-ink text-paper text-body-xs font-medium rounded-card hover:bg-ink/90 transition-colors disabled:opacity-50">
+                  {loading ? "Saving..." : "Save"}
+                </button>
+                {!isCurrentUser && (
+                  <button type="button" disabled={loading}
+                    onClick={async () => {
+                      if (!confirm(`Remove ${person.preferred_name || person.full_name} from ${a.production_title}? This will void any pending contracts.`)) return;
+                      setLoading(true);
+                      const result = await removeFromProduction(a.production_id, person.id);
+                      if (result?.error) { setError(result.error); setLoading(false); return; }
+                      setLoading(false);
+                      router.refresh();
+                    }}
+                    className="text-body-xs text-muted hover:text-brick transition-colors disabled:opacity-50">
+                    Remove from production
+                  </button>
+                )}
+              </div>
             </form>
           ))}
 

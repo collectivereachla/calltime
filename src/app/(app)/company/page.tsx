@@ -245,6 +245,7 @@ export default async function CompanyPage() {
                   access_tier: a.access_tier,
                   casting_structure: a.casting_structure,
                   production_title: prod.title,
+                  production_id: prod.id,
                 }));
               })
               .filter(Boolean) || [];

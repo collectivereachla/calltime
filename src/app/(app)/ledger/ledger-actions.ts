@@ -204,6 +204,29 @@ export async function deleteContract(id: string) {
   return { success: true };
 }
 
+export async function voidContract(id: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: person } = await supabase
+    .from("people").select("id").eq("user_id", user.id).single();
+  const { data: membership } = await supabase
+    .from("org_memberships").select("role").eq("person_id", person!.id).limit(1).single();
+
+  if (!membership || !["owner", "production"].includes(membership.role)) {
+    return { error: "Not authorized" };
+  }
+
+  const { error } = await supabase
+    .from("contracts")
+    .update({ status: "void" })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/ledger");
+  return { success: true };
+}
+
 // ---------- Template CRUD ----------
 
 export async function updateTemplate(formData: FormData) {

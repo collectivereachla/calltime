@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { signContract, countersignContract, markContractViewed, updateContract, deleteContract } from "./ledger-actions";
+import { signContract, countersignContract, markContractViewed, updateContract, deleteContract, voidContract } from "./ledger-actions";
 import { useRouter } from "next/navigation";
 import { SignaturePad } from "./signature-pad";
 
@@ -79,12 +79,13 @@ interface Props {
   productions: { id: string; title: string; first_rehearsal: string | null; opening_date: string | null; closing_date: string | null }[];
 }
 
-type StatusFilter = "all" | "pending" | "signed" | "countersigned";
+type StatusFilter = "all" | "pending" | "signed" | "countersigned" | "void";
 
 function statusColor(status: string) {
   switch (status) {
     case "countersigned": return "text-confirmed bg-confirmed/10";
     case "signed": return "text-tentative bg-tentative/10";
+    case "void": return "text-muted bg-muted/10 line-through";
     default: return "text-conflict bg-conflict/10";
   }
 }
@@ -93,6 +94,7 @@ function statusLabel(status: string, viewedAt?: string | null, isOwnerView?: boo
   switch (status) {
     case "countersigned": return "Complete";
     case "signed": return "Awaiting countersign";
+    case "void": return "Void";
     default:
       if (isOwnerView && viewedAt) return "Viewed · unsigned";
       if (isOwnerView && !viewedAt) return "Not yet viewed";
@@ -164,6 +166,7 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
     pending: contracts.filter((c) => c.status === "pending").length,
     signed: contracts.filter((c) => c.status === "signed").length,
     countersigned: contracts.filter((c) => c.status === "countersigned").length,
+    void: contracts.filter((c) => c.status === "void").length,
   };
 
   async function openContract(contract: Contract) {
@@ -312,6 +315,20 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
                     title="Remove contract"
                   >
                     &times;
+                  </button>
+                )}
+                {canSeeContent && ["pending", "signed", "draft"].includes(selected.status) && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Void ${selected.person_name}'s contract? This cannot be undone.`)) return;
+                      const result = await voidContract(selected.id);
+                      if (result.error) alert(result.error);
+                      else router.refresh();
+                    }}
+                    className="text-body-xs text-muted hover:text-conflict transition-colors"
+                    title="Void contract"
+                  >
+                    Void
                   </button>
                 )}
               </div>
@@ -567,6 +584,7 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
             { label: "Pending", value: counts.pending, key: "pending" as StatusFilter },
             { label: "Signed", value: counts.signed, key: "signed" as StatusFilter },
             { label: "Complete", value: counts.countersigned, key: "countersigned" as StatusFilter },
+            ...(counts.void > 0 ? [{ label: "Void", value: counts.void, key: "void" as StatusFilter }] : []),
           ]).map((stat) => (
             <button
               key={stat.key}
