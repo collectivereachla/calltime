@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
 import { PushRegistration } from "@/components/push-registration";
+import { getActiveProductionId, setActiveProductionId } from "@/lib/active-production";
 
 export default async function AppLayout({
   children,
@@ -70,6 +71,26 @@ export default async function AppLayout({
 
   const displayName = person.preferred_name || person.full_name;
 
+  // Fetch user's productions for the switcher
+  const orgId = (memberships[0].organizations as unknown as { id: string }).id;
+  const { data: userProductions } = await supabase
+    .from("productions")
+    .select("id, title, status")
+    .eq("org_id", orgId)
+    .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
+    .order("opening_date", { ascending: true, nullsFirst: false });
+
+  const productions = userProductions || [];
+
+  // Determine active production from cookie, defaulting to first
+  let activeProductionId = await getActiveProductionId();
+  if (!activeProductionId || !productions.find(p => p.id === activeProductionId)) {
+    activeProductionId = productions[0]?.id || null;
+    if (activeProductionId) {
+      await setActiveProductionId(activeProductionId);
+    }
+  }
+
   // Count unread notifications + contracts awaiting countersign + pending applications
   const isOwner = memberships.some((m) => m.role === "owner");
   const isAdmin = memberships.some((m) => m.role === "owner" || m.role === "admin");
@@ -114,6 +135,8 @@ export default async function AppLayout({
         }))}
         badges={{ ledger: pendingCountersignCount, applications: pendingApplicationsCount }}
         notificationCount={unreadNotificationCount}
+        productions={productions}
+        activeProductionId={activeProductionId}
       />
       <main className="flex-1 min-w-0 pt-14 pb-16 md:pt-0 md:pb-0">
         <div className="max-w-5xl mx-auto px-4 md:px-8 pt-4 md:pt-6">

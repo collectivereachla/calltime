@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { SpineLayout } from "./spine-layout";
+import { getActiveProductionId } from "@/lib/active-production";
 
 interface SearchParams {
   v?: string;
@@ -41,14 +42,31 @@ export default async function SpinePage({
   const canManage = membership.role === "owner" || membership.role === "production";
   const orgId = (membership.organizations as unknown as { id: string }).id;
 
-  const { data: productions } = await supabase
-    .from("productions")
-    .select("id, title")
-    .eq("org_id", orgId)
-    .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
-    .order("opening_date", { ascending: true });
+  // Get active production from cookie
+  const activeProductionId = await getActiveProductionId();
+  let productionIds: string[] = [];
 
-  const productionIds = productions?.map((p) => p.id) || [];
+  if (activeProductionId) {
+    // Verify this production belongs to the org
+    const { data } = await supabase
+      .from("productions")
+      .select("id")
+      .eq("id", activeProductionId)
+      .eq("org_id", orgId)
+      .single();
+    if (data) productionIds = [data.id];
+  }
+
+  if (productionIds.length === 0) {
+    const { data: prods } = await supabase
+      .from("productions")
+      .select("id")
+      .eq("org_id", orgId)
+      .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
+      .order("opening_date", { ascending: true })
+      .limit(1);
+    productionIds = prods?.map(p => p.id) || [];
+  }
 
   // Fetch all versions for version selector
   let versions: {

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { LedgerLayout } from "./ledger-layout";
+import { getActiveProductionId } from "@/lib/active-production";
 
 export default async function LedgerPage() {
   const supabase = await createClient();
@@ -33,14 +34,32 @@ export default async function LedgerPage() {
 
   const orgName = (membership.organizations as unknown as { id: string; name: string }).name;
 
-  const { data: productions } = await supabase
-    .from("productions")
-    .select("id, title, first_rehearsal, opening_date, closing_date")
-    .eq("org_id", orgId)
-    .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
-    .order("opening_date", { ascending: true });
+  // Get active production from cookie
+  const activeProductionId = await getActiveProductionId();
+  let productions: { id: string; title: string; first_rehearsal: string | null; opening_date: string | null; closing_date: string | null }[] = [];
 
-  const productionIds = productions?.map((p) => p.id) || [];
+  if (activeProductionId) {
+    const { data } = await supabase
+      .from("productions")
+      .select("id, title, first_rehearsal, opening_date, closing_date")
+      .eq("id", activeProductionId)
+      .eq("org_id", orgId)
+      .single();
+    if (data) productions = [data];
+  }
+
+  if (productions.length === 0) {
+    const { data: prods } = await supabase
+      .from("productions")
+      .select("id, title, first_rehearsal, opening_date, closing_date")
+      .eq("org_id", orgId)
+      .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
+      .order("opening_date", { ascending: true })
+      .limit(1);
+    productions = prods || [];
+  }
+
+  const productionIds = productions.map((p) => p.id);
 
   // Load contracts
   let contracts: {

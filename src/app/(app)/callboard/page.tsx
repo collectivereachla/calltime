@@ -4,6 +4,7 @@ import { EventCard } from "./event-card";
 import { EditEventButton } from "./edit-event";
 import { CallboardTabs } from "./callboard-tabs";
 import { PrintButton } from "./print-button";
+import { getActiveProductionId } from "@/lib/active-production";
 
 function formatTime(time: string): string {
   const [h, m] = time.split(":").map(Number);
@@ -36,6 +37,9 @@ export default async function CallboardPage() {
   const canManage =
     membership?.role === "owner" || membership?.role === "production";
 
+  // Get active production from cookie
+  const activeProductionId = await getActiveProductionId();
+
   // Get productions user is assigned to
   const { data: assignments } = await supabase
     .from("production_assignments")
@@ -43,13 +47,18 @@ export default async function CallboardPage() {
     .eq("person_id", person!.id)
     .eq("active", true);
 
-  const activeProductions =
+  const allProductions =
     assignments
       ?.filter((a) => {
         const p = a.productions as unknown as { status: string };
         return p.status !== "archived" && p.status !== "closed";
       })
       .map((a) => a.productions as unknown as { id: string; title: string }) || [];
+
+  // Filter to active production only
+  const activeProductions = activeProductionId
+    ? allProductions.filter(p => p.id === activeProductionId)
+    : allProductions.slice(0, 1);
 
   // Get upcoming events for all user's productions
   // Use Central Time for "today" — UTC would hide today's events after 7PM CT

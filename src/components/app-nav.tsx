@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { logout } from "@/app/auth/actions";
 import { NotificationBell } from "./notification-bell";
+import { ProductionSwitcher } from "./production-switcher";
 
 interface Org {
   id: string;
@@ -13,11 +14,19 @@ interface Org {
   role: string;
 }
 
+interface Production {
+  id: string;
+  title: string;
+  status: string;
+}
+
 interface AppNavProps {
   displayName: string;
   orgs: Org[];
   badges?: Record<string, number>;
   notificationCount?: number;
+  productions?: Production[];
+  activeProductionId?: string | null;
 }
 
 const rooms = [
@@ -35,7 +44,7 @@ const rooms = [
 
 const mobileRooms = rooms.filter((r) => r.mobile && !r.disabled);
 
-export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0 }: AppNavProps) {
+export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, productions = [], activeProductionId = null }: AppNavProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const isAdmin = orgs.some((o) => o.role === "owner" || o.role === "admin");
@@ -64,6 +73,13 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0 }
               <p className="text-body-sm font-medium text-ink truncate">{orgs[0].name}</p>
             </div>
             <NotificationBell unreadCount={notificationCount} />
+          </div>
+        )}
+
+        {productions.length > 1 && (
+          <div className="px-5 py-3 border-b border-bone">
+            <p className="text-body-xs text-muted uppercase tracking-wider mb-1.5">Production</p>
+            <ProductionSwitcher productions={productions} activeId={activeProductionId} />
           </div>
         )}
 
@@ -114,9 +130,11 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0 }
         <Link href="/home" className="font-display text-display-md text-ink">
           Calltime<span className="text-brick">.</span>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {productions.length > 1 && (
+            <ProductionSwitcher productions={productions} activeId={activeProductionId} />
+          )}
           <NotificationBell unreadCount={notificationCount} />
-          <p className="text-body-xs text-ash truncate max-w-[120px]">{orgs[0]?.name}</p>
           <form action={logout}>
             <button type="submit" className="text-body-xs text-muted hover:text-brick transition-colors">
               Out

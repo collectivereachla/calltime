@@ -3,6 +3,7 @@ import { CostumeBible } from "./costume-bible";
 import { SetDesign } from "./set-design";
 import { StageManagement } from "./stage-management";
 import { BoothTabs } from "./booth-tabs";
+import { getActiveProductionId } from "@/lib/active-production";
 
 export default async function BoothPage() {
   const supabase = await createClient();
@@ -34,16 +35,31 @@ export default async function BoothPage() {
 
   const isOwnerOrProd = membership.role === "owner" || membership.role === "production";
 
-  // Get active productions with their assignments
-  const { data: productions } = await supabase
-    .from("productions")
-    .select("id, title, status")
-    .eq("org_id", (membership.organizations as unknown as { id: string }).id)
-    .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
-    .order("opening_date", { ascending: true });
+  // Get active production from cookie
+  const activeProductionId = await getActiveProductionId();
 
-  // Default to first active production
-  const activeProduction = productions?.[0];
+  let activeProduction: { id: string; title: string; status: string } | null = null;
+  if (activeProductionId) {
+    const { data } = await supabase
+      .from("productions")
+      .select("id, title, status")
+      .eq("id", activeProductionId)
+      .eq("org_id", (membership.organizations as unknown as { id: string }).id)
+      .single();
+    activeProduction = data;
+  }
+
+  if (!activeProduction) {
+    // Fallback to first active production
+    const { data: prods } = await supabase
+      .from("productions")
+      .select("id, title, status")
+      .eq("org_id", (membership.organizations as unknown as { id: string }).id)
+      .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
+      .order("opening_date", { ascending: true })
+      .limit(1);
+    activeProduction = prods?.[0] || null;
+  }
 
   // Check if user has a design or staff assignment for this production
   let canManage = isOwnerOrProd;
