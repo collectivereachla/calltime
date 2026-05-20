@@ -18,7 +18,7 @@ const CUE_STATUS = {
 export function makeLightingConfig(designerName: string | null, designerRole: string | null): DesignRoomConfig {
   return {
     department: "lights",
-    departmentLabel: "Lighting Design",
+    departmentLabel: "Lights",
     designerName,
     designerRole,
     cuePrefix: "LX",
@@ -61,7 +61,7 @@ export function makeLightingConfig(designerName: string | null, designerRole: st
 export function makeSoundConfig(designerName: string | null, designerRole: string | null): DesignRoomConfig {
   return {
     department: "sound",
-    departmentLabel: "Sound Design",
+    departmentLabel: "Sound",
     designerName,
     designerRole,
     cuePrefix: "SQ",

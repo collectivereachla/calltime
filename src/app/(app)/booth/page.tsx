@@ -359,7 +359,7 @@ export default async function BoothPage() {
         tabs={[
           { key: "costume", label: "Costume", designer: costumeDesigner.name },
           { key: "set", label: "Set", designer: setDesigner.name },
-          { key: "lights", label: "Lighting", designer: lightDesigner.name },
+          { key: "lights", label: "Lights", designer: lightDesigner.name },
           { key: "sound", label: "Sound", designer: soundDesigner.name },
           { key: "sm", label: "Stage Mgmt", designer: smName },
         ]}
