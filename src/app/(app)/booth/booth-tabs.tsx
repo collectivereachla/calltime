@@ -2,26 +2,19 @@
 
 import { useState } from "react";
 
-interface Props {
-  costumeContent: React.ReactNode;
-  setDesignContent: React.ReactNode;
-  lightingContent: React.ReactNode;
-  soundContent: React.ReactNode;
-  smContent: React.ReactNode;
+interface TabInfo {
+  key: string;
+  label: string;
+  designer?: string | null;
 }
 
-const tabs = [
-  { key: "costume" as const, label: "Costume" },
-  { key: "set" as const, label: "Set" },
-  { key: "lights" as const, label: "Lighting" },
-  { key: "sound" as const, label: "Sound" },
-  { key: "sm" as const, label: "Stage Mgmt" },
-];
+interface Props {
+  tabs: TabInfo[];
+  contents: Record<string, React.ReactNode>;
+}
 
-type TabKey = typeof tabs[number]["key"];
-
-export function BoothTabs({ costumeContent, setDesignContent, lightingContent, soundContent, smContent }: Props) {
-  const [dept, setDept] = useState<TabKey>("costume");
+export function BoothTabs({ tabs, contents }: Props) {
+  const [active, setActive] = useState(tabs[0]?.key || "");
 
   return (
     <div>
@@ -29,21 +22,26 @@ export function BoothTabs({ costumeContent, setDesignContent, lightingContent, s
         {tabs.map((t) => (
           <button
             key={t.key}
-            onClick={() => setDept(t.key)}
+            onClick={() => setActive(t.key)}
             className={`px-4 py-2 text-body-sm font-medium rounded-t-card transition-colors whitespace-nowrap ${
-              dept === t.key ? "bg-ink text-paper" : "text-ash hover:text-ink"
+              active === t.key ? "bg-ink text-paper" : "text-ash hover:text-ink"
             }`}
           >
             {t.label}
+            {t.designer && (
+              <span className={`ml-1.5 text-body-xs font-normal ${
+                active === t.key ? "text-paper/60" : "text-muted"
+              }`}>
+                · {t.designer.split(" ")[0]}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      {dept === "costume" && costumeContent}
-      {dept === "set" && setDesignContent}
-      {dept === "lights" && lightingContent}
-      {dept === "sound" && soundContent}
-      {dept === "sm" && smContent}
+      {tabs.map((t) => (
+        active === t.key ? <div key={t.key}>{contents[t.key]}</div> : null
+      ))}
     </div>
   );
 }

@@ -317,8 +317,22 @@ export default async function BoothPage() {
 
   const lightDesigner = findDesigner("light");
   const soundDesigner = findDesigner("sound");
+  const costumeDesigner = findDesigner("costume");
+  const setDesigner = findDesigner("set");
   const lightingConfig = makeLightingConfig(lightDesigner.name, lightDesigner.role);
   const soundConfig = makeSoundConfig(soundDesigner.name, soundDesigner.role);
+
+  // Get SM name
+  const { data: smAssignments } = await supabase
+    .from("production_assignments")
+    .select("role_title, people(full_name, preferred_name)")
+    .eq("production_id", activeProduction.id)
+    .eq("department", "stage_management")
+    .eq("active", true)
+    .eq("role_title", "Stage Manager")
+    .limit(1);
+  const smPerson = smAssignments?.[0]?.people as unknown as { full_name: string; preferred_name: string | null } | null;
+  const smName = smPerson ? (smPerson.preferred_name || smPerson.full_name) : null;
 
   // Build scene list with locations for design rooms
   const designScenes = scenes.map((s) => {
@@ -342,70 +356,79 @@ export default async function BoothPage() {
       </div>
 
       <BoothTabs
-        costumeContent={
-          <CostumeBible
-            productionId={activeProduction.id}
-            scenes={scenes.map((s) => ({
-              id: s.id, act: s.act, scene_number: s.scene_number, title: s.title,
-            }))}
-            cast={cast}
-            costumeEntries={entries}
-            paradeEntries={(paradeData || []) as any}
-            measurementEntries={(measurementData || []) as any}
-            inventoryItems={(inventoryData || []) as any}
-            canManage={canManage}
-          />
-        }
-        setDesignContent={
-          <SetDesign
-            productionId={activeProduction.id}
-            scenes={designScenes}
-            elements={(setElements || []) as any}
-            references={(setReferences || []) as any}
-            milestones={(setMilestones || []) as any}
-            sceneNotes={setSceneNotes}
-            stageConfig={stageConfig || null}
-            canManage={canManage}
-          />
-        }
-        lightingContent={
-          <DesignRoom
-            config={lightingConfig}
-            productionId={activeProduction.id}
-            scenes={designScenes}
-            elements={lightingData.elements}
-            references={lightingData.references}
-            milestones={lightingData.milestones}
-            cues={lightingData.cues}
-            sceneNotes={lightingData.sceneNotes}
-            canManage={canManage}
-          />
-        }
-        soundContent={
-          <DesignRoom
-            config={soundConfig}
-            productionId={activeProduction.id}
-            scenes={designScenes}
-            elements={soundData.elements}
-            references={soundData.references}
-            milestones={soundData.milestones}
-            cues={soundData.cues}
-            sceneNotes={soundData.sceneNotes}
-            canManage={canManage}
-          />
-        }
-        smContent={
-          <StageManagement
-            scenes={(smScenesData || []) as any}
-            props={(propsData || []) as any}
-            reports={(reportsData || []) as any}
-            actionItems={(actionItemsData || []) as any}
-            events={eventsWithConflicts}
-            cast={cast}
-            productionId={activeProduction.id}
-            productionTitle={activeProduction.title}
-          />
-        }
+        tabs={[
+          { key: "costume", label: "Costume", designer: costumeDesigner.name },
+          { key: "set", label: "Set", designer: setDesigner.name },
+          { key: "lights", label: "Lighting", designer: lightDesigner.name },
+          { key: "sound", label: "Sound", designer: soundDesigner.name },
+          { key: "sm", label: "Stage Mgmt", designer: smName },
+        ]}
+        contents={{
+          costume: (
+            <CostumeBible
+              productionId={activeProduction.id}
+              scenes={scenes.map((s) => ({
+                id: s.id, act: s.act, scene_number: s.scene_number, title: s.title,
+              }))}
+              cast={cast}
+              costumeEntries={entries}
+              paradeEntries={(paradeData || []) as any}
+              measurementEntries={(measurementData || []) as any}
+              inventoryItems={(inventoryData || []) as any}
+              canManage={canManage}
+            />
+          ),
+          set: (
+            <SetDesign
+              productionId={activeProduction.id}
+              scenes={designScenes}
+              elements={(setElements || []) as any}
+              references={(setReferences || []) as any}
+              milestones={(setMilestones || []) as any}
+              sceneNotes={setSceneNotes}
+              stageConfig={stageConfig || null}
+              canManage={canManage}
+            />
+          ),
+          lights: (
+            <DesignRoom
+              config={lightingConfig}
+              productionId={activeProduction.id}
+              scenes={designScenes}
+              elements={lightingData.elements}
+              references={lightingData.references}
+              milestones={lightingData.milestones}
+              cues={lightingData.cues}
+              sceneNotes={lightingData.sceneNotes}
+              canManage={canManage}
+            />
+          ),
+          sound: (
+            <DesignRoom
+              config={soundConfig}
+              productionId={activeProduction.id}
+              scenes={designScenes}
+              elements={soundData.elements}
+              references={soundData.references}
+              milestones={soundData.milestones}
+              cues={soundData.cues}
+              sceneNotes={soundData.sceneNotes}
+              canManage={canManage}
+            />
+          ),
+          sm: (
+            <StageManagement
+              scenes={(smScenesData || []) as any}
+              props={(propsData || []) as any}
+              reports={(reportsData || []) as any}
+              actionItems={(actionItemsData || []) as any}
+              events={eventsWithConflicts}
+              cast={cast}
+              productionId={activeProduction.id}
+              productionTitle={activeProduction.title}
+            />
+          ),
+        }}
       />
     </div>
   );
