@@ -3,7 +3,7 @@ import { CostumeBible } from "./costume-bible";
 import { SetDesign } from "./set-design";
 import { StageManagement } from "./stage-management";
 import { DesignRoom } from "./design-room";
-import { LIGHTING_CONFIG, SOUND_CONFIG } from "./design-configs";
+import { makeLightingConfig, makeSoundConfig } from "./design-configs";
 import { BoothTabs } from "./booth-tabs";
 import { getActiveProductionId } from "@/lib/active-production";
 
@@ -249,7 +249,7 @@ export default async function BoothPage() {
 
   // Helper to fetch design data for a department
   async function fetchDeptData(dept: string) {
-    const [elemRes, refRes, msRes] = await Promise.all([
+    const [elemRes, refRes, msRes, cueRes] = await Promise.all([
       supabase
         .from("design_elements")
         .select("id, name, description, status, image_url, notes, scene_ids, sort_order")
@@ -268,6 +268,12 @@ export default async function BoothPage() {
         .eq("production_id", activeProduction!.id)
         .eq("department", dept)
         .order("sort_order", { ascending: true }),
+      supabase
+        .from("cues")
+        .select("id, cue_number, description, page_ref, scene_id, trigger_line, duration, notes, status, sort_order, metadata")
+        .eq("production_id", activeProduction!.id)
+        .eq("department", dept)
+        .order("sort_order", { ascending: true }),
     ]);
     let deptSceneNotes: { scene_id: string; content: string | null }[] = [];
     if (sceneIds.length > 0) {
@@ -282,6 +288,7 @@ export default async function BoothPage() {
       elements: (elemRes.data || []) as { id: string; name: string; description: string | null; status: string; image_url: string | null; notes: string | null; scene_ids: string[] }[],
       references: (refRes.data || []) as { id: string; title: string; description: string | null; image_url: string; category: string; created_at: string }[],
       milestones: (msRes.data || []) as { id: string; milestone: string; sort_order: number; completed: boolean; completed_at: string | null; notes: string | null }[],
+      cues: (cueRes.data || []) as { id: string; cue_number: string; description: string | null; page_ref: string | null; scene_id: string | null; trigger_line: string | null; duration: string | null; notes: string | null; status: string; sort_order: number; metadata: Record<string, unknown> }[],
       sceneNotes: deptSceneNotes,
     };
   }
@@ -290,6 +297,28 @@ export default async function BoothPage() {
     fetchDeptData("lights"),
     fetchDeptData("sound"),
   ]);
+
+  // Get designer names from production assignments
+  const { data: designAssignments } = await supabase
+    .from("production_assignments")
+    .select("role_title, people(full_name, preferred_name)")
+    .eq("production_id", activeProduction.id)
+    .eq("department", "design")
+    .eq("active", true);
+
+  function findDesigner(roleLike: string): { name: string | null; role: string | null } {
+    const match = (designAssignments || []).find((a) =>
+      a.role_title.toLowerCase().includes(roleLike.toLowerCase())
+    );
+    if (!match || !match.people) return { name: null, role: null };
+    const p = match.people as unknown as { full_name: string; preferred_name: string | null };
+    return { name: p.preferred_name || p.full_name, role: match.role_title };
+  }
+
+  const lightDesigner = findDesigner("light");
+  const soundDesigner = findDesigner("sound");
+  const lightingConfig = makeLightingConfig(lightDesigner.name, lightDesigner.role);
+  const soundConfig = makeSoundConfig(soundDesigner.name, soundDesigner.role);
 
   // Build scene list with locations for design rooms
   const designScenes = scenes.map((s) => {
@@ -341,24 +370,26 @@ export default async function BoothPage() {
         }
         lightingContent={
           <DesignRoom
-            config={LIGHTING_CONFIG}
+            config={lightingConfig}
             productionId={activeProduction.id}
             scenes={designScenes}
             elements={lightingData.elements}
             references={lightingData.references}
             milestones={lightingData.milestones}
+            cues={lightingData.cues}
             sceneNotes={lightingData.sceneNotes}
             canManage={canManage}
           />
         }
         soundContent={
           <DesignRoom
-            config={SOUND_CONFIG}
+            config={soundConfig}
             productionId={activeProduction.id}
             scenes={designScenes}
             elements={soundData.elements}
             references={soundData.references}
             milestones={soundData.milestones}
+            cues={soundData.cues}
             sceneNotes={soundData.sceneNotes}
             canManage={canManage}
           />
