@@ -97,12 +97,12 @@ export function CostumePlot({ productionId, scenes, cast, entries }: Props) {
                 </th>
                 {act1.length > 0 && (
                   <th colSpan={act1.length} className="px-2 py-1 text-center text-body-xs text-muted uppercase tracking-wider border-b border-bone bg-ink/5">
-                    Act I — Antiquity
+                    Act I
                   </th>
                 )}
                 {act2.length > 0 && (
                   <th colSpan={act2.length} className="px-2 py-1 text-center text-body-xs text-muted uppercase tracking-wider border-b border-bone">
-                    Act II — Current Day
+                    Act II
                   </th>
                 )}
               </tr>

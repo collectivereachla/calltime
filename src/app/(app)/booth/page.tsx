@@ -32,7 +32,7 @@ export default async function BoothPage() {
     );
   }
 
-  const canManage = membership.role === "owner" || membership.role === "production";
+  const isOwnerOrProd = membership.role === "owner" || membership.role === "production";
 
   // Get active productions with their assignments
   const { data: productions } = await supabase
@@ -44,6 +44,24 @@ export default async function BoothPage() {
 
   // Default to first active production
   const activeProduction = productions?.[0];
+
+  // Check if user has a design or staff assignment for this production
+  let canManage = isOwnerOrProd;
+  if (activeProduction && !canManage) {
+    const { data: assignment } = await supabase
+      .from("production_assignments")
+      .select("access_tier, department")
+      .eq("production_id", activeProduction.id)
+      .eq("person_id", person!.id)
+      .eq("active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (assignment) {
+      canManage = ["admin", "production", "staff"].includes(assignment.access_tier) ||
+        assignment.department === "design";
+    }
+  }
 
   if (!activeProduction) {
     return (
