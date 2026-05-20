@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
 import { PushRegistration } from "@/components/push-registration";
-import { getActiveProductionId, setActiveProductionId } from "@/lib/active-production";
+import { getActiveProductionId } from "@/lib/active-production";
 
 export default async function AppLayout({
   children,
@@ -86,9 +86,6 @@ export default async function AppLayout({
   let activeProductionId = await getActiveProductionId();
   if (!activeProductionId || !productions.find(p => p.id === activeProductionId)) {
     activeProductionId = productions[0]?.id || null;
-    if (activeProductionId) {
-      await setActiveProductionId(activeProductionId);
-    }
   }
 
   // Count unread notifications + contracts awaiting countersign + pending applications
