@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { MonologueLab } from "./monologue-lab";
 
 interface ScriptLine {
   id: string;
@@ -10,6 +11,20 @@ interface ScriptLine {
   line_type: string;
   character: string | null;
   content: string;
+}
+
+interface Annotation {
+  id: string;
+  script_line_id: string;
+  person_id: string;
+  annotation_type: string;
+  content: string;
+  tagged_characters: string[];
+  visibility: string;
+  note_type: string;
+  is_pinned: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 interface VerseAnalysis {
@@ -30,12 +45,16 @@ interface VerseAnalysis {
 
 interface Props {
   lines: ScriptLine[];
+  annotations: Annotation[];
   myCharacters: string[];
   allCharacters: string[];
   scriptTitle: string;
+  personId: string;
+  isMonologue: boolean;
+  soloCharacter: string | null;
 }
 
-type Mode = "notecards" | "first-letter" | "verse-coach";
+type Mode = "monologue" | "notecards" | "first-letter" | "verse-coach";
 
 function firstLetterTransform(text: string): string {
   // Replace each word with its first letter, preserving punctuation attached to words
@@ -45,10 +64,10 @@ function firstLetterTransform(text: string): string {
   });
 }
 
-export function LineLab({ lines, myCharacters, allCharacters, scriptTitle }: Props) {
-  const [mode, setMode] = useState<Mode>("notecards");
+export function LineLab({ lines, annotations, myCharacters, allCharacters, scriptTitle, personId, isMonologue, soloCharacter }: Props) {
+  const [mode, setMode] = useState<Mode>(isMonologue ? "monologue" : "notecards");
   const [selectedCharacter, setSelectedCharacter] = useState<string>(
-    myCharacters.length > 0 ? myCharacters[0] : allCharacters[0] || ""
+    soloCharacter || (myCharacters.length > 0 ? myCharacters[0] : allCharacters[0] || "")
   );
   const [currentCardIdx, setCurrentCardIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -164,6 +183,19 @@ export function LineLab({ lines, myCharacters, allCharacters, scriptTitle }: Pro
   // Everyone can see all characters — default to your own if you have one
   const characterOptions = allCharacters;
 
+  // Pure monologue script: render MonologueLab directly (it has its own mode selector)
+  if (isMonologue && soloCharacter) {
+    return (
+      <MonologueLab
+        lines={lines}
+        annotations={annotations}
+        scriptTitle={scriptTitle}
+        personId={personId}
+        character={soloCharacter}
+      />
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto">
       {/* Character + mode selector */}
@@ -179,6 +211,14 @@ export function LineLab({ lines, myCharacters, allCharacters, scriptTitle }: Pro
         </select>
 
         <div className="flex rounded-lg border border-bone overflow-hidden">
+          <button
+            onClick={() => setMode("monologue")}
+            className={`px-4 py-2 text-body-sm font-medium transition-colors ${
+              mode === "monologue" ? "bg-ink text-paper" : "bg-card text-ash hover:text-ink"
+            }`}
+          >
+            Monologue
+          </button>
           <button
             onClick={() => setMode("notecards")}
             className={`px-4 py-2 text-body-sm font-medium transition-colors ${
@@ -209,6 +249,19 @@ export function LineLab({ lines, myCharacters, allCharacters, scriptTitle }: Pro
           {notecards.length} lines
         </span>
       </div>
+
+      {/* MONOLOGUE MODE */}
+      {mode === "monologue" && (
+        <MonologueLab
+          lines={lines.filter(
+            (l) => l.line_type === "dialogue" && l.character && matchesCharacter(l.character, selectedCharacter)
+          )}
+          annotations={annotations}
+          scriptTitle={scriptTitle}
+          personId={personId}
+          character={selectedCharacter}
+        />
+      )}
 
       {/* NOTECARD MODE */}
       {mode === "notecards" && (

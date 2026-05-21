@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { SpineViewer } from "./spine-viewer";
 import { LineLab } from "./line-lab";
-import { MonologueLab } from "./monologue-lab";
 import { ScriptReports } from "./script-reports";
 import { VersionBar } from "./version-bar";
 
@@ -128,22 +127,16 @@ export function SpineLayout(props: Props) {
 
       {tab === "script" && <SpineViewer {...props} />}
       {tab === "linelab" && (
-        isMonologue && soloCharacter ? (
-          <MonologueLab
-            lines={props.lines}
-            annotations={props.annotations}
-            scriptTitle={props.scriptTitle}
-            personId={props.personId}
-            character={soloCharacter}
-          />
-        ) : (
-          <LineLab
-            lines={props.lines}
-            myCharacters={props.myCharacters}
-            allCharacters={props.allCharacters}
-            scriptTitle={props.scriptTitle}
-          />
-        )
+        <LineLab
+          lines={props.lines}
+          annotations={props.annotations}
+          myCharacters={props.myCharacters}
+          allCharacters={props.allCharacters}
+          scriptTitle={props.scriptTitle}
+          personId={props.personId}
+          isMonologue={isMonologue}
+          soloCharacter={soloCharacter}
+        />
       )}
       {tab === "reports" && props.canManage && (
         <ScriptReports
