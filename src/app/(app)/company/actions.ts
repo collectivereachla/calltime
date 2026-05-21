@@ -13,6 +13,7 @@ export async function updateMember(formData: FormData) {
     p_pronouns: (formData.get("pronouns") as string) || null,
     p_email: (formData.get("email") as string) || null,
     p_phone: (formData.get("phone") as string) || null,
+    p_bio: (formData.get("bio") as string) || null,
   });
 
   if (error) return { error: error.message };

@@ -47,6 +47,7 @@ interface PersonData {
   email: string | null;
   phone: string | null;
   headshot_url: string | null;
+  bio: string | null;
 }
 
 interface Assignment {
@@ -196,6 +197,12 @@ export function EditMemberButton({ person, orgId, orgRole, assignments, producti
               <input name="phone" type="tel" defaultValue={person.phone || ""}
                 className="w-full px-3 py-1.5 bg-paper border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none transition-colors" />
             </div>
+          </div>
+          <div>
+            <label className="block text-body-xs text-ash mb-1">Bio</label>
+            <textarea name="bio" rows={3} defaultValue={person.bio || ""}
+              placeholder="A short bio for the company roster…"
+              className="w-full px-3 py-1.5 bg-paper border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none transition-colors resize-vertical" />
           </div>
           <div className="flex gap-2 pt-1">
             <button type="submit" disabled={loading}
