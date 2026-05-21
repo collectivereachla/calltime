@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { sendWelcomeEmail } from "@/lib/email-triggers";
 
 export async function approveApplication(
   applicationId: string,
@@ -59,29 +60,61 @@ export async function approveApplication(
     .maybeSingle();
 
   if (!existing) {
-    await supabase.from("org_memberships").insert({
-      person_id: app.person_id,
-      org_id: orgId,
-      role: "member",
-      status: "active",
-    });
+    const { error: memberErr } = await supabase
+      .from("org_memberships")
+      .insert({
+        person_id: app.person_id,
+        org_id: orgId,
+        role: "member",
+        status: "active",
+      });
+
+    if (memberErr) {
+      console.error(
+        "Failed to create org membership for person",
+        app.person_id,
+        "in org",
+        orgId,
+        ":",
+        memberErr.message
+      );
+      return { error: `Failed to add to organization: ${memberErr.message}` };
+    }
   } else {
-    // Make sure it's active
-    await supabase
+    const { error: activateErr } = await supabase
       .from("org_memberships")
       .update({ status: "active" })
       .eq("id", existing.id);
+
+    if (activateErr) {
+      console.error("Failed to activate membership:", activateErr.message);
+    }
   }
 
   // 3. Create production assignment
-  await supabase.from("production_assignments").insert({
-    person_id: app.person_id,
-    production_id: app.production_id,
-    role_title: assignedRole,
+  const { error: assignErr } = await supabase
+    .from("production_assignments")
+    .insert({
+      person_id: app.person_id,
+      production_id: app.production_id,
+      role_title: assignedRole,
+      department,
+      access_tier: accessTier,
+      active: true,
+    });
+
+  if (assignErr) {
+    console.error("Failed to create production assignment:", assignErr.message);
+    return { error: `Failed to assign to production: ${assignErr.message}` };
+  }
+
+  // 4. Send welcome email
+  sendWelcomeEmail({
+    personId: app.person_id,
+    productionId: app.production_id,
+    roleTitle: assignedRole,
     department,
-    access_tier: accessTier,
-    active: true,
-  });
+  }).catch(() => {});
 
   revalidatePath("/applications");
   return { success: true };
