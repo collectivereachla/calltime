@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { sendWelcomeEmail } from "@/lib/email-triggers";
 
 export async function updateMember(formData: FormData) {
   const supabase = await createClient();
@@ -62,16 +63,26 @@ export async function updateAssignment(formData: FormData) {
 export async function addAssignment(formData: FormData) {
   const supabase = await createClient();
 
+  const personId = formData.get("person_id") as string;
+  const productionId = formData.get("production_id") as string;
+  const roleTitle = formData.get("role_title") as string;
+  const department = formData.get("department") as string;
+
   const { error } = await supabase.rpc("add_production_assignment", {
-    p_person_id: formData.get("person_id") as string,
-    p_production_id: formData.get("production_id") as string,
-    p_role_title: formData.get("role_title") as string,
-    p_department: formData.get("department") as string,
+    p_person_id: personId,
+    p_production_id: productionId,
+    p_role_title: roleTitle,
+    p_department: department,
     p_access_tier: formData.get("access_tier") as string,
     p_casting_structure: (formData.get("casting_structure") as string) || null,
   });
 
   if (error) return { error: error.message };
+
+  // Send welcome email (fire-and-forget)
+  sendWelcomeEmail({ personId, productionId, roleTitle, department }).catch(
+    () => {}
+  );
 
   revalidatePath("/company");
   revalidatePath("/home");

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { sendEventCallEmails } from "@/lib/email-triggers";
 
 export async function createScheduleEvent(formData: FormData) {
   const supabase = await createClient();
@@ -30,6 +31,11 @@ export async function createScheduleEvent(formData: FormData) {
       p_person_ids: personIds,
     });
     if (callError) return { error: callError.message };
+  }
+
+  // Send "you've been called" emails (fire-and-forget, errors logged internally)
+  if (eventId) {
+    sendEventCallEmails(eventId).catch(() => {});
   }
 
   revalidatePath("/callboard");
@@ -81,6 +87,9 @@ export async function updateEventCalls(
   });
 
   if (error) return { error: error.message };
+
+  // Send emails to newly-called people (only those without email_sent_at)
+  sendEventCallEmails(eventId).catch(() => {});
 
   revalidatePath("/callboard");
   return { success: true };

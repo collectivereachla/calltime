@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/weekly-reminder",
       "schedule": "0 23 * * 0"
+    },
+    {
+      "path": "/api/cron/nudge-unresponded",
+      "schedule": "0 15 * * *"
     }
   ]
 }

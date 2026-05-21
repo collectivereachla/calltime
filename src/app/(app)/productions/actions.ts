@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { sendWelcomeEmail } from "@/lib/email-triggers";
 
 export async function createProduction(formData: FormData) {
   const supabase = await createClient();
@@ -111,7 +112,7 @@ export async function addPersonToProduction(formData: FormData) {
   const accessTier = formData.get("access_tier") as string;
   const castingStructure = (formData.get("casting_structure") as string) || null;
 
-  const { error } = await supabase.rpc("invite_person_to_production", {
+  const { data: personId, error } = await supabase.rpc("invite_person_to_production", {
     p_production_id: productionId,
     p_full_name: fullName,
     p_email: email,
@@ -124,6 +125,16 @@ export async function addPersonToProduction(formData: FormData) {
 
   if (error) {
     return { error: error.message };
+  }
+
+  // Send welcome email (fire-and-forget)
+  if (personId) {
+    sendWelcomeEmail({
+      personId,
+      productionId,
+      roleTitle,
+      department,
+    }).catch(() => {});
   }
 
   revalidatePath(`/productions/${productionId}`);
