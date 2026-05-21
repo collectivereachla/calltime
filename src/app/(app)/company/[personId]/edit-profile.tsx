@@ -11,6 +11,7 @@ const MONTHS = [
 
 interface Props {
   personId: string;
+  orgId: string;
   isSelf: boolean;
   isStaff: boolean;
   current: {
@@ -31,7 +32,29 @@ interface Props {
   } | null;
 }
 
-export function EditProfile({ personId, isSelf, isStaff, current, details }: Props) {
+function compressImage(file: File, maxDim = 1200): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      let { width, height } = img;
+      if (width > height) {
+        if (width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+      } else {
+        if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.88));
+    };
+    img.onerror = () => reject(new Error("Could not read image"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+export function EditProfile({ personId, orgId, isSelf, isStaff, current, details }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -59,66 +82,85 @@ export function EditProfile({ personId, isSelf, isStaff, current, details }: Pro
     setError(null);
     setSaving(true);
 
-    let result: { error?: string; success?: boolean };
+    try {
+      let result: { error?: string; success?: boolean };
 
-    switch (section) {
-      case "bio":
-        result = await updatePublicProfile(personId, { bio: bio.trim() || null });
-        break;
-      case "birthday":
-        result = await updatePublicProfile(personId, {
-          birth_month: birthMonth || null,
-          birth_day: birthDay || null,
-        });
-        if (result.success && birthYear) {
-          await updatePrivateDetails(personId, { birth_year: Number(birthYear) });
-        }
-        break;
-      case "emergency":
-        result = await updatePrivateDetails(personId, {
-          emergency_contact_name: ecName.trim() || null,
-          emergency_contact_phone: ecPhone.trim() || null,
-          emergency_contact_relationship: ecRelationship.trim() || null,
-        });
-        break;
-      case "allergies":
-        result = await updatePrivateDetails(personId, {
-          allergies: allergies.trim() || null,
-          dietary_needs: dietaryNeeds.trim() || null,
-        });
-        break;
-      default:
-        result = { error: "Unknown section" };
-    }
+      switch (section) {
+        case "bio":
+          result = await updatePublicProfile(personId, { bio: bio.trim() || null });
+          break;
+        case "birthday":
+          result = await updatePublicProfile(personId, {
+            birth_month: birthMonth || null,
+            birth_day: birthDay || null,
+          });
+          if (result.success && birthYear) {
+            const detailResult = await updatePrivateDetails(personId, orgId, { birth_year: Number(birthYear) });
+            if (detailResult.error) result = detailResult;
+          }
+          break;
+        case "emergency":
+          result = await updatePrivateDetails(personId, orgId, {
+            emergency_contact_name: ecName.trim() || null,
+            emergency_contact_phone: ecPhone.trim() || null,
+            emergency_contact_relationship: ecRelationship.trim() || null,
+          });
+          break;
+        case "allergies":
+          result = await updatePrivateDetails(personId, orgId, {
+            allergies: allergies.trim() || null,
+            dietary_needs: dietaryNeeds.trim() || null,
+          });
+          break;
+        default:
+          result = { error: "Unknown section" };
+      }
 
-    setSaving(false);
-    if (result.error) {
-      setError(result.error);
-    } else {
-      setEditing(null);
-      router.refresh();
+      setSaving(false);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setEditing(null);
+        router.refresh();
+      }
+    } catch (e: unknown) {
+      setSaving(false);
+      setError(e instanceof Error ? e.message : "Something went wrong. Please try again.");
     }
   }
 
   async function handleHeadshot(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Please select an image file (JPEG, PNG, or WebP).");
+      return;
+    }
     setError(null);
     setSaving(true);
-    const fd = new FormData();
-    fd.set("headshot", file);
-    const result = await uploadHeadshot(personId, fd);
-    setSaving(false);
-    if (result.error) setError(result.error);
-    else router.refresh();
+    try {
+      const dataUrl = await compressImage(file);
+      const result = await uploadHeadshot(personId, dataUrl);
+      setSaving(false);
+      if (result.error) setError(result.error);
+      else router.refresh();
+    } catch (e: unknown) {
+      setSaving(false);
+      setError(e instanceof Error ? e.message : "Upload failed. Please try again.");
+    }
   }
 
   async function handleW9Toggle() {
     setSaving(true);
-    const result = await toggleW9Status(personId, !(details?.w9_submitted));
-    setSaving(false);
-    if (result.error) setError(result.error);
-    else router.refresh();
+    try {
+      const result = await toggleW9Status(personId, !(details?.w9_submitted));
+      setSaving(false);
+      if (result.error) setError(result.error);
+      else router.refresh();
+    } catch (e: unknown) {
+      setSaving(false);
+      setError(e instanceof Error ? e.message : "Update failed.");
+    }
   }
 
   if (!canEdit) return null;

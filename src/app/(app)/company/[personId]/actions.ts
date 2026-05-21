@@ -8,19 +8,23 @@ export async function updatePublicProfile(personId: string, data: {
   birth_month?: number | null;
   birth_day?: number | null;
 }) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("people")
-    .update(data)
-    .eq("id", personId);
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("people")
+      .update(data)
+      .eq("id", personId);
 
-  if (error) return { error: error.message };
-  revalidatePath(`/company/${personId}`);
-  revalidatePath("/company");
-  return { success: true };
+    if (error) return { error: error.message };
+    revalidatePath(`/company/${personId}`);
+    revalidatePath("/company");
+    return { success: true };
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : "Update failed" };
+  }
 }
 
-export async function updatePrivateDetails(personId: string, data: {
+export async function updatePrivateDetails(personId: string, orgId: string, data: {
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
   emergency_contact_relationship?: string | null;
@@ -28,70 +32,77 @@ export async function updatePrivateDetails(personId: string, data: {
   dietary_needs?: string | null;
   birth_year?: number | null;
 }) {
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("member_details")
+      .upsert(
+        { person_id: personId, org_id: orgId, ...data, updated_at: new Date().toISOString() },
+        { onConflict: "person_id,org_id" }
+      );
 
-  // Upsert — might not have a row yet
-  const { error } = await supabase
-    .from("member_details")
-    .upsert({ person_id: personId, ...data, updated_at: new Date().toISOString() },
-      { onConflict: "person_id" });
-
-  if (error) return { error: error.message };
-  revalidatePath(`/company/${personId}`);
-  revalidatePath("/company");
-  return { success: true };
+    if (error) return { error: error.message };
+    revalidatePath(`/company/${personId}`);
+    revalidatePath("/company");
+    return { success: true };
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : "Update failed" };
+  }
 }
 
-export async function uploadHeadshot(personId: string, formData: FormData) {
-  const supabase = await createClient();
-  const file = formData.get("headshot") as File;
-  if (!file || file.size === 0) return { error: "No file selected" };
+export async function uploadHeadshot(personId: string, imageDataUrl: string) {
+  try {
+    const supabase = await createClient();
 
-  // Validate: images only, max 5MB
-  if (!file.type.startsWith("image/")) return { error: "Must be an image file" };
-  if (file.size > 5 * 1024 * 1024) return { error: "Image must be under 5MB" };
+    // Convert data URL to buffer
+    const base64 = imageDataUrl.split(",")[1];
+    if (!base64) return { error: "Invalid image data" };
+    const buffer = Buffer.from(base64, "base64");
 
-  const ext = file.name.split(".").pop() || "jpg";
-  const path = `${personId}.${ext}`;
+    if (buffer.length > 5 * 1024 * 1024) return { error: "Image too large after compression" };
 
-  // Upload (upsert overwrites existing)
-  const { error: uploadError } = await supabase.storage
-    .from("headshots")
-    .upload(path, file, { upsert: true, contentType: file.type });
+    const path = `${personId}/headshot.jpg`;
+    const { error: uploadError } = await supabase.storage
+      .from("headshots")
+      .upload(path, buffer, { upsert: true, contentType: "image/jpeg" });
 
-  if (uploadError) return { error: uploadError.message };
+    if (uploadError) return { error: uploadError.message };
 
-  // Get public URL
-  const { data: urlData } = supabase.storage.from("headshots").getPublicUrl(path);
+    const { data: urlData } = supabase.storage.from("headshots").getPublicUrl(path);
+    const url = `${urlData.publicUrl}?v=${Date.now()}`;
 
-  // Update people record with cache-busting URL
-  const url = `${urlData.publicUrl}?v=${Date.now()}`;
-  const { error: updateError } = await supabase
-    .from("people")
-    .update({ headshot_url: url })
-    .eq("id", personId);
+    const { error: updateError } = await supabase
+      .from("people")
+      .update({ headshot_url: url })
+      .eq("id", personId);
 
-  if (updateError) return { error: updateError.message };
+    if (updateError) return { error: updateError.message };
 
-  revalidatePath(`/company/${personId}`);
-  revalidatePath("/company");
-  return { success: true, url };
+    revalidatePath(`/company/${personId}`);
+    revalidatePath("/company");
+    return { success: true, url };
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : "Upload failed" };
+  }
 }
 
 export async function toggleW9Status(personId: string, submitted: boolean) {
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("member_details")
+      .upsert({
+        person_id: personId,
+        w9_submitted: submitted,
+        w9_submitted_at: submitted ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "person_id" });
 
-  const { error } = await supabase
-    .from("member_details")
-    .upsert({
-      person_id: personId,
-      w9_submitted: submitted,
-      w9_submitted_at: submitted ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "person_id" });
-
-  if (error) return { error: error.message };
-  revalidatePath(`/company/${personId}`);
-  revalidatePath("/company");
-  return { success: true };
+    if (error) return { error: error.message };
+    revalidatePath(`/company/${personId}`);
+    revalidatePath("/company");
+    return { success: true };
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : "Update failed" };
+  }
 }

@@ -271,6 +271,7 @@ export default async function MemberDetailPage({
       {(isStaff || isSelf) && (
         <EditProfile
           personId={personId}
+          orgId={viewerMembership.org_id}
           isSelf={isSelf}
           isStaff={isStaff}
           current={{
