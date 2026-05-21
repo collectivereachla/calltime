@@ -34,6 +34,36 @@ async function pdfToJpeg(file: File): Promise<Blob> {
   });
 }
 
+async function compressImage(file: Blob, maxDim = 1200): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width <= maxDim && height <= maxDim && file.size < 2 * 1024 * 1024) {
+        resolve(file);
+        return;
+      }
+      if (width > height) {
+        if (width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+      } else {
+        if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Compression failed"))),
+        "image/jpeg",
+        0.88
+      );
+    };
+    img.onerror = () => reject(new Error("Could not read image"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export function PhotoUpload({ personId, currentUrl, size = "md" }: Props) {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(currentUrl);
@@ -59,8 +89,8 @@ export function PhotoUpload({ personId, currentUrl, size = "md" }: Props) {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError("File must be under 10MB.");
+    if (file.size > 50 * 1024 * 1024) {
+      setError("File must be under 50MB.");
       return;
     }
 
@@ -68,20 +98,19 @@ export function PhotoUpload({ personId, currentUrl, size = "md" }: Props) {
     setUploading(true);
 
     let uploadBlob: Blob = file;
-    let ext = "jpg";
 
     try {
       if (isPdf) {
         uploadBlob = await pdfToJpeg(file);
-        ext = "jpg";
-      } else {
-        ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
       }
+      uploadBlob = await compressImage(uploadBlob);
     } catch {
-      setError("Couldn't read that PDF. Try a JPEG or PNG instead.");
+      setError("Couldn't process that file. Try a smaller JPEG or PNG.");
       setUploading(false);
       return;
     }
+
+    const ext = "jpg";
 
     // Show preview
     const reader = new FileReader();
@@ -95,7 +124,7 @@ export function PhotoUpload({ personId, currentUrl, size = "md" }: Props) {
       .from("headshots")
       .upload(filePath, uploadBlob, {
         upsert: true,
-        contentType: isPdf ? "image/jpeg" : file.type,
+        contentType: "image/jpeg",
       });
 
     if (uploadError) {
