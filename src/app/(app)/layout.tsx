@@ -73,14 +73,30 @@ export default async function AppLayout({
 
   // Fetch user's productions for the switcher
   const orgId = (memberships[0].organizations as unknown as { id: string }).id;
-  const { data: userProductions } = await supabase
-    .from("productions")
-    .select("id, title, status")
-    .eq("org_id", orgId)
-    .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
-    .order("opening_date", { ascending: true, nullsFirst: false });
+  let productions: { id: string; title: string; status: string }[] = [];
 
-  const productions = userProductions || [];
+  if (isAdminOrOwner) {
+    // Owners/admins see all active productions in the org
+    const { data } = await supabase
+      .from("productions")
+      .select("id, title, status")
+      .eq("org_id", orgId)
+      .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
+      .order("opening_date", { ascending: true, nullsFirst: false });
+    productions = data || [];
+  } else {
+    // Members only see productions they're assigned to
+    const { data } = await supabase
+      .from("production_assignments")
+      .select("productions!inner(id, title, status)")
+      .eq("person_id", person.id)
+      .eq("active", true)
+      .in("productions.status", ["pre_production", "rehearsal", "tech", "in_run"]);
+
+    productions = (data || []).map(
+      (a) => a.productions as unknown as { id: string; title: string; status: string }
+    );
+  }
 
   // Determine active production from cookie, defaulting to first
   let activeProductionId = await getActiveProductionId();
