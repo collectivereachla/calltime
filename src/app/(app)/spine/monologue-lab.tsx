@@ -138,7 +138,7 @@ function BeatCard({
           {/* Active verb input */}
           <div className="pt-2">
             <p className="font-mono text-data-sm text-muted uppercase tracking-wider mb-2">
-              What is Booth doing here? (active verb)
+              What is {character.charAt(0) + character.slice(1).toLowerCase()} doing here? (active verb)
             </p>
             <div className="flex gap-2">
               <input
