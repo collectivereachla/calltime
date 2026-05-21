@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SpineViewer } from "./spine-viewer";
 import { LineLab } from "./line-lab";
+import { MonologueLab } from "./monologue-lab";
 import { ScriptReports } from "./script-reports";
 import { VersionBar } from "./version-bar";
 
@@ -64,9 +65,20 @@ interface Props {
 export function SpineLayout(props: Props) {
   const [tab, setTab] = useState<Tab>("script");
 
+  // Detect monologue: all dialogue lines from a single character
+  const dialogueChars = Array.from(
+    new Set(
+      props.lines
+        .filter((l) => l.line_type === "dialogue" && l.character)
+        .map((l) => l.character!)
+    )
+  );
+  const isMonologue = dialogueChars.length === 1;
+  const soloCharacter = isMonologue ? dialogueChars[0] : null;
+
   const tabs: { key: Tab; label: string; staffOnly?: boolean }[] = [
     { key: "script", label: "Script" },
-    { key: "linelab", label: "Line Lab" },
+    { key: "linelab", label: isMonologue ? "Monologue Lab" : "Line Lab" },
     { key: "reports", label: "Reports", staffOnly: true },
   ];
 
@@ -116,12 +128,22 @@ export function SpineLayout(props: Props) {
 
       {tab === "script" && <SpineViewer {...props} />}
       {tab === "linelab" && (
-        <LineLab
-          lines={props.lines}
-          myCharacters={props.myCharacters}
-          allCharacters={props.allCharacters}
-          scriptTitle={props.scriptTitle}
-        />
+        isMonologue && soloCharacter ? (
+          <MonologueLab
+            lines={props.lines}
+            annotations={props.annotations}
+            scriptTitle={props.scriptTitle}
+            personId={props.personId}
+            character={soloCharacter}
+          />
+        ) : (
+          <LineLab
+            lines={props.lines}
+            myCharacters={props.myCharacters}
+            allCharacters={props.allCharacters}
+            scriptTitle={props.scriptTitle}
+          />
+        )
       )}
       {tab === "reports" && props.canManage && (
         <ScriptReports
