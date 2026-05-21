@@ -345,3 +345,58 @@ export function buildWeeklyReminderEmail({
     "This is your weekly reminder from Calltime. If you have a conflict, respond on the Callboard before rehearsal."
   );
 }
+
+// ---------------------------------------------------------------------------
+// 5. Account Invitation — "Your account is ready"
+// ---------------------------------------------------------------------------
+
+export function buildInvitationEmail({
+  name,
+  orgName,
+  productionTitle,
+  roleTitle,
+  tempPassword,
+  loginUrl,
+}: {
+  name: string;
+  orgName: string;
+  productionTitle: string;
+  roleTitle: string;
+  tempPassword: string;
+  loginUrl: string;
+}) {
+  const content = `
+    <p style="font-size: 15px; color: #1A1A1B; margin: 0 0 20px 0;">
+      ${name}, your Calltime account is ready.
+    </p>
+
+    <p style="font-size: 14px; color: #7A726A; margin: 0 0 20px 0;">
+      You've been added to <strong style="color: #1A1A1B;">${productionTitle}</strong> as <strong style="color: #1A1A1B;">${roleTitle}</strong>. Calltime is where you'll find your schedule, respond to calls, and sign your contract.
+    </p>
+
+    <div style="background: #FFFFFF; border: 1px solid #E8E1D2; border-radius: 8px; padding: 20px; margin-bottom: 8px;">
+      <p style="font-size: 11px; color: #7A726A; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 12px 0;">Your login</p>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 4px 0; font-size: 13px; color: #7A726A; width: 90px;">Email</td>
+          <td style="padding: 4px 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #1A1A1B;">Use the email this was sent to</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; font-size: 13px; color: #7A726A;">Password</td>
+          <td style="padding: 4px 0; font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #C4522D; font-weight: 600;">${tempPassword}</td>
+        </tr>
+      </table>
+    </div>
+
+    <p style="font-size: 13px; color: #7A726A; margin: 16px 0 0 0;">
+      After you log in, go to <strong style="color: #1A1A1B;">Settings</strong> to change your password and complete your profile.
+    </p>
+
+    ${ctaButton("Log in to Calltime", loginUrl)}`;
+
+  return emailWrapper(
+    orgName,
+    content,
+    "This is a one-time invitation. Please change your password after logging in."
+  );
+}

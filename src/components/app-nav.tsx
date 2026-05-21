@@ -114,8 +114,14 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, 
         </div>
 
         <div className="border-t border-bone px-5 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-2">
             <p className="text-body-sm font-medium text-ink truncate">{displayName}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link href="/settings" className="text-body-xs text-muted hover:text-brick transition-colors">
+              Settings
+            </Link>
+            <span className="text-bone">·</span>
             <form action={logout}>
               <button type="submit" className="text-body-xs text-muted hover:text-brick transition-colors">
                 Sign out
@@ -135,6 +141,9 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, 
             <ProductionSwitcher productions={productions} activeId={activeProductionId} />
           )}
           <NotificationBell unreadCount={notificationCount} />
+          <Link href="/settings" className="text-body-xs text-muted hover:text-brick transition-colors">
+            ⚙
+          </Link>
           <form action={logout}>
             <button type="submit" className="text-body-xs text-muted hover:text-brick transition-colors">
               Out
