@@ -10,34 +10,11 @@ interface Props {
   size?: "sm" | "md" | "lg";
 }
 
-async function pdfToJpeg(file: File): Promise<Blob> {
-  const pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const page = await pdf.getPage(1);
-  const viewport = page.getViewport({ scale: 2 });
-
-  const canvas = document.createElement("canvas");
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  const ctx = canvas.getContext("2d")!;
-  await page.render({ canvasContext: ctx, viewport }).promise;
-
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error("Canvas conversion failed"))),
-      "image/jpeg",
-      0.92
-    );
-  });
-}
-
-async function compressImage(file: Blob, maxDim = 1200): Promise<Blob> {
+function compressImage(file: Blob, maxDim = 1200): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
+      URL.revokeObjectURL(img.src);
       let { width, height } = img;
       if (width <= maxDim && height <= maxDim && file.size < 2 * 1024 * 1024) {
         resolve(file);
@@ -81,51 +58,33 @@ export function PhotoUpload({ personId, currentUrl, size = "md" }: Props) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-    const isImage = file.type.startsWith("image/");
-
-    if (!isImage && !isPdf) {
-      setError("Upload an image (JPEG, PNG, WebP) or a PDF.");
-      return;
-    }
-
-    if (file.size > 50 * 1024 * 1024) {
-      setError("File must be under 50MB.");
+    if (!file.type.startsWith("image/")) {
+      setError("Please select an image file (JPEG, PNG, or WebP).");
       return;
     }
 
     setError(null);
     setUploading(true);
 
-    let uploadBlob: Blob = file;
-
+    let uploadBlob: Blob;
     try {
-      if (isPdf) {
-        uploadBlob = await pdfToJpeg(file);
-      }
-      uploadBlob = await compressImage(uploadBlob);
+      uploadBlob = await compressImage(file);
     } catch {
-      setError("Couldn't process that file. Try a smaller JPEG or PNG.");
+      setError("Couldn't process that image. Try a different file.");
       setUploading(false);
       return;
     }
 
-    const ext = "jpg";
-
-    // Show preview
     const reader = new FileReader();
     reader.onload = (ev) => setPreview(ev.target?.result as string);
     reader.readAsDataURL(uploadBlob);
 
     const supabase = createClient();
-    const filePath = `${personId}/headshot.${ext}`;
+    const filePath = `${personId}/headshot.jpg`;
 
     const { error: uploadError } = await supabase.storage
       .from("headshots")
-      .upload(filePath, uploadBlob, {
-        upsert: true,
-        contentType: "image/jpeg",
-      });
+      .upload(filePath, uploadBlob, { upsert: true, contentType: "image/jpeg" });
 
     if (uploadError) {
       setError(uploadError.message);
@@ -180,7 +139,7 @@ export function PhotoUpload({ personId, currentUrl, size = "md" }: Props) {
       <input
         ref={fileRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,application/pdf"
+        accept="image/jpeg,image/png,image/webp"
         onChange={handleUpload}
         className="hidden"
       />
