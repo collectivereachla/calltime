@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createNotification, notifyOrgOwners } from "@/lib/notifications";
+import { logActivity } from "@/lib/activity-log";
 
 export async function signContract(formData: FormData) {
   const supabase = await createClient();
@@ -67,6 +68,16 @@ export async function signContract(formData: FormData) {
       link: `/ledger`,
       metadata: { contract_id: contractId, production_id: contract.production_id },
     });
+
+    logActivity({
+      productionId: contract.production_id,
+      orgId: production.org_id,
+      actorPersonId: person.id,
+      action: "contract_signed",
+      entityType: "contract",
+      entityId: contractId,
+      summary: `${contract.person_name} signed their ${contract.role_title} contract`,
+    }).catch(() => {});
   }
 
   revalidatePath("/ledger");
@@ -144,6 +155,16 @@ export async function countersignContract(formData: FormData) {
         link: `/ledger`,
         metadata: { contract_id: contractId, production_id: contract.production_id },
       });
+
+      logActivity({
+        productionId: contract.production_id,
+        orgId: production.org_id,
+        actorPersonId: person.id,
+        action: "contract_countersigned",
+        entityType: "contract",
+        entityId: contractId,
+        summary: `Countersigned ${contract.person_name}'s ${contract.role_title} contract`,
+      }).catch(() => {});
     }
   }
   revalidatePath("/ledger");

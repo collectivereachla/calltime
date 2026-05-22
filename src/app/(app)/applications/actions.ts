@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendWelcomeEmail } from "@/lib/email-triggers";
 import { createNotification } from "@/lib/notifications";
+import { logActivity } from "@/lib/activity-log";
 
 export async function approveApplication(
   applicationId: string,
@@ -131,6 +132,20 @@ export async function approveApplication(
     title: "You've been accepted",
     body: prod ? `Welcome to ${prod.title} — ${assignedRole}` : `Role: ${assignedRole}`,
     link: "/home",
+  }).catch(() => {});
+
+  // Activity log
+  const { data: applicant } = await supabase
+    .from("people").select("full_name, preferred_name").eq("id", app.person_id).single();
+  const applicantName = applicant?.preferred_name || applicant?.full_name || "Someone";
+
+  logActivity({
+    productionId: app.production_id,
+    orgId,
+    action: "application_accepted",
+    entityType: "application",
+    entityId: applicationId,
+    summary: `${applicantName} accepted as ${assignedRole}`,
   }).catch(() => {});
 
   revalidatePath("/applications");

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createNotification } from "@/lib/notifications";
+import { logActivity } from "@/lib/activity-log";
 
 export async function addAnnotation(formData: FormData) {
   const supabase = await createClient();
@@ -54,6 +55,33 @@ export async function addAnnotation(formData: FormData) {
       noteType,
       person,
     ).catch(() => {});
+  }
+
+  // Activity log
+  if (visibility === "production") {
+    const supabase2 = await createClient();
+    const { data: line } = await supabase2
+      .from("script_lines")
+      .select("act, scene, scripts!inner(production_id, productions!inner(org_id))")
+      .eq("id", scriptLineId)
+      .single();
+
+    if (line) {
+      const s = line.scripts as unknown as { production_id: string; productions: { org_id: string } };
+      const authorName = person.preferred_name || person.full_name.split(" ")[0];
+      const label = noteType === "blocking" ? "blocking note" : noteType === "tech_cue" ? "tech cue" : "note";
+      const scene = line.act && line.scene ? ` (Act ${line.act}, Sc ${line.scene})` : "";
+      const tagged = taggedCharacters.length > 0 ? ` for ${taggedCharacters.join(", ")}` : "";
+
+      logActivity({
+        productionId: s.production_id,
+        orgId: s.productions.org_id,
+        actorPersonId: person.id,
+        action: "annotation_added",
+        entityType: "script_annotation",
+        summary: `${authorName} added a ${label}${tagged}${scene}`,
+      }).catch(() => {});
+    }
   }
 
   revalidatePath("/spine");

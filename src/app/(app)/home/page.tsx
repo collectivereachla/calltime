@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { CalendarLink } from "@/components/calendar-link";
+import { WhatChanged } from "@/components/what-changed";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -281,6 +282,13 @@ export default async function HomePage() {
               </Link>
             );
           })}
+        </div>
+      )}
+
+      {/* What Changed — production activity feed */}
+      {activeProductions.length > 0 && (
+        <div className="mt-10">
+          <WhatChanged productionId={activeProductions[0].productions.id} />
         </div>
       )}
 

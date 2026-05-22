@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { sendEventCallEmails } from "@/lib/email-triggers";
 import { createNotification, notifyOrgOwners } from "@/lib/notifications";
+import { logActivity } from "@/lib/activity-log";
 
 export async function createScheduleEvent(formData: FormData) {
   const supabase = await createClient();
@@ -45,6 +46,21 @@ export async function createScheduleEvent(formData: FormData) {
   // Push + in-app notifications to every called person
   if (eventId) {
     notifyCalledPeople(eventId, productionId, title, eventDate).catch(() => {});
+  }
+
+  // Activity log
+  if (eventId) {
+    const dateStr = new Date(eventDate + "T00:00:00").toLocaleDateString("en-US", {
+      weekday: "short", month: "short", day: "numeric",
+    });
+    const { data: prod } = await supabase.from("productions").select("org_id").eq("id", productionId).single();
+    if (prod) {
+      logActivity({
+        productionId, orgId: prod.org_id,
+        action: "event_created", entityType: "schedule_event", entityId: eventId,
+        summary: `Posted ${title} for ${dateStr}`,
+      }).catch(() => {});
+    }
   }
 
   revalidatePath("/callboard");
@@ -163,6 +179,11 @@ export async function respondToCall(
     notifyOnConflict(eventCallId, conflictReason).catch(() => {});
   }
 
+  // Activity log for conflicts
+  if (status === "conflict") {
+    logConflictActivity(eventCallId, conflictReason).catch(() => {});
+  }
+
   revalidatePath("/callboard");
   return { success: true };
 }
@@ -256,4 +277,32 @@ export async function addEventCall(eventId: string, personId: string) {
 
   revalidatePath("/callboard");
   return { success: true };
+}
+
+async function logConflictActivity(eventCallId: string, reason?: string) {
+  const supabase = await createClient();
+
+  const { data: call } = await supabase
+    .from("event_calls")
+    .select("person_id, people!inner(full_name, preferred_name), schedule_events!inner(id, title, event_date, production_id, org_id)")
+    .eq("id", eventCallId)
+    .single();
+
+  if (!call) return;
+
+  const person = call.people as unknown as { full_name: string; preferred_name: string | null };
+  const event = call.schedule_events as unknown as {
+    id: string; title: string; production_id: string; org_id: string;
+  };
+  const name = person.preferred_name || person.full_name.split(" ")[0];
+
+  logActivity({
+    productionId: event.production_id,
+    orgId: event.org_id,
+    actorPersonId: call.person_id,
+    action: "call_conflict",
+    entityType: "schedule_event",
+    entityId: event.id,
+    summary: `${name} flagged a conflict with ${event.title}${reason ? ": " + reason : ""}`,
+  }).catch(() => {});
 }
