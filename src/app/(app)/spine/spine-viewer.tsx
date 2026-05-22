@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { addAnnotation, deleteAnnotation, updateAnnotation, searchScript } from "./spine-actions";
+import { addAnnotation, deleteAnnotation, updateAnnotation, searchScript, updateScriptLine, deleteScriptLine } from "./spine-actions";
 import { useRouter } from "next/navigation";
 
 // 16 distinct character colors — each character gets a consistent one via hash
@@ -162,6 +162,10 @@ export function SpineViewer({
   const [saving, setSaving] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>(initialAnnotations);
   const [printAll, setPrintAll] = useState(false);
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+  const [editLineContent, setEditLineContent] = useState("");
+  const [editLineCharacter, setEditLineCharacter] = useState("");
+  const [editLineType, setEditLineType] = useState("");
   const contentRef = useRef<HTMLDivElement>(null);
   const annotationInputRef = useRef<HTMLTextAreaElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -288,6 +292,43 @@ export function SpineViewer({
     setAnnotationText("");
     setAnnotationTags([]);
     setAnnotationIsPersonal(isPersonal);
+  }
+
+  function startEditLine(line: ScriptLine) {
+    setEditingLineId(line.id);
+    setEditLineContent(line.content);
+    setEditLineCharacter(line.character || "");
+    setEditLineType(line.line_type);
+  }
+
+  async function saveEditLine() {
+    if (!editingLineId) return;
+    setSaving(true);
+    const updates: { content?: string; character?: string | null; line_type?: string } = {
+      content: editLineContent,
+      line_type: editLineType,
+    };
+    if (editLineType === "dialogue") {
+      updates.character = editLineCharacter || null;
+    } else {
+      updates.character = null;
+    }
+    const result = await updateScriptLine(editingLineId, updates);
+    setSaving(false);
+    if (result.error) alert(result.error);
+    else {
+      setEditingLineId(null);
+      router.refresh();
+    }
+  }
+
+  async function handleDeleteLine(lineId: string) {
+    if (!confirm("Delete this line? This cannot be undone.")) return;
+    setSaving(true);
+    const result = await deleteScriptLine(lineId);
+    setSaving(false);
+    if (result.error) alert(result.error);
+    else router.refresh();
   }
 
   async function handleAddAnnotation(lineId: string) {
@@ -667,7 +708,59 @@ export function SpineViewer({
                   </p>
                 )}
 
-                {/* The line itself with gutter line number */}
+                {/* The line itself — edit mode or display mode */}
+                {editingLineId === line.id ? (
+                  <div className="bg-bone/30 border border-bone rounded-card p-3 space-y-2 print:hidden">
+                    {editLineType === "dialogue" && (
+                      <input
+                        type="text"
+                        value={editLineCharacter}
+                        onChange={(e) => setEditLineCharacter(e.target.value.toUpperCase())}
+                        className="w-full px-2 py-1 bg-card border border-bone rounded text-data-sm font-mono uppercase tracking-wider focus:border-brick focus:outline-none"
+                        placeholder="CHARACTER NAME"
+                      />
+                    )}
+                    <textarea
+                      value={editLineContent}
+                      onChange={(e) => setEditLineContent(e.target.value)}
+                      className="w-full px-2 py-1.5 bg-card border border-bone rounded text-body-sm text-ink focus:border-brick focus:outline-none resize-y min-h-[3rem]"
+                      rows={Math.max(2, Math.ceil(editLineContent.length / 60))}
+                      autoFocus
+                    />
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={editLineType}
+                        onChange={(e) => setEditLineType(e.target.value)}
+                        className="px-2 py-1 bg-card border border-bone rounded text-body-xs text-ash focus:border-brick focus:outline-none"
+                      >
+                        <option value="dialogue">Dialogue</option>
+                        <option value="stage_direction">Stage Direction</option>
+                        <option value="setting">Setting</option>
+                        <option value="song">Song</option>
+                      </select>
+                      <button
+                        onClick={saveEditLine}
+                        disabled={saving}
+                        className="px-3 py-1 bg-ink text-paper text-body-xs font-medium rounded hover:bg-ink/90 disabled:opacity-50"
+                      >
+                        {saving ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        onClick={() => setEditingLineId(null)}
+                        className="px-3 py-1 text-body-xs text-ash hover:text-ink"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLine(line.id)}
+                        disabled={saving}
+                        className="px-3 py-1 text-body-xs text-brick/60 hover:text-brick ml-auto"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                 <div
                   className={`relative flex ${canAddHere ? "cursor-pointer" : ""} ${
                     hasAnnotations && noteView !== "none" ? "border-l-2 border-brick/30 pl-3" : ""
@@ -688,17 +781,25 @@ export function SpineViewer({
                     </span>
                   )}
 
-                  {/* Add note indicator */}
-                  {canAddHere && (
-                    <span className="absolute -left-6 top-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted text-body-xs select-none print:hidden">
-                      +
-                    </span>
+                  {/* Edit button for owners */}
+                  {canManage && !isLocked && (
+                    <button
+                      className="absolute -left-6 top-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted hover:text-brick text-body-xs select-none print:hidden"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditLine(line);
+                      }}
+                      title="Edit line"
+                    >
+                      ✎
+                    </button>
                   )}
 
                   <div className="flex-1 min-w-0">
                     {renderLine(line, isMyCharacter)}
                   </div>
                 </div>
+                )}
 
                 {/* Annotations on this line */}
                 {noteView !== "none" && lineAnnotations.map((a) => {

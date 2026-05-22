@@ -184,3 +184,42 @@ export async function updateVersionNotes(scriptId: string, notes: string) {
   revalidatePath("/spine");
   return { success: true };
 }
+
+export async function updateScriptLine(
+  lineId: string,
+  updates: { content?: string; character?: string | null; line_type?: string }
+) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { error } = await supabase
+    .from("script_lines")
+    .update(updates)
+    .eq("id", lineId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/spine");
+  return { success: true };
+}
+
+export async function deleteScriptLine(lineId: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { error } = await supabase
+    .from("script_lines")
+    .delete()
+    .eq("id", lineId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/spine");
+  return { success: true };
+}
