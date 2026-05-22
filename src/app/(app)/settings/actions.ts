@@ -140,3 +140,26 @@ export async function toggleRoomLock(productionId: string, roomKey: string, lock
   revalidatePath("/");
   return { success: true, lockedRooms };
 }
+
+export async function updateOrganization(orgId: string, formData: FormData) {
+  const supabase = await createClient();
+
+  const updates: Record<string, string | null> = {
+    name: formData.get("name") as string,
+    description: (formData.get("description") as string) || null,
+    city: (formData.get("city") as string) || null,
+    state: (formData.get("state") as string) || null,
+    website: (formData.get("website") as string) || null,
+    logo_url: (formData.get("logo_url") as string) || null,
+  };
+
+  const { error } = await supabase
+    .from("organizations")
+    .update(updates)
+    .eq("id", orgId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/settings");
+  revalidatePath("/org");
+  return { success: true };
+}

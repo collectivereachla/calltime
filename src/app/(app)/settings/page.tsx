@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { SettingsForm } from "./settings-form";
 import { AdminTools } from "./admin-tools";
+import { OrgSettings } from "./org-settings";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -44,6 +45,17 @@ export default async function SettingsPage() {
     }
   }
 
+  // Fetch org details for org settings
+  let orgData: { id: string; name: string; slug: string; description: string | null; city: string | null; state: string | null; website: string | null; logo_url: string | null } | null = null;
+  if (isOwner && ownership.length > 0) {
+    const { data } = await supabase
+      .from("organizations")
+      .select("id, name, slug, description, city, state, website, logo_url")
+      .eq("id", ownership[0].org_id)
+      .single();
+    orgData = data;
+  }
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 md:px-0">
       <h1 className="font-display text-display-lg text-ink mb-1">Settings</h1>
@@ -52,6 +64,8 @@ export default async function SettingsPage() {
       </p>
 
       <SettingsForm person={person} userEmail={user.email || ""} />
+
+      {isOwner && orgData && <OrgSettings org={orgData} />}
 
       {isOwner && (
         <div className="mt-10">
