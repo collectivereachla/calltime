@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { updateOrganization } from "./actions";
 import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@/lib/supabase/client";
 
 interface OrgData {
   id: string;
@@ -24,10 +24,7 @@ export function OrgSettings({ org }: { org: OrgData }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = createClient();
 
   function compressImage(file: Blob, maxDim = 800): Promise<Blob> {
     return new Promise((resolve, reject) => {
