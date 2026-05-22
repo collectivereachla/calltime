@@ -162,11 +162,10 @@ export default async function SpinePage({
   }[] = [];
 
   if (activeScript && lines.length > 0) {
-    const { data } = await supabase
-      .from("script_annotations")
-      .select("id, script_line_id, person_id, annotation_type, content, tagged_characters, visibility, note_type, is_pinned, created_at, updated_at, script_lines!inner(script_id)")
-      .eq("script_lines.script_id", activeScript.id);
-    annotations = (data || []).map(({ script_lines: _, ...rest }) => rest);
+    const { data } = await supabase.rpc("get_script_annotations", {
+      p_script_id: activeScript.id,
+    });
+    annotations = data || [];
   }
 
   const allCharacters = Array.from(
