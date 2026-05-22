@@ -134,6 +134,48 @@ export default async function CallboardPage() {
     }
   }
 
+  // Fetch known conflicts for all production members (for conflict warnings)
+  type KnownConflict = { person_id: string; start_date: string; end_date: string | null; all_day: boolean; start_time: string | null; end_time: string | null; conflict_type: string | null; description: string | null; };
+  let knownConflicts: KnownConflict[] = [];
+  if (productionIds.length > 0) {
+    const personIds = events.flatMap(e => (e.event_calls || []).map(c => {
+      const p = c.people as unknown as { id: string } | null;
+      return p?.id;
+    }).filter(Boolean)) as string[];
+    const uniquePersonIds = [...new Set(personIds)];
+
+    if (uniquePersonIds.length > 0) {
+      const { data: conflictData } = await supabase
+        .from("conflicts")
+        .select("person_id, start_date, end_date, all_day, start_time, end_time, conflict_type, description")
+        .in("person_id", uniquePersonIds.slice(0, 100));
+      knownConflicts = (conflictData || []) as KnownConflict[];
+    }
+  }
+
+  // Helper: check if a person has a known conflict for a specific event date/time
+  function getConflictsForEvent(eventDate: string, startTime: string | null, calls: { person_id: string; person_name: string }[]) {
+    const warnings: { person_name: string; conflict_type: string | null; description: string | null }[] = [];
+    for (const call of calls) {
+      for (const c of knownConflicts) {
+        if (c.person_id !== call.person_id) continue;
+        if (eventDate < c.start_date) continue;
+        if (c.end_date && eventDate > c.end_date) continue;
+        if (!c.end_date && eventDate !== c.start_date) continue;
+        // Time overlap check
+        if (!c.all_day && startTime && c.start_time) {
+          const evStart = startTime;
+          const cEnd = c.end_time || "23:59";
+          const cStart = c.start_time;
+          if (evStart >= cEnd || (cStart && evStart < cStart)) continue;
+        }
+        warnings.push({ person_name: call.person_name, conflict_type: c.conflict_type, description: c.description });
+        break;
+      }
+    }
+    return warnings;
+  }
+
   // Get all company members for call management
   let companyMembers: { id: string; name: string; role: string; department: string }[] = [];
   if (canManage && productionIds.length > 0) {
@@ -372,6 +414,28 @@ export default async function CallboardPage() {
                           };
                         })}
                       />
+
+                      {/* Known conflict warnings */}
+                      {(() => {
+                        const callsForCheck = calls.map(c => {
+                          const p = c.people as unknown as { id: string; full_name: string; preferred_name: string | null };
+                          return { person_id: p.id, person_name: p.preferred_name || p.full_name };
+                        });
+                        const warnings = getConflictsForEvent(event.event_date, event.start_time, callsForCheck);
+                        if (warnings.length === 0) return null;
+                        return (
+                          <div className="mt-3 px-3 py-2 bg-tentative/5 border border-tentative/20 rounded-card print:hidden">
+                            <p className="text-body-xs font-medium text-tentative mb-1">⚠ Known conflicts</p>
+                            {warnings.map((w, i) => (
+                              <p key={i} className="text-body-xs text-ash">
+                                <span className="font-medium text-ink">{w.person_name}</span>
+                                {w.conflict_type && ` — ${w.conflict_type.replace("_", " ")}`}
+                                {w.description && `: ${w.description}`}
+                              </p>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { SettingsForm } from "./settings-form";
 import { AdminTools } from "./admin-tools";
 import { OrgSettings } from "./org-settings";
+import { ConflictsForm } from "./conflicts-form";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -56,6 +57,13 @@ export default async function SettingsPage() {
     orgData = data;
   }
 
+  // Fetch user's conflicts
+  const { data: conflicts } = await supabase
+    .from("conflicts")
+    .select("*")
+    .eq("person_id", person.id)
+    .order("start_date", { ascending: true });
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 md:px-0">
       <h1 className="font-display text-display-lg text-ink mb-1">Settings</h1>
@@ -64,6 +72,10 @@ export default async function SettingsPage() {
       </p>
 
       <SettingsForm person={person} userEmail={user.email || ""} />
+
+      <div className="mt-10 pt-8 border-t border-bone">
+        <ConflictsForm conflicts={conflicts || []} />
+      </div>
 
       {isOwner && orgData && <OrgSettings org={orgData} />}
 
