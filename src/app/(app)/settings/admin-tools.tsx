@@ -72,6 +72,37 @@ export function AdminTools() {
     }
   }
 
+  async function handleImportNotes() {
+    if (
+      !confirm(
+        "This will import 87 blocking notes from the PDF margins and tag each with the relevant characters. Continue?"
+      )
+    )
+      return;
+
+    setLoading(true);
+    setStatus("Importing blocking notes...");
+
+    try {
+      const res = await fetch("/api/admin/import-notes", {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setStatus(
+          `Done — ${data.inserted} notes imported, ${data.failed} failed.${data.failures ? " Issues: " + data.failures.join("; ") : ""}`
+        );
+      } else {
+        setStatus(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      setStatus(`Failed: ${err}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <section>
       <h2 className="text-body-md font-medium text-ink mb-4">Admin tools</h2>
@@ -91,6 +122,14 @@ export function AdminTools() {
             className="px-4 py-2 bg-card text-ink text-body-sm font-medium rounded-card border border-bone hover:border-ink transition-colors disabled:opacity-50"
           >
             Invite TJS Members
+          </button>
+
+          <button
+            onClick={handleImportNotes}
+            disabled={loading}
+            className="px-4 py-2 bg-card text-ink text-body-sm font-medium rounded-card border border-bone hover:border-ink transition-colors disabled:opacity-50"
+          >
+            Import Blocking Notes
           </button>
         </div>
 
