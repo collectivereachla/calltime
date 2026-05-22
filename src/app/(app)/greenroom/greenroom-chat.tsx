@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@supabase/ssr";
+import { notifyGreenroomMessage } from "./actions";
 
 interface Message {
   id: string;
@@ -228,6 +229,9 @@ export function GreenroomChat({
     setSending(false);
     if (error) {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+    } else {
+      // Notify other org members (fire-and-forget)
+      notifyGreenroomMessage(orgId, personId, personName, msgContent).catch(() => {});
     }
   }
 

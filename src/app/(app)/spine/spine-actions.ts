@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createNotification } from "@/lib/notifications";
 
 export async function addAnnotation(formData: FormData) {
   const supabase = await createClient();
@@ -11,7 +12,7 @@ export async function addAnnotation(formData: FormData) {
 
   const { data: person } = await supabase
     .from("people")
-    .select("id")
+    .select("id, full_name, preferred_name")
     .eq("user_id", user.id)
     .single();
 
@@ -43,8 +44,86 @@ export async function addAnnotation(formData: FormData) {
   });
 
   if (error) return { error: error.message };
+
+  // Notify actors whose characters are tagged
+  if (taggedCharacters.length > 0 && visibility === "production") {
+    notifyTaggedActors(
+      scriptLineId,
+      taggedCharacters,
+      content.trim(),
+      noteType,
+      person,
+    ).catch(() => {});
+  }
+
   revalidatePath("/spine");
   return { success: true };
+}
+
+async function notifyTaggedActors(
+  scriptLineId: string,
+  taggedCharacters: string[],
+  content: string,
+  noteType: string,
+  author: { id: string; full_name: string; preferred_name: string | null },
+) {
+  const supabase = await createClient();
+
+  // Get the production from the script line
+  const { data: line } = await supabase
+    .from("script_lines")
+    .select("script_id, act, scene, scripts!inner(production_id, productions!inner(org_id))")
+    .eq("id", scriptLineId)
+    .single();
+
+  if (!line) return;
+
+  const script = line.scripts as unknown as {
+    production_id: string;
+    productions: { org_id: string };
+  };
+  const orgId = script.productions.org_id;
+  const productionId = script.production_id;
+
+  // Find actors assigned to these character names (case-insensitive match on role_title)
+  const { data: assignments } = await supabase
+    .from("production_assignments")
+    .select("person_id, role_title")
+    .eq("production_id", productionId)
+    .eq("department", "cast")
+    .eq("active", true);
+
+  if (!assignments) return;
+
+  const authorName = author.preferred_name || author.full_name.split(" ")[0];
+  const label = noteType === "blocking" ? "Blocking note" : noteType === "tech_cue" ? "Tech cue" : "Note";
+  const sceneLabel = line.act && line.scene ? `Act ${line.act}, Scene ${line.scene}` : "";
+  const preview = content.length > 60 ? content.slice(0, 57) + "…" : content;
+
+  const notified = new Set<string>();
+
+  for (const assignment of assignments) {
+    if (notified.has(assignment.person_id)) continue;
+    if (assignment.person_id === author.id) continue;
+
+    // Check if this actor's character is tagged
+    const actorCharacter = assignment.role_title.toLowerCase();
+    const isTagged = taggedCharacters.some(
+      (tc) => tc.toLowerCase() === actorCharacter
+    );
+
+    if (isTagged) {
+      notified.add(assignment.person_id);
+      createNotification({
+        personId: assignment.person_id,
+        orgId,
+        type: "annotation_tagged",
+        title: `${label} for ${assignment.role_title}`,
+        body: `${authorName}${sceneLabel ? ` — ${sceneLabel}` : ""}: ${preview}`,
+        link: "/spine",
+      }).catch(() => {});
+    }
+  }
 }
 
 export async function updateAnnotation(formData: FormData) {
