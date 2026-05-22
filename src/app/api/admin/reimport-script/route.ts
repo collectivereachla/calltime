@@ -47,6 +47,19 @@ export async function POST() {
     content: string;
   }[];
 
+  // Delete old lines first (annotations cascade)
+  const { error: deleteErr } = await supabase
+    .from("script_lines")
+    .delete()
+    .eq("script_id", SCRIPT_ID);
+
+  if (deleteErr) {
+    return NextResponse.json(
+      { error: `Delete failed: ${deleteErr.message}` },
+      { status: 500 }
+    );
+  }
+
   const rows = lines.map((p, i) => ({
     script_id: SCRIPT_ID,
     line_number: i + 1,
