@@ -131,7 +131,7 @@ export default async function SpinePage({
   if (activeScript) {
     const { data } = await supabase
       .from("script_lines")
-      .select("id, line_number, act, scene, line_type, character, content")
+      .select("id, line_number, act, scene, line_type, character, content, tagged_characters")
       .eq("script_id", activeScript.id)
       .order("line_number", { ascending: true });
     lines = data || [];

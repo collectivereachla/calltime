@@ -75,6 +75,7 @@ interface ScriptLine {
   line_type: string;
   character: string | null;
   content: string;
+  tagged_characters?: string[];
 }
 
 interface SceneMeta {
@@ -1056,7 +1057,11 @@ function renderLine(line: ScriptLine, isMyCharacter: (name: string) => boolean) 
       // Handled by auto-detection above — skip rendering
       return null;
     case "stage_direction":
-      return <p className="text-body-sm text-ash italic pl-4">{line.content}</p>;
+      return <p className="text-body-sm text-ash italic pl-4">
+        {line.tagged_characters && line.tagged_characters.length > 0
+          ? renderAnnotationContent(line.content, line.tagged_characters)
+          : line.content}
+      </p>;
     case "continued":
       return <p className="text-body-xs text-muted italic pl-4">{line.content}</p>;
     case "setting":
