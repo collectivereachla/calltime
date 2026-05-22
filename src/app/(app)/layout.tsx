@@ -40,7 +40,7 @@ export default async function AppLayout({
     .eq("status", "active");
 
   if (!memberships || memberships.length === 0) {
-    redirect("/directory");
+    redirect("/onboarding");
   }
 
   // Check if non-admin member needs to complete org profile
