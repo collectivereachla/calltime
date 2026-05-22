@@ -128,7 +128,7 @@ export async function POST() {
         annotation_type: "blocking",
         content: note.note,
         tagged_characters: tagged.length > 0 ? tagged : null,
-        visibility: "company",
+        visibility: "production",
       });
 
     if (insertErr) {
