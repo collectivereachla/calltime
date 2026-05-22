@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { saveMoment, deleteMoment, savePositions, savePositionAndAnnotation } from "./actions";
+import { saveMoment, deleteMoment, savePositions, savePositionAndAnnotation, seedBlockingFromNotes } from "./actions";
 
 // ── Types ──
 
@@ -231,7 +231,7 @@ export function BlockingMap({ production, scenes, characters, stageConfig, momen
         </div>
       </div>
 
-      {/* Scene selector + Actor filter */}
+      {/* Scene selector + Import + Actor filter */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-bone/50 bg-card/50 overflow-x-auto">
         <select value={selectedScene || ""} onChange={(e) => { setSelectedScene(e.target.value || null); setCurrentMomentIdx(0); }}
           className="text-body-sm bg-transparent border-none text-ink focus:outline-none cursor-pointer">
@@ -239,6 +239,18 @@ export function BlockingMap({ production, scenes, characters, stageConfig, momen
             <option key={s.id} value={s.id}>Act {s.act}, Sc {s.scene_number}{s.title ? `: ${s.title}` : ""}</option>
           ))}
         </select>
+        {mode === "edit" && canManage && selectedScene && sceneMoments.length === 0 && (
+          <button onClick={async () => {
+            setSaving(true);
+            const result = await seedBlockingFromNotes(production.id, selectedScene);
+            setSaving(false);
+            if (result.error) alert(result.error);
+            else router.refresh();
+          }} disabled={saving}
+            className="px-3 py-1 text-body-xs font-medium bg-brick text-paper rounded-card hover:bg-brick/90 disabled:opacity-50 shrink-0 ml-auto">
+            {saving ? "Importing..." : "Import from blocking notes"}
+          </button>
+        )}
         {mode === "actor" && (
           <select value={actorFilter || ""} onChange={(e) => setActorFilter(e.target.value || null)}
             className="text-body-sm bg-transparent border-none text-ink focus:outline-none cursor-pointer ml-auto">

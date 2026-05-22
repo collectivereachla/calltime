@@ -29,10 +29,11 @@ export default async function BlockingPage() {
     .eq("production_id", activeProductionId)
     .order("sort_order", { ascending: true });
 
-  // Characters from ALL sources: dialogue, blocking tags, stage direction tags, cast roles
+  // Characters from script data ONLY: dialogue, blocking tags, stage direction tags
+  // No cast role_titles (they contain garbage like "Featured Dancer", "TEST", doublings)
   const charSet = new Set<string>();
 
-  // 1. Speaking characters from script lines
+  // 1. Speaking characters + stage direction tags from script lines
   const { data: charRows } = await supabase
     .from("script_lines")
     .select("character, tagged_characters")
@@ -42,26 +43,23 @@ export default async function BlockingPage() {
     if (r.tagged_characters) for (const t of r.tagged_characters as string[]) charSet.add(t);
   }
 
-  // 2. Characters tagged in blocking notes
-  const { data: annChars } = await supabase
-    .from("script_annotations")
-    .select("tagged_characters")
-    .not("tagged_characters", "eq", "{}");
-  for (const a of annChars || []) {
-    if (a.tagged_characters) for (const t of a.tagged_characters as string[]) charSet.add(t);
+  // 2. Characters tagged in blocking notes (filtered to this script only)
+  const lineIds = (charRows || []).map(() => "").length > 0
+    ? await supabase.from("script_lines").select("id").eq("script_id", "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    : { data: [] };
+
+  if (lineIds.data && lineIds.data.length > 0) {
+    const { data: annChars } = await supabase
+      .from("script_annotations")
+      .select("tagged_characters")
+      .in("script_line_id", lineIds.data.map((l) => l.id))
+      .not("tagged_characters", "eq", "{}");
+    for (const a of annChars || []) {
+      if (a.tagged_characters) for (const t of a.tagged_characters as string[]) charSet.add(t);
+    }
   }
 
-  // 3. Cast role titles from production assignments
-  const { data: castRoles } = await supabase
-    .from("production_assignments")
-    .select("role_title")
-    .eq("production_id", activeProductionId)
-    .eq("department", "cast")
-    .eq("active", true);
-  for (const c of castRoles || []) {
-    if (c.role_title) charSet.add(c.role_title.toUpperCase());
-  }
-
+  // Remove meta-characters
   charSet.delete("ALL");
   charSet.delete("BOTH");
   const characters = [...charSet].sort();
