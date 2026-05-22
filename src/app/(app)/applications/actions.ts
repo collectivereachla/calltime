@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendWelcomeEmail } from "@/lib/email-triggers";
+import { createNotification } from "@/lib/notifications";
 
 export async function approveApplication(
   applicationId: string,
@@ -116,6 +117,22 @@ export async function approveApplication(
     department,
   }).catch(() => {});
 
+  // 5. Push + in-app notification
+  const { data: prod } = await supabase
+    .from("productions")
+    .select("title")
+    .eq("id", app.production_id)
+    .single();
+
+  createNotification({
+    personId: app.person_id,
+    orgId,
+    type: "application_accepted",
+    title: "You've been accepted",
+    body: prod ? `Welcome to ${prod.title} — ${assignedRole}` : `Role: ${assignedRole}`,
+    link: "/home",
+  }).catch(() => {});
+
   revalidatePath("/applications");
   return { success: true };
 }
@@ -134,6 +151,13 @@ export async function declineApplication(applicationId: string) {
 
   if (!reviewer) return { error: "Reviewer not found" };
 
+  // Fetch application details before updating
+  const { data: app } = await supabase
+    .from("applications")
+    .select("person_id, production_id, productions(org_id, title)")
+    .eq("id", applicationId)
+    .single();
+
   const { error } = await supabase
     .from("applications")
     .update({
@@ -145,6 +169,19 @@ export async function declineApplication(applicationId: string) {
     .eq("status", "submitted");
 
   if (error) return { error: error.message };
+
+  // Push + in-app notification
+  if (app) {
+    const prod = app.productions as unknown as { org_id: string; title: string };
+    createNotification({
+      personId: app.person_id,
+      orgId: prod.org_id,
+      type: "application_declined",
+      title: "Application update",
+      body: `Your application to ${prod.title} was not accepted at this time`,
+      link: "/directory",
+    }).catch(() => {});
+  }
 
   revalidatePath("/applications");
   return { success: true };

@@ -92,7 +92,7 @@ export function PushRegistration() {
       <div className="bg-card border border-bone rounded-card px-4 py-3 flex items-center justify-between gap-3 mb-4">
         <div className="min-w-0">
           <p className="text-body-sm text-ink font-medium">Enable notifications</p>
-          <p className="text-body-xs text-ash">Get notified when contracts need your attention.</p>
+          <p className="text-body-xs text-ash">Get notified about calls, conflicts, contracts, and more.</p>
         </div>
         <button
           onClick={requestPermission}
