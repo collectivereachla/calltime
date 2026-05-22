@@ -350,10 +350,12 @@ export default async function CallboardPage() {
                       </div>
 
                       <EventCard
+                        eventId={event.id}
                         eventCallId={myCall?.id || null}
                         currentStatus={myResponse?.status || null}
                         currentPersonId={person!.id}
                         canManage={canManage}
+                        companyMembers={companyMembers.map((m) => ({ id: m.id, name: m.name }))}
                         calls={calls.map((call) => {
                           const p = call.people as unknown as {
                             id: string;

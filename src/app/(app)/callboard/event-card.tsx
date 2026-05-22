@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { respondToCall, removeEventCall } from "./actions";
+import { respondToCall, removeEventCall, addEventCall } from "./actions";
 import { useRouter } from "next/navigation";
 
 interface CallInfo {
@@ -12,17 +12,27 @@ interface CallInfo {
   conflict_reason: string | null;
 }
 
+interface CompanyMember {
+  id: string;
+  name: string;
+}
+
 interface Props {
+  eventId: string;
   eventCallId: string | null; // null if current user isn't called
   currentStatus: string | null;
   calls: CallInfo[];
   canManage: boolean;
   currentPersonId: string;
+  companyMembers: CompanyMember[];
 }
 
-export function EventCard({ eventCallId, currentStatus, calls, canManage, currentPersonId }: Props) {
+export function EventCard({ eventId, eventCallId, currentStatus, calls, canManage, currentPersonId, companyMembers }: Props) {
   const [activeStatus, setActiveStatus] = useState<string | null>(currentStatus);
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const [addedCalls, setAddedCalls] = useState<CallInfo[]>([]);
+  const [showAddPicker, setShowAddPicker] = useState(false);
+  const [addingId, setAddingId] = useState<string | null>(null);
   const [callStatuses, setCallStatuses] = useState<Record<string, { status: string; reason: string | null }>>(
     () => {
       const map: Record<string, { status: string; reason: string | null }> = {};
@@ -205,7 +215,7 @@ export function EventCard({ eventCallId, currentStatus, calls, canManage, curren
               {confirmedCount}/{totalCalls - removedIds.size} confirmed &middot; {totalCalls - removedIds.size} called &middot; tap to view
             </summary>
             <div className="flex flex-wrap gap-2 mt-2">
-              {calls.filter((c) => !removedIds.has(c.id)).map((call) => (
+              {[...calls.filter((c) => !removedIds.has(c.id)), ...addedCalls].map((call) => (
                 <span
                   key={call.id}
                   className={`text-body-xs px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${pillColor(call.person_id)}`}
@@ -216,6 +226,7 @@ export function EventCard({ eventCallId, currentStatus, calls, canManage, curren
                     onClick={async (e) => {
                       e.stopPropagation();
                       setRemovedIds((prev) => new Set([...prev, call.id]));
+                      setAddedCalls((prev) => prev.filter((c) => c.id !== call.id));
                       const result = await removeEventCall(call.id);
                       if (result.error) {
                         setRemovedIds((prev) => {
@@ -233,6 +244,49 @@ export function EventCard({ eventCallId, currentStatus, calls, canManage, curren
                   </button>
                 </span>
               ))}
+              {/* Add person button */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowAddPicker(!showAddPicker)}
+                  className="text-body-xs px-2 py-0.5 rounded-full border border-dashed border-bone text-muted hover:border-ink hover:text-ink transition-colors"
+                >
+                  + Add
+                </button>
+                {showAddPicker && (
+                  <div className="absolute z-20 top-full left-0 mt-1 w-56 max-h-48 overflow-y-auto bg-card border border-bone rounded-card shadow-lg">
+                    {(() => {
+                      const calledIds = new Set([
+                        ...calls.filter((c) => !removedIds.has(c.id)).map((c) => c.person_id),
+                        ...addedCalls.map((c) => c.person_id),
+                      ]);
+                      const uncalled = companyMembers.filter((m) => !calledIds.has(m.id));
+                      if (uncalled.length === 0) {
+                        return <p className="px-3 py-2 text-body-xs text-muted">Everyone is already called</p>;
+                      }
+                      return uncalled.map((member) => (
+                        <button
+                          key={member.id}
+                          disabled={addingId === member.id}
+                          onClick={async () => {
+                            setAddingId(member.id);
+                            const result = await addEventCall(eventId, member.id);
+                            setAddingId(null);
+                            if (result.error) {
+                              alert(result.error);
+                            } else {
+                              setShowAddPicker(false);
+                              router.refresh();
+                            }
+                          }}
+                          className="w-full text-left px-3 py-1.5 text-body-xs text-ink hover:bg-bone/40 transition-colors disabled:opacity-50"
+                        >
+                          {member.name}
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                )}
+              </div>
             </div>
           </details>
           {/* Print-only: always-visible call list */}

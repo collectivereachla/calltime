@@ -127,3 +127,16 @@ export async function removeEventCall(eventCallId: string) {
   revalidatePath("/callboard");
   return { success: true };
 }
+
+export async function addEventCall(eventId: string, personId: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("event_calls")
+    .insert({ event_id: eventId, person_id: personId });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/callboard");
+  return { success: true };
+}
