@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createNotification, notifyOrgOwners } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity-log";
+import { logAudit } from "@/lib/audit-log";
 
 export async function signContract(formData: FormData) {
   const supabase = await createClient();
@@ -77,6 +78,14 @@ export async function signContract(formData: FormData) {
       entityType: "contract",
       entityId: contractId,
       summary: `${contract.person_name} signed their ${contract.role_title} contract`,
+    }).catch(() => {});
+
+    logAudit({
+      action: "sign_contract",
+      entityType: "contract",
+      entityId: contractId,
+      targetPersonId: contract.person_id,
+      orgId: production.org_id,
     }).catch(() => {});
   }
 
@@ -165,6 +174,14 @@ export async function countersignContract(formData: FormData) {
         entityId: contractId,
         summary: `Countersigned ${contract.person_name}'s ${contract.role_title} contract`,
       }).catch(() => {});
+
+      logAudit({
+        action: "countersign_contract",
+        entityType: "contract",
+        entityId: contractId,
+        targetPersonId: contract.person_id,
+        orgId: production.org_id,
+      }).catch(() => {});
     }
   }
   revalidatePath("/ledger");
@@ -179,6 +196,12 @@ export async function markContractViewed(contractId: string) {
     .update({ viewed_at: new Date().toISOString() })
     .eq("id", contractId)
     .is("viewed_at", null);
+
+  logAudit({
+    action: "view_contract",
+    entityType: "contract",
+    entityId: contractId,
+  }).catch(() => {});
 }
 
 export async function updateContract(formData: FormData) {
@@ -244,6 +267,13 @@ export async function voidContract(id: string) {
     .update({ status: "void" })
     .eq("id", id);
   if (error) return { error: error.message };
+
+  logAudit({
+    action: "void_contract",
+    entityType: "contract",
+    entityId: id,
+  }).catch(() => {});
+
   revalidatePath("/ledger");
   return { success: true };
 }

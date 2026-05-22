@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { sendWelcomeEmail } from "@/lib/email-triggers";
+import { logAudit } from "@/lib/audit-log";
 
 export async function updateMember(formData: FormData) {
   const supabase = await createClient();
@@ -37,6 +38,14 @@ export async function updateMemberRole(
   });
 
   if (error) return { error: error.message };
+
+  logAudit({
+    action: "update_member_role",
+    entityType: "org_membership",
+    targetPersonId: personId,
+    orgId,
+    metadata: { new_role: role },
+  }).catch(() => {});
 
   revalidatePath("/company");
   return { success: true };
@@ -98,6 +107,13 @@ export async function removeMember(orgId: string, personId: string) {
   });
 
   if (error) return { error: error.message };
+
+  logAudit({
+    action: "remove_member",
+    entityType: "org_membership",
+    targetPersonId: personId,
+    orgId,
+  }).catch(() => {});
 
   revalidatePath("/company");
   return { success: true };
