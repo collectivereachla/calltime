@@ -164,30 +164,22 @@ export async function updateAnnotation(formData: FormData) {
     return { error: "ID and content required" };
   }
 
-  const updates: Record<string, unknown> = {
-    content: content.trim(),
-    updated_at: new Date().toISOString(),
-  };
-
   const taggedRaw = formData.get("tagged_characters") as string | null;
-  if (taggedRaw !== null) {
-    updates.tagged_characters = taggedRaw
-      .split(",").map((s) => s.trim()).filter(Boolean);
-  }
+  const taggedChars = taggedRaw
+    ? taggedRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : null;
 
   const noteType = formData.get("note_type") as string | null;
-  if (noteType) {
-    updates.note_type = noteType;
-    updates.annotation_type = noteType;
-  }
+  const isPinnedRaw = formData.get("is_pinned");
+  const isPinned = isPinnedRaw !== null ? isPinnedRaw === "true" : null;
 
-  const isPinned = formData.get("is_pinned");
-  if (isPinned !== null) updates.is_pinned = isPinned === "true";
-
-  const { error } = await supabase
-    .from("script_annotations")
-    .update(updates)
-    .eq("id", id);
+  const { error } = await supabase.rpc("update_script_annotation", {
+    p_annotation_id: id,
+    p_content: content.trim(),
+    p_tagged_characters: taggedChars,
+    p_note_type: noteType || null,
+    p_is_pinned: isPinned,
+  });
 
   if (error) return { error: error.message };
   revalidatePath("/spine");
