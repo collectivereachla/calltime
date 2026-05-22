@@ -114,9 +114,9 @@ export function LineLab({ lines, annotations, myCharacters, allCharacters, scrip
 
   // Resolve selected character to matching script character names
   const matchesCharacter = (lineChar: string, selected: string): boolean => {
-    const upper = selected.toUpperCase();
-    const parts = upper.split(" / ");
-    return parts.some((p) => lineChar.toUpperCase().includes(p) || p.includes(lineChar.toUpperCase()));
+    const selectedParts = selected.toUpperCase().split(" / ").map((s) => s.trim());
+    const lineParts = lineChar.toUpperCase().split(" / ").map((s) => s.trim());
+    return selectedParts.some((sp) => lineParts.some((lp) => lp === sp));
   };
 
   // Build notecards: each card = { cueLine, myLine, act, scene }
