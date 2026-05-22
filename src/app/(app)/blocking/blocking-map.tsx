@@ -333,9 +333,10 @@ export function BlockingMap({ production, scenes, characters, stageConfig, momen
           <text x="980" y="300" textAnchor="middle" fontSize="9" fill="var(--color-muted)" letterSpacing="1" transform="rotate(90,980,300)">STAGE LEFT (HR)</text>
         </svg>
 
-        {/* Actor tokens — absolutely positioned over the SVG */}
+        {/* On-stage tokens — positioned over the SVG */}
         {characters.map((char) => {
           const pos = getCharPos(char);
+          if (!pos.on_stage && dragging !== char) return null;
           const isFiltered = mode === "actor" && actorFilter && actorFilter !== char;
           const isDraggingThis = dragging === char;
           return (
@@ -346,7 +347,7 @@ export function BlockingMap({ production, scenes, characters, stageConfig, momen
                 left: `${pos.x * 100}%`, top: `${pos.y * 100}%`,
                 transform: "translate(-50%, -50%)",
                 transition: isDraggingThis ? "none" : "left 0.5s ease, top 0.5s ease, opacity 0.3s",
-                opacity: pos.on_stage ? (isFiltered ? 0.15 : 1) : 0.2,
+                opacity: isFiltered ? 0.15 : 1,
                 zIndex: isDraggingThis ? 50 : 10,
               }}>
               <div className="relative group">
@@ -362,6 +363,39 @@ export function BlockingMap({ production, scenes, characters, stageConfig, momen
           );
         })}
       </div>
+
+      {/* Off-stage tray */}
+      {(() => {
+        const offStage = characters.filter((c) => {
+          const pos = getCharPos(c);
+          return !pos.on_stage && dragging !== c;
+        });
+        if (offStage.length === 0 && sceneMoments.length > 0) return null;
+        return (
+          <div className="px-4 py-3 border-t border-bone bg-card/80">
+            <p className="text-body-xs text-muted mb-2">
+              {sceneMoments.length === 0
+                ? "Create a moment to start placing characters"
+                : `Off stage · ${offStage.length} character${offStage.length === 1 ? "" : "s"} — drag onto the map`}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {(sceneMoments.length === 0 ? characters : offStage).map((char) => (
+                <div key={char}
+                  onPointerDown={(e) => handlePointerDown(char, e)}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-full border border-bone bg-card select-none transition-colors ${
+                    mode === "edit" && canManage && sceneMoments.length > 0 ? "cursor-grab active:cursor-grabbing hover:border-ash" : ""
+                  }`}>
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0"
+                    style={{ background: getColor(char), fontSize: "8px", fontWeight: 600 }}>
+                    {initials(char)}
+                  </div>
+                  <span className="text-body-xs text-ink whitespace-nowrap">{char}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Draft note editor */}
       {draftNote && (
@@ -457,23 +491,23 @@ export function BlockingMap({ production, scenes, characters, stageConfig, momen
         )}
       </div>
 
-      {/* Character legend */}
-      <div className="px-4 py-2 border-t border-bone/50 bg-card/50 overflow-x-auto">
-        <div className="flex items-center gap-2 min-w-max">
-          {characters.map((c) => {
-            const pos = getCharPos(c);
-            return (
-              <button key={c} onClick={() => { if (mode === "actor") setActorFilter(actorFilter === c ? null : c); }}
+      {/* Actor filter (actor view mode only) */}
+      {mode === "actor" && (
+        <div className="px-4 py-2 border-t border-bone/50 bg-card/50 overflow-x-auto">
+          <div className="flex items-center gap-2 min-w-max">
+            <span className="text-body-xs text-muted shrink-0">Track:</span>
+            {characters.map((c) => (
+              <button key={c} onClick={() => setActorFilter(actorFilter === c ? null : c)}
                 className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-body-xs transition-colors ${
-                  actorFilter === c ? "bg-ink text-paper" : pos.on_stage ? "text-ink" : "text-muted opacity-50"
+                  actorFilter === c ? "bg-ink text-paper" : "text-ash hover:text-ink"
                 }`}>
                 <span className="w-3 h-3 rounded-full shrink-0" style={{ background: getColor(c) }} />
                 {c.length > 12 ? initials(c) : c}
               </button>
-            );
-          })}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

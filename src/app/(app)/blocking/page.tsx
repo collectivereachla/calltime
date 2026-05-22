@@ -29,14 +29,42 @@ export default async function BlockingPage() {
     .eq("production_id", activeProductionId)
     .order("sort_order", { ascending: true });
 
-  // Characters from script (unique names)
+  // Characters from ALL sources: dialogue, blocking tags, stage direction tags, cast roles
+  const charSet = new Set<string>();
+
+  // 1. Speaking characters from script lines
   const { data: charRows } = await supabase
     .from("script_lines")
-    .select("character")
-    .eq("script_id", "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
-    .not("character", "is", null);
+    .select("character, tagged_characters")
+    .eq("script_id", "a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+  for (const r of charRows || []) {
+    if (r.character) charSet.add(r.character);
+    if (r.tagged_characters) for (const t of r.tagged_characters as string[]) charSet.add(t);
+  }
 
-  const characters = [...new Set((charRows || []).map((r) => r.character as string))].sort();
+  // 2. Characters tagged in blocking notes
+  const { data: annChars } = await supabase
+    .from("script_annotations")
+    .select("tagged_characters")
+    .not("tagged_characters", "eq", "{}");
+  for (const a of annChars || []) {
+    if (a.tagged_characters) for (const t of a.tagged_characters as string[]) charSet.add(t);
+  }
+
+  // 3. Cast role titles from production assignments
+  const { data: castRoles } = await supabase
+    .from("production_assignments")
+    .select("role_title")
+    .eq("production_id", activeProductionId)
+    .eq("department", "cast")
+    .eq("active", true);
+  for (const c of castRoles || []) {
+    if (c.role_title) charSet.add(c.role_title.toUpperCase());
+  }
+
+  charSet.delete("ALL");
+  charSet.delete("BOTH");
+  const characters = [...charSet].sort();
 
   // Stage config
   const { data: stageConfig } = await supabase
