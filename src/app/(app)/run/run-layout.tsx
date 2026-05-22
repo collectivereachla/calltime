@@ -110,6 +110,9 @@ export function RunLayout({ production, canManage, personId, today, todayEvents,
           <h1 className="font-display text-display-md">Run</h1>
           <p className="text-body-sm text-ash mt-1">{production.title}</p>
         </div>
+        <a href="/blocking" className="px-4 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 transition-colors shrink-0">
+          Blocking Map
+        </a>
       </div>
 
       {/* Tabs */}
