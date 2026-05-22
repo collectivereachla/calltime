@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { updateOrganization } from "./actions";
 import { useRouter } from "next/navigation";
+import { createBrowserClient } from "@supabase/ssr";
 
 interface OrgData {
   id: string;
@@ -18,13 +19,53 @@ interface OrgData {
 export function OrgSettings({ org }: { org: OrgData }) {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(org.logo_url);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setLogoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaving(true);
     setStatus(null);
+
+    // Upload logo if a new file was selected
+    let logoUrl = org.logo_url;
+    if (logoFile) {
+      const ext = logoFile.name.split(".").pop() || "jpg";
+      const filePath = `${org.id}/logo.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("org-assets")
+        .upload(filePath, logoFile, { upsert: true, contentType: logoFile.type });
+
+      if (uploadError) {
+        setSaving(false);
+        setStatus(`Upload error: ${uploadError.message}`);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from("org-assets")
+        .getPublicUrl(filePath);
+      logoUrl = urlData.publicUrl + "?t=" + Date.now();
+    }
+
     const fd = new FormData(e.currentTarget);
+    fd.set("logo_url", logoUrl || "");
     const result = await updateOrganization(org.id, fd);
     setSaving(false);
     if (result.error) {
@@ -97,17 +138,35 @@ export function OrgSettings({ org }: { org: OrgData }) {
           </div>
 
           <div>
-            <label className="block text-body-xs text-ash mb-1">Logo URL</label>
-            <input
-              name="logo_url"
-              type="url"
-              defaultValue={org.logo_url || ""}
-              className="w-full px-3 py-2 bg-paper border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none transition-colors"
-              placeholder="https://example.com/logo.png"
-            />
-            {org.logo_url && (
-              <img src={org.logo_url} alt="" className="mt-2 w-12 h-12 rounded-card object-cover" />
-            )}
+            <label className="block text-body-xs text-ash mb-1">Logo</label>
+            <div className="flex items-center gap-4">
+              {logoPreview ? (
+                <img src={logoPreview} alt="" className="w-16 h-16 rounded-card object-cover" />
+              ) : (
+                <div className="w-16 h-16 rounded-card bg-bone/50 flex items-center justify-center">
+                  <span className="font-display text-display-md text-ash">{org.name.charAt(0)}</span>
+                </div>
+              )}
+              <div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="px-3 py-1.5 text-body-xs font-medium border border-bone rounded-card hover:border-ink transition-colors"
+                >
+                  {logoPreview ? "Change logo" : "Upload logo"}
+                </button>
+                {logoFile && (
+                  <p className="text-body-xs text-ash mt-1">{logoFile.name}</p>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 pt-2">
