@@ -5,11 +5,20 @@ import { sendEmail, buildInvitationEmail } from "@/lib/email";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
+  // Check env vars first
+  const hasResend = !!process.env.RESEND_API_KEY;
+  const hasServiceRole = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!hasResend) {
+    return NextResponse.json({ 
+      error: `RESEND_API_KEY is not set. Env check: RESEND_API_KEY=${hasResend}, SUPABASE_SERVICE_ROLE_KEY=${hasServiceRole}` 
+    }, { status: 500 });
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  // Send a sample invitation to the logged-in user's email
   const { data: person } = await supabase
     .from("people")
     .select("full_name, preferred_name, email")
