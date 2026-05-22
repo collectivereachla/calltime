@@ -29,6 +29,37 @@ export function OrgSettings({ org }: { org: OrgData }) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  function compressImage(file: Blob, maxDim = 800): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(img.src);
+        let { width, height } = img;
+        if (width <= maxDim && height <= maxDim && file.size < 2 * 1024 * 1024) {
+          resolve(file);
+          return;
+        }
+        if (width > height) {
+          if (width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+        } else {
+          if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error("Compression failed"))),
+          "image/jpeg",
+          0.88
+        );
+      };
+      img.onerror = () => reject(new Error("Could not read image"));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -46,11 +77,19 @@ export function OrgSettings({ org }: { org: OrgData }) {
     // Upload logo if a new file was selected
     let logoUrl = org.logo_url;
     if (logoFile) {
-      const ext = logoFile.name.split(".").pop() || "jpg";
-      const filePath = `${org.id}/logo.${ext}`;
+      let uploadBlob: Blob;
+      try {
+        uploadBlob = await compressImage(logoFile);
+      } catch {
+        setSaving(false);
+        setStatus("Couldn't process that image. Try a different file.");
+        return;
+      }
+
+      const filePath = `${org.id}/logo.jpg`;
       const { error: uploadError } = await supabase.storage
         .from("org-assets")
-        .upload(filePath, logoFile, { upsert: true, contentType: logoFile.type });
+        .upload(filePath, uploadBlob, { upsert: true, contentType: "image/jpeg" });
 
       if (uploadError) {
         setSaving(false);
@@ -60,7 +99,7 @@ export function OrgSettings({ org }: { org: OrgData }) {
 
       const { data: urlData } = supabase.storage
         .from("org-assets")
-        .getPublicUrl(filePath);
+        .getPublicUrl(`${org.id}/logo.jpg`);
       logoUrl = urlData.publicUrl + "?t=" + Date.now();
     }
 
