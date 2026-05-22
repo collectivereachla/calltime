@@ -27,6 +27,8 @@ interface AppNavProps {
   notificationCount?: number;
   productions?: Production[];
   activeProductionId?: string | null;
+  lockedRooms?: string[];
+  isOwner?: boolean;
 }
 
 const rooms = [
@@ -44,10 +46,16 @@ const rooms = [
 
 const mobileRooms = rooms.filter((r) => r.mobile && !r.disabled);
 
-export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, productions = [], activeProductionId = null }: AppNavProps) {
+export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, productions = [], activeProductionId = null, lockedRooms = [], isOwner = false }: AppNavProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const isAdmin = orgs.some((o) => o.role === "owner" || o.role === "admin");
+
+  function isRoomLocked(room: { path: string }) {
+    if (isOwner) return false;
+    const key = room.path.replace("/", "");
+    return lockedRooms.includes(key);
+  }
 
   function getBadge(room: { path: string }) {
     const key = room.path.replace("/", "");
@@ -91,6 +99,15 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, 
                 <div key={room.path} className="flex items-center gap-3 px-5 py-2 text-body-sm text-muted cursor-default">
                   <span className="text-xs w-4 text-center opacity-40">{room.icon}</span>
                   <span className="opacity-40">{room.name}</span>
+                </div>
+              );
+            }
+            if (isRoomLocked(room)) {
+              return (
+                <div key={room.path} className="flex items-center gap-3 px-5 py-2 text-body-sm text-muted cursor-default">
+                  <span className="text-xs w-4 text-center opacity-40">{room.icon}</span>
+                  <span className="opacity-40">{room.name}</span>
+                  <span className="ml-auto text-[10px] opacity-40">🔒</span>
                 </div>
               );
             }
@@ -157,6 +174,14 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, 
         <div className="flex items-center justify-around py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           {mobileRooms.map((room) => {
             const isActive = pathname.startsWith(room.path);
+            if (isRoomLocked(room)) {
+              return (
+                <div key={room.path} className="flex flex-col items-center gap-0.5 px-3 py-1 text-muted opacity-40">
+                  <span className="text-sm">{room.icon}</span>
+                  <span className="text-[10px] font-medium">🔒</span>
+                </div>
+              );
+            }
             return (
               <Link key={room.path} href={room.path}
                 className={`flex flex-col items-center gap-0.5 px-3 py-1 transition-colors ${
@@ -184,6 +209,15 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, 
                   <div key={room.path} className="flex items-center gap-3 px-5 py-2.5 text-body-sm text-muted">
                     <span className="text-xs w-4 text-center opacity-40">{room.icon}</span>
                     <span className="opacity-40">{room.name}</span>
+                  </div>
+                );
+              }
+              if (isRoomLocked(room)) {
+                return (
+                  <div key={room.path} className="flex items-center gap-3 px-5 py-2.5 text-body-sm text-muted">
+                    <span className="text-xs w-4 text-center opacity-40">{room.icon}</span>
+                    <span className="opacity-40">{room.name}</span>
+                    <span className="ml-auto text-[10px] opacity-40">🔒</span>
                   </div>
                 );
               }

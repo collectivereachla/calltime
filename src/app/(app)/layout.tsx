@@ -111,6 +111,17 @@ export default async function AppLayout({
   let pendingApplicationsCount = 0;
   let unreadNotificationCount = 0;
 
+  // Fetch locked rooms for active production
+  let lockedRooms: string[] = [];
+  if (activeProductionId) {
+    const { data: prod } = await supabase
+      .from("productions")
+      .select("locked_rooms")
+      .eq("id", activeProductionId)
+      .single();
+    lockedRooms = prod?.locked_rooms || [];
+  }
+
   if (isOwner) {
     const { count: csCount } = await supabase
       .from("contracts")
@@ -150,6 +161,8 @@ export default async function AppLayout({
         notificationCount={unreadNotificationCount}
         productions={productions}
         activeProductionId={activeProductionId}
+        lockedRooms={lockedRooms}
+        isOwner={isOwner}
       />
       <main className="flex-1 min-w-0 pt-14 pb-16 md:pt-0 md:pb-0">
         <div className="max-w-5xl mx-auto px-4 md:px-8 pt-4 md:pt-6">

@@ -29,6 +29,21 @@ export default async function SettingsPage() {
 
   const isOwner = ownership && ownership.length > 0;
 
+  // Get active production for room lock settings
+  let activeProduction: { id: string; title: string; locked_rooms: string[] } | null = null;
+  if (isOwner) {
+    const { getActiveProductionId } = await import("@/lib/active-production");
+    const activeId = await getActiveProductionId();
+    if (activeId) {
+      const { data } = await supabase
+        .from("productions")
+        .select("id, title, locked_rooms")
+        .eq("id", activeId)
+        .single();
+      activeProduction = data;
+    }
+  }
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 md:px-0">
       <h1 className="font-display text-display-lg text-ink mb-1">Settings</h1>
@@ -40,7 +55,7 @@ export default async function SettingsPage() {
 
       {isOwner && (
         <div className="mt-10">
-          <AdminTools />
+          <AdminTools activeProduction={activeProduction} />
         </div>
       )}
     </div>

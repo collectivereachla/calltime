@@ -1,10 +1,26 @@
 "use client";
 
 import { useState } from "react";
+import { toggleRoomLock } from "./actions";
 
-export function AdminTools() {
+const LOCKABLE_ROOMS = [
+  { key: "callboard", name: "Callboard" },
+  { key: "company", name: "Company" },
+  { key: "spine", name: "Spine" },
+  { key: "booth", name: "Booth" },
+  { key: "ledger", name: "Ledger" },
+];
+
+interface Props {
+  activeProduction: { id: string; title: string; locked_rooms: string[] } | null;
+}
+
+export function AdminTools({ activeProduction }: Props) {
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [lockedRooms, setLockedRooms] = useState<string[]>(
+    activeProduction?.locked_rooms || []
+  );
 
   async function handleReimport() {
     if (
@@ -106,6 +122,45 @@ export function AdminTools() {
   return (
     <section>
       <h2 className="text-body-md font-medium text-ink mb-4">Admin tools</h2>
+
+      {/* Room locks */}
+      {activeProduction && (
+        <div className="bg-card border border-bone rounded-card p-6 mb-4">
+          <h3 className="text-body-sm font-medium text-ink mb-1">Room access — {activeProduction.title}</h3>
+          <p className="text-body-xs text-ash mb-3">Locked rooms are hidden from cast and crew.</p>
+          <div className="flex flex-wrap gap-2">
+            {LOCKABLE_ROOMS.map((room) => {
+              const isLocked = lockedRooms.includes(room.key);
+              return (
+                <button
+                  key={room.key}
+                  onClick={async () => {
+                    const newLocked = !isLocked;
+                    setLockedRooms((prev) =>
+                      newLocked ? [...prev, room.key] : prev.filter((r) => r !== room.key)
+                    );
+                    const result = await toggleRoomLock(activeProduction.id, room.key, newLocked);
+                    if (result.error) {
+                      alert(result.error);
+                      setLockedRooms((prev) =>
+                        newLocked ? prev.filter((r) => r !== room.key) : [...prev, room.key]
+                      );
+                    }
+                  }}
+                  className={`px-3 py-1.5 text-body-xs font-medium rounded-card border transition-colors ${
+                    isLocked
+                      ? "bg-brick/10 border-brick/30 text-brick"
+                      : "bg-confirmed/10 border-confirmed/30 text-confirmed"
+                  }`}
+                >
+                  {isLocked ? "🔒" : "🔓"} {room.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="bg-card border border-bone rounded-card p-6 space-y-4">
         <div className="flex flex-wrap gap-3">
           <button

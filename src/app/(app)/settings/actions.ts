@@ -112,3 +112,31 @@ export async function changePassword(formData: FormData) {
 
   return { success: true };
 }
+
+export async function toggleRoomLock(productionId: string, roomKey: string, lock: boolean) {
+  const supabase = await createClient();
+
+  const { data: prod } = await supabase
+    .from("productions")
+    .select("locked_rooms")
+    .eq("id", productionId)
+    .single();
+
+  if (!prod) return { error: "Production not found" };
+
+  let lockedRooms: string[] = prod.locked_rooms || [];
+  if (lock && !lockedRooms.includes(roomKey)) {
+    lockedRooms = [...lockedRooms, roomKey];
+  } else if (!lock) {
+    lockedRooms = lockedRooms.filter((r) => r !== roomKey);
+  }
+
+  const { error } = await supabase
+    .from("productions")
+    .update({ locked_rooms: lockedRooms })
+    .eq("id", productionId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return { success: true, lockedRooms };
+}
