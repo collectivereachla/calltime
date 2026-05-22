@@ -113,3 +113,17 @@ export async function respondToCall(
   revalidatePath("/callboard");
   return { success: true };
 }
+
+export async function removeEventCall(eventCallId: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("event_calls")
+    .delete()
+    .eq("id", eventCallId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/callboard");
+  return { success: true };
+}

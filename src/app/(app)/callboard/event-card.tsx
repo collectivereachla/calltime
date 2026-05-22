@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { respondToCall } from "./actions";
+import { respondToCall, removeEventCall } from "./actions";
 import { useRouter } from "next/navigation";
 
 interface CallInfo {
@@ -22,6 +22,7 @@ interface Props {
 
 export function EventCard({ eventCallId, currentStatus, calls, canManage, currentPersonId }: Props) {
   const [activeStatus, setActiveStatus] = useState<string | null>(currentStatus);
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [callStatuses, setCallStatuses] = useState<Record<string, { status: string; reason: string | null }>>(
     () => {
       const map: Record<string, { status: string; reason: string | null }> = {};
@@ -201,16 +202,35 @@ export function EventCard({ eventCallId, currentStatus, calls, canManage, curren
         <>
           <details className="mt-3 pt-3 border-t border-bone print:hidden">
             <summary className="text-body-xs text-muted cursor-pointer hover:text-ash transition-colors">
-              {confirmedCount}/{totalCalls} confirmed &middot; {totalCalls} called &middot; tap to view
+              {confirmedCount}/{totalCalls - removedIds.size} confirmed &middot; {totalCalls - removedIds.size} called &middot; tap to view
             </summary>
             <div className="flex flex-wrap gap-2 mt-2">
-              {calls.map((call) => (
+              {calls.filter((c) => !removedIds.has(c.id)).map((call) => (
                 <span
                   key={call.id}
-                  className={`text-body-xs px-2 py-0.5 rounded-full border ${pillColor(call.person_id)}`}
+                  className={`text-body-xs px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${pillColor(call.person_id)}`}
                   title={callStatuses[call.person_id]?.reason || undefined}
                 >
                   {call.person_name}{pillIcon(call.person_id)}
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setRemovedIds((prev) => new Set([...prev, call.id]));
+                      const result = await removeEventCall(call.id);
+                      if (result.error) {
+                        setRemovedIds((prev) => {
+                          const next = new Set(prev);
+                          next.delete(call.id);
+                          return next;
+                        });
+                        alert(result.error);
+                      }
+                    }}
+                    className="ml-0.5 text-muted hover:text-brick transition-colors leading-none"
+                    title={`Remove ${call.person_name} from this call`}
+                  >
+                    &times;
+                  </button>
                 </span>
               ))}
             </div>
