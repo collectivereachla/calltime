@@ -1,0 +1,113 @@
+"use client";
+
+import { useState } from "react";
+
+export function AdminTools() {
+  const [status, setStatus] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleReimport() {
+    if (
+      !confirm(
+        "This will reimport the TJS script from the PDF. The Spine will update with 691 lines across 18 scenes. Continue?"
+      )
+    )
+      return;
+
+    setLoading(true);
+    setStatus("Importing...");
+
+    try {
+      const res = await fetch("/api/admin/reimport-script", {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setStatus(
+          `Done — ${data.lines_inserted} lines inserted out of ${data.total_parsed}.${data.errors ? " Errors: " + data.errors.join(", ") : ""}`
+        );
+      } else {
+        setStatus(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      setStatus(`Failed: ${err}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleInvite() {
+    if (
+      !confirm(
+        "This will create accounts and send invitation emails to all TJS members who have email addresses but no accounts. Continue?"
+      )
+    )
+      return;
+
+    setLoading(true);
+    setStatus("Sending invitations...");
+
+    try {
+      const res = await fetch("/api/admin/invite-members", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productionId: "67757468-ebd4-475f-bf30-82709b69e1d8",
+        }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setStatus(
+          `Done — ${data.invited} invited, ${data.skipped} skipped, ${data.failed} failed.`
+        );
+      } else {
+        setStatus(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      setStatus(`Failed: ${err}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section>
+      <h2 className="text-body-md font-medium text-ink mb-4">Admin tools</h2>
+      <div className="bg-card border border-bone rounded-card p-6 space-y-4">
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleReimport}
+            disabled={loading}
+            className="px-4 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 transition-colors disabled:opacity-50"
+          >
+            {loading ? "Working..." : "Reimport TJS Script"}
+          </button>
+
+          <button
+            onClick={handleInvite}
+            disabled={loading}
+            className="px-4 py-2 bg-card text-ink text-body-sm font-medium rounded-card border border-bone hover:border-ink transition-colors disabled:opacity-50"
+          >
+            Invite TJS Members
+          </button>
+        </div>
+
+        {status && (
+          <div
+            className={`text-body-sm rounded-card px-4 py-3 ${
+              status.startsWith("Error") || status.startsWith("Failed")
+                ? "text-brick bg-brick/5 border border-brick/20"
+                : status.startsWith("Done")
+                  ? "text-confirmed bg-confirmed/5 border border-confirmed/20"
+                  : "text-ash bg-bone/30 border border-bone"
+            }`}
+          >
+            {status}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}

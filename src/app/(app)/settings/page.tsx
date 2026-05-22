@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { SettingsForm } from "./settings-form";
+import { AdminTools } from "./admin-tools";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -20,6 +21,14 @@ export default async function SettingsPage() {
 
   if (!person) redirect("/onboarding");
 
+  const { data: ownership } = await supabase
+    .from("org_memberships")
+    .select("org_id")
+    .eq("person_id", person.id)
+    .eq("role", "owner");
+
+  const isOwner = ownership && ownership.length > 0;
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 md:px-0">
       <h1 className="font-display text-display-lg text-ink mb-1">Settings</h1>
@@ -28,6 +37,12 @@ export default async function SettingsPage() {
       </p>
 
       <SettingsForm person={person} userEmail={user.email || ""} />
+
+      {isOwner && (
+        <div className="mt-10">
+          <AdminTools />
+        </div>
+      )}
     </div>
   );
 }
