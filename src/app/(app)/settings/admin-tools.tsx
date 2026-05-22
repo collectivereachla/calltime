@@ -180,6 +180,26 @@ export function AdminTools({ activeProduction }: Props) {
           </button>
 
           <button
+            onClick={async () => {
+              setLoading(true);
+              setStatus("Sending test invite to your email...");
+              try {
+                const res = await fetch("/api/admin/test-invite", { method: "POST" });
+                const data = await res.json();
+                setStatus(res.ok ? `Done — ${data.message}` : `Error: ${data.error}`);
+              } catch (err) {
+                setStatus(`Failed: ${err}`);
+              } finally {
+                setLoading(false);
+              }
+            }}
+            disabled={loading}
+            className="px-4 py-2 bg-card text-ink text-body-sm font-medium rounded-card border border-bone hover:border-ink transition-colors disabled:opacity-50"
+          >
+            Send Test Invite (to me)
+          </button>
+
+          <button
             onClick={handleImportNotes}
             disabled={loading}
             className="px-4 py-2 bg-card text-ink text-body-sm font-medium rounded-card border border-bone hover:border-ink transition-colors disabled:opacity-50"
