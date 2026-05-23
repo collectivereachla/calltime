@@ -41,10 +41,10 @@ const rooms = [
   { name: "Booth", path: "/booth", icon: "◧" },
   { name: "Ledger", path: "/ledger", icon: "▧" },
   { name: "Applications", path: "/applications", icon: "◇", adminOnly: true },
-  { name: "Archive", path: "/archive", icon: "▣", disabled: true },
+  { name: "Archive", path: "/archive", icon: "▣" },
 ];
 
-const mobileRooms = rooms.filter((r) => r.mobile && !r.disabled);
+const mobileRooms = rooms.filter((r) => r.mobile);
 
 export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, productions = [], activeProductionId = null, lockedRooms = [], isOwner = false }: AppNavProps) {
   const pathname = usePathname();
@@ -94,14 +94,6 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, 
         <div className="flex-1 overflow-y-auto py-2">
           {visibleRooms.map((room) => {
             const isActive = pathname.startsWith(room.path);
-            if (room.disabled) {
-              return (
-                <div key={room.path} className="flex items-center gap-3 px-5 py-2 text-body-sm text-muted cursor-default">
-                  <span className="text-xs w-4 text-center opacity-40">{room.icon}</span>
-                  <span className="opacity-40">{room.name}</span>
-                </div>
-              );
-            }
             if (isRoomLocked(room)) {
               return (
                 <div key={room.path} className="flex items-center gap-3 px-5 py-2 text-body-sm text-muted cursor-default">
@@ -203,15 +195,7 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, 
         {/* More menu */}
         {moreOpen && (
           <div className="absolute bottom-full left-0 right-0 bg-paper border-t border-bone shadow-card-hover py-2">
-            {visibleRooms.filter((r) => !r.mobile || r.disabled).map((room) => {
-              if (room.disabled) {
-                return (
-                  <div key={room.path} className="flex items-center gap-3 px-5 py-2.5 text-body-sm text-muted">
-                    <span className="text-xs w-4 text-center opacity-40">{room.icon}</span>
-                    <span className="opacity-40">{room.name}</span>
-                  </div>
-                );
-              }
+            {visibleRooms.filter((r) => !r.mobile).map((room) => {
               if (isRoomLocked(room)) {
                 return (
                   <div key={room.path} className="flex items-center gap-3 px-5 py-2.5 text-body-sm text-muted">
