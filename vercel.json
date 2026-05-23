@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/nudge-unresponded",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/send-invites",
+      "schedule": "0 14 * * *"
     }
   ]
 }
