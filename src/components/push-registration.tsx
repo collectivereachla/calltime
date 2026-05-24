@@ -45,7 +45,9 @@ export function PushRegistration() {
 
         setPermission(Notification.permission);
       })
-      .catch((err) => console.error("SW registration failed:", err));
+      .catch((err) => {
+        setError(`SW registration failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
   }, []);
 
   async function subscribe(registration: ServiceWorkerRegistration) {
@@ -103,12 +105,13 @@ export function PushRegistration() {
   }
 
   // Don't show anything if already registered or not supported
-  if (registered || permission === "denied") return null;
+  if (registered) return null;
   if (typeof window === "undefined") return null;
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
   if (!VAPID_PUBLIC_KEY) return null;
+  if (permission === "denied" && !error) return null;
 
-  // Show prompt to enable notifications
+  // Show prompt or error
   if (permission === "default" || error) {
     return (
       <div className="bg-card border border-bone rounded-card px-4 py-3 mb-4">
@@ -122,7 +125,7 @@ export function PushRegistration() {
             disabled={loading}
             className="shrink-0 px-3 py-1.5 bg-brick text-paper text-body-sm font-medium rounded-card hover:bg-brick/90 transition-colors disabled:opacity-50"
           >
-            {loading ? "..." : "Enable"}
+            {loading ? "..." : permission === "granted" ? "Retry" : "Enable"}
           </button>
         </div>
         {error && (
