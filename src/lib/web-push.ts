@@ -1,8 +1,8 @@
 import webpush from "web-push";
 import { createClient } from "@/lib/supabase/server";
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BPUyNG3yyciBWEOL6FMCdQoEqfDqTwdYZCjQa5tb0taqDGBY_mXSJ9DRYVumPnCAKuHDxQFHIuv7AEY0IIP-j0M";
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "B0595fPC-B1bZwIQr_L3pzMbhmaf7jkaMl0Sn0S69cI";
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT?.startsWith("mailto:") 
   ? process.env.VAPID_SUBJECT 
   : `mailto:${process.env.VAPID_SUBJECT || "collectivereachla@gmail.com"}`;
