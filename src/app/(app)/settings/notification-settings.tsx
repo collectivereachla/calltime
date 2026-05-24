@@ -14,7 +14,7 @@ function urlBase64ToUint8Array(base64String: string) {
   return arr;
 }
 
-export function NotificationSettings() {
+export function NotificationSettings({ personId }: { personId: string }) {
   const [supported, setSupported] = useState(true);
   const [permission, setPermission] = useState<string>("default");
   const [subscribed, setSubscribed] = useState(false);
@@ -64,7 +64,7 @@ export function NotificationSettings() {
       });
 
       const json = subscription.toJSON();
-      const result = await savePushSubscription({
+      const result = await savePushSubscription(personId, {
         endpoint: json.endpoint!,
         keys: { p256dh: json.keys!.p256dh!, auth: json.keys!.auth! },
         userAgent: navigator.userAgent,

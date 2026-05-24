@@ -79,7 +79,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="mt-10 pt-8 border-t border-bone">
-        <NotificationSettings />
+        <NotificationSettings personId={person.id} />
       </div>
 
       {isOwner && orgData && <OrgSettings org={orgData} />}
