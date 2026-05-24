@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
-import { PushRegistration } from "@/components/push-registration";
 import { getActiveProductionId } from "@/lib/active-production";
 
 export default async function AppLayout({
@@ -165,9 +164,6 @@ export default async function AppLayout({
         isOwner={isOwner}
       />
       <main className="flex-1 min-w-0 pt-14 pb-16 md:pt-0 md:pb-0">
-        <div className="max-w-5xl mx-auto px-4 md:px-8 pt-4 md:pt-6">
-          <PushRegistration />
-        </div>
         {children}
       </main>
     </div>

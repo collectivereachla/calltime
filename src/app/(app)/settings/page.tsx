@@ -4,6 +4,7 @@ import { SettingsForm } from "./settings-form";
 import { AdminTools } from "./admin-tools";
 import { OrgSettings } from "./org-settings";
 import { ConflictsForm } from "./conflicts-form";
+import { NotificationSettings } from "./notification-settings";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -75,6 +76,10 @@ export default async function SettingsPage() {
 
       <div className="mt-10 pt-8 border-t border-bone">
         <ConflictsForm conflicts={conflicts || []} />
+      </div>
+
+      <div className="mt-10 pt-8 border-t border-bone">
+        <NotificationSettings />
       </div>
 
       {isOwner && orgData && <OrgSettings org={orgData} />}
