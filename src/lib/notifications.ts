@@ -37,7 +37,7 @@ export async function createNotification(params: CreateNotificationParams) {
     body: params.body,
     url: params.link || "/home",
     tag: params.type,
-  }).catch((err) => console.error("Push send failed:", err));
+  }).catch((err) => console.error("Push send failed:", err instanceof Error ? err.message : String(err)));
 }
 
 /**
