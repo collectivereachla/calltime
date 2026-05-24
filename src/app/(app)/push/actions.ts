@@ -1,18 +1,18 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function savePushSubscription(subscription: {
   endpoint: string;
   keys: { p256dh: string; auth: string };
   userAgent?: string;
 }) {
-  console.log("savePushSubscription called:", subscription.endpoint.slice(0, 50));
+  console.log("savePushSubscription called");
+  
+  // Get the user's person_id via the regular client (authenticated)
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) { console.log("savePushSubscription: no user"); return { error: "Not authenticated" }; }
 
   const { data: person } = await supabase
@@ -20,13 +20,13 @@ export async function savePushSubscription(subscription: {
     .select("id")
     .eq("user_id", user.id)
     .single();
-
   if (!person) { console.log("savePushSubscription: no person"); return { error: "No person record" }; }
 
-  console.log("savePushSubscription: saving for person", person.id);
+  console.log("savePushSubscription: saving for", person.id);
 
-  // Upsert — same person + endpoint = update, otherwise insert
-  const { error } = await supabase.from("push_subscriptions").upsert(
+  // Use admin client to bypass RLS
+  const admin = createAdminClient();
+  const { error } = await admin.from("push_subscriptions").upsert(
     {
       person_id: person.id,
       endpoint: subscription.endpoint,
