@@ -41,15 +41,14 @@ export async function submitConflict(formData: FormData) {
 
   if (!startDate) return { error: "Start date is required" };
 
-  const { error } = await supabase.from("conflicts").insert({
-    person_id: person.id,
-    start_date: startDate,
-    end_date: endDate,
-    all_day: allDay,
-    start_time: startTime,
-    end_time: endTime,
-    conflict_type: conflictType,
-    description: description,
+  const { data: conflictId, error } = await supabase.rpc("save_conflict", {
+    p_start_date: startDate,
+    p_conflict_type: conflictType || "other",
+    p_all_day: allDay,
+    p_end_date: endDate,
+    p_start_time: startTime,
+    p_end_time: endTime,
+    p_description: description,
   });
 
   if (error) return { error: error.message };
@@ -118,10 +117,9 @@ export async function submitConflict(formData: FormData) {
 export async function deleteConflict(conflictId: string) {
   const supabase = await createClient();
 
-  const { error } = await supabase
-    .from("conflicts")
-    .delete()
-    .eq("id", conflictId);
+  const { error } = await supabase.rpc("delete_conflict", {
+    p_conflict_id: conflictId,
+  });
 
   if (error) return { error: error.message };
 

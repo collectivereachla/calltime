@@ -144,19 +144,15 @@ export async function toggleRoomLock(productionId: string, roomKey: string, lock
 export async function updateOrganization(orgId: string, formData: FormData) {
   const supabase = await createClient();
 
-  const updates: Record<string, string | null> = {
-    name: formData.get("name") as string,
-    description: (formData.get("description") as string) || null,
-    city: (formData.get("city") as string) || null,
-    state: (formData.get("state") as string) || null,
-    website: (formData.get("website") as string) || null,
-    logo_url: (formData.get("logo_url") as string) || null,
-  };
-
-  const { error } = await supabase
-    .from("organizations")
-    .update(updates)
-    .eq("id", orgId);
+  const { error } = await supabase.rpc("update_organization_safe", {
+    p_org_id: orgId,
+    p_name: formData.get("name") as string,
+    p_description: (formData.get("description") as string) || null,
+    p_city: (formData.get("city") as string) || null,
+    p_state: (formData.get("state") as string) || null,
+    p_website: (formData.get("website") as string) || null,
+    p_logo_url: (formData.get("logo_url") as string) || null,
+  });
 
   if (error) return { error: error.message };
   revalidatePath("/settings");
