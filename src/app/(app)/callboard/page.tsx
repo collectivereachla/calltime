@@ -299,11 +299,17 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
 
       {/* Events by date */}
       {events.length === 0 ? (
-        <div className="bg-card border border-bone rounded-card px-6 py-10 text-center">
-          <p className="text-body-md text-ash">
+        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+          <span className="text-3xl mb-3 opacity-40">📋</span>
+          <h3 className="font-display text-display-sm text-ink mb-2">
+            {activeProductions.length === 0 ? "No active productions" : "No calls posted yet"}
+          </h3>
+          <p className="text-body-sm text-ash max-w-md leading-relaxed">
             {activeProductions.length === 0
-              ? "You're not assigned to any active productions."
-              : "No upcoming events scheduled."}
+              ? "You're not assigned to any active productions. If you were invited, check your email for login instructions."
+              : canManage
+              ? "Create your first event to start building the rehearsal schedule. Your company will be notified when they're called."
+              : "Your stage manager hasn't posted a schedule yet. When calls go up, you'll see them here and get notified."}
           </p>
         </div>
       ) : (

@@ -217,9 +217,13 @@ export default async function HomePage() {
 
       {/* Productions */}
       {activeProductions.length === 0 ? (
-        <div className="bg-card border border-bone rounded-card px-6 py-10 text-center">
-          <p className="text-body-md text-ash">
-            When you&rsquo;re assigned to a production, it will appear here.
+        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+          <span className="text-3xl mb-3 opacity-40">🎭</span>
+          <h3 className="font-display text-display-sm text-ink mb-2">Welcome to Calltime</h3>
+          <p className="text-body-sm text-ash max-w-md leading-relaxed">
+            {canCreate
+              ? "You don't have any active productions yet. Create one to get started, or check your email for an invitation."
+              : "When you're assigned to a production, your schedule, script, contract, and everything else will appear here. Check your email if you're expecting an invitation."}
           </p>
         </div>
       ) : (

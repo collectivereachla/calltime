@@ -434,8 +434,10 @@ export function GreenroomChat({
         )}
 
         {messages.length === 0 && (
-          <div className="flex-1 flex items-center justify-center py-20">
-            <p className="text-body-md text-muted text-center">No messages yet. Say something.</p>
+          <div className="flex-1 flex flex-col items-center justify-center py-20 px-4">
+            <span className="text-3xl mb-3 opacity-40">💬</span>
+            <h3 className="font-display text-display-sm text-ink mb-2">The Greenroom is quiet</h3>
+            <p className="text-body-sm text-ash text-center max-w-sm">Your company's group chat. Share updates, ask questions, or just say hello.</p>
           </div>
         )}
 

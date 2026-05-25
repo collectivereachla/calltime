@@ -198,18 +198,21 @@ export default async function SpinePage({
       </div>
 
       {!activeScript ? (
-        <div className="bg-card border border-bone rounded-card px-6 py-10 text-center">
-          <p className="text-body-md text-ash mb-2">No script imported yet.</p>
-          {canManage && (
-            <p className="text-body-sm text-muted">
-              Script import is coming soon.
-            </p>
-          )}
+        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+          <span className="text-3xl mb-3 opacity-40">📜</span>
+          <h3 className="font-display text-display-sm text-ink mb-2">Script not loaded yet</h3>
+          <p className="text-body-sm text-ash max-w-md leading-relaxed">
+            {canManage
+              ? "The script hasn't been imported for this production. Contact your admin to get the script loaded."
+              : "When the script is ready, you'll find your lines, blocking notes, and line-learning tools here."}
+          </p>
         </div>
       ) : lines.length === 0 ? (
-        <div className="bg-card border border-bone rounded-card px-6 py-10 text-center">
-          <p className="text-body-md text-ash">
-            Script record exists but no lines have been imported yet.
+        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+          <span className="text-3xl mb-3 opacity-40">📜</span>
+          <h3 className="font-display text-display-sm text-ink mb-2">Script is being prepared</h3>
+          <p className="text-body-sm text-ash max-w-md leading-relaxed">
+            The script record exists but scenes are still being imported. Check back soon.
           </p>
         </div>
       ) : (
