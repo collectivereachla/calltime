@@ -4,6 +4,7 @@ import { EventCard } from "./event-card";
 import { EditEventButton } from "./edit-event";
 import { CallboardTabs } from "./callboard-tabs";
 import { PrintButton } from "./print-button";
+import { PersonFilter } from "./person-filter";
 import { getActiveProductionId } from "@/lib/active-production";
 
 function formatTime(time: string): string {
@@ -13,7 +14,8 @@ function formatTime(time: string): string {
   return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
 }
 
-export default async function CallboardPage() {
+export default async function CallboardPage({ searchParams }: { searchParams: Promise<{ person?: string }> }) {
+  const { person: filterPersonId } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -204,9 +206,20 @@ export default async function CallboardPage() {
     }
   }
 
+  // Filter events by person if filter is active
+  const displayEvents = filterPersonId
+    ? events.filter((e) => {
+        const calls = e.event_calls as unknown as { person_id: string; people: unknown }[] || [];
+        return calls.some((c) => {
+          const p = c.people as unknown as { id: string } | null;
+          return p?.id === filterPersonId;
+        });
+      })
+    : events;
+
   // Group events by date
   const eventsByDate = new Map<string, typeof events>();
-  for (const event of events) {
+  for (const event of displayEvents) {
     if (!eventsByDate.has(event.event_date)) {
       eventsByDate.set(event.event_date, []);
     }
@@ -246,19 +259,31 @@ export default async function CallboardPage() {
     conflict: "text-conflict",
   };
 
+  // Filter name for display
+  const filterPerson = filterPersonId
+    ? companyMembers.find((m) => m.id === filterPersonId)
+    : null;
+
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex items-start justify-between mb-4">
         <div>
           <h1 className="font-display text-display-md text-ink">Callboard</h1>
           <p className="text-body-md text-ash mt-1">
-            {events.length === 0
-              ? "No upcoming events."
-              : `${events.length} upcoming event${events.length === 1 ? "" : "s"}`}
+            {displayEvents.length === 0
+              ? filterPerson ? `No upcoming calls for ${filterPerson.name}.` : "No upcoming events."
+              : `${displayEvents.length} upcoming event${displayEvents.length === 1 ? "" : "s"}${filterPerson ? ` for ${filterPerson.name}` : ""}`}
           </p>
         </div>
         {events.length > 0 && <PrintButton />}
       </div>
+
+      {/* Person filter */}
+      {canManage && companyMembers.length > 0 && (
+        <div className="mb-6 print:hidden">
+          <PersonFilter members={companyMembers} />
+        </div>
+      )}
 
       <CallboardTabs
         canManage={canManage}
