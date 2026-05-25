@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { CalendarLink } from "@/components/calendar-link";
 import { WhatChanged } from "@/components/what-changed";
+import { ProductionHealth } from "./production-health";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -282,6 +283,16 @@ export default async function HomePage() {
               </Link>
             );
           })}
+        </div>
+      )}
+
+      {/* Production Health Dashboard — owners and production staff */}
+      {canCreate && activeProductions.length > 0 && (
+        <div className="mt-10">
+          <ProductionHealth
+            productionId={activeProductions[0].productions.id}
+            productionTitle={activeProductions[0].productions.title}
+          />
         </div>
       )}
 
