@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CalendarLink } from "@/components/calendar-link";
 import { WhatChanged } from "@/components/what-changed";
 import { ProductionHealth } from "./production-health";
+import { WelcomeChecklist } from "./welcome-checklist";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -130,6 +131,11 @@ export default async function HomePage() {
           </a>
         )}
       </div>
+
+      {/* Welcome checklist for new users */}
+      {activeProductions.length > 0 && (
+        <WelcomeChecklist personId={person!.id} productionId={activeProductions[0].productions.id} />
+      )}
 
       {/* Next call — always visible */}
       {nextCall && (

@@ -183,9 +183,11 @@ export default async function LandingPage() {
             <span className="text-body-xs text-muted">Built by Creative Reach</span>
           </div>
           <div className="flex items-center gap-6 text-body-xs text-muted">
+            <Link href="/how-it-works" className="hover:text-ink transition-colors">How it works</Link>
+            <Link href="/start" className="hover:text-ink transition-colors">Start a company</Link>
             <Link href="/terms" className="hover:text-ink transition-colors">Terms</Link>
             <Link href="/privacy" className="hover:text-ink transition-colors">Privacy</Link>
-            <a href="mailto:inspire@heritageparc.org" className="hover:text-ink transition-colors">Contact</a>
+            <Link href="/contact" className="hover:text-ink transition-colors">Contact</Link>
           </div>
         </div>
       </footer>
