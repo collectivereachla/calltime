@@ -200,6 +200,45 @@ export function AdminTools({ activeProduction }: Props) {
           </button>
 
           <button
+            onClick={async () => {
+              setLoading(true);
+              setStatus("Finding people who haven't logged in...");
+              try {
+                // First get people who haven't logged in
+                const checkRes = await fetch("/api/admin/resend-invite", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ personIds: [] }),
+                });
+                // The endpoint returns "No personIds provided" — that's fine.
+                // We need to get the list from the server. Let's use a different approach.
+                // Actually, pass a special flag to get the list
+              } catch {}
+
+              // Just call the invite-members endpoint which handles new accounts
+              // For resend, we need the resend-invite endpoint with specific IDs
+              setStatus("Fetching uninvited members...");
+              try {
+                const res = await fetch("/api/admin/resend-invite-all", { method: "POST" });
+                const data = await res.json();
+                if (res.ok) {
+                  setStatus(`Done — ${data.sent} invite${data.sent === 1 ? "" : "s"} resent.${data.skipped ? ` ${data.skipped} skipped.` : ""}`);
+                } else {
+                  setStatus(`Error: ${data.error}`);
+                }
+              } catch (err) {
+                setStatus(`Failed: ${err}`);
+              } finally {
+                setLoading(false);
+              }
+            }}
+            disabled={loading}
+            className="px-4 py-2 bg-brick text-paper text-body-sm font-medium rounded-card hover:bg-brick/90 transition-colors disabled:opacity-50"
+          >
+            Resend invites (people who haven't logged in)
+          </button>
+
+          <button
             onClick={handleImportNotes}
             disabled={loading}
             className="px-4 py-2 bg-card text-ink text-body-sm font-medium rounded-card border border-bone hover:border-ink transition-colors disabled:opacity-50"
