@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     try {
       if (p.user_id) {
         // Reset existing user's password
-        const { error: resetErr } = await admin.auth.admin.updateUser(p.user_id, {
+        const { error: resetErr } = await admin.auth.admin.updateUserById(p.user_id, {
           password: tempPassword,
         });
         if (resetErr) {

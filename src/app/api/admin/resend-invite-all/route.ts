@@ -72,7 +72,7 @@ export async function POST() {
 
     try {
       // Reset password
-      const { error: resetErr } = await admin.auth.admin.updateUser(p.userId, { password: tempPassword });
+      const { error: resetErr } = await admin.auth.admin.updateUserById(p.userId, { password: tempPassword });
       if (resetErr) { failed++; continue; }
 
       // Get role
