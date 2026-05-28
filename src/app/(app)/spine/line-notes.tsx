@@ -36,6 +36,7 @@ interface Props {
   personId: string;
   productionId: string;
   notes: LineNote[];
+  cast: { person_id: string; name: string }[];
 }
 
 // Naturalistic-tuned note types. note_type is free text in the DB; these are the
@@ -62,8 +63,9 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export function LineNotes({ lines, canManage, personId, productionId, notes }: Props) {
+export function LineNotes({ lines, canManage, personId, productionId, notes, cast }: Props) {
   const router = useRouter();
+  const [previewActorId, setPreviewActorId] = useState<string | null>(null);
 
   // Markable lines = dialogue with a character (those resolve to an actor).
   const renderable = useMemo(
@@ -250,10 +252,10 @@ export function LineNotes({ lines, canManage, personId, productionId, notes }: P
     );
   }
 
-  // ── Actor view: just their own notes ──────────────────────────
-  if (!canManage) {
+  // Renders the delivery view for one person. readOnly = manager preview (no "Got it").
+  function actorView(targetId: string, readOnly: boolean) {
     const mine = notes
-      .filter((n) => n.person_id === personId)
+      .filter((n) => n.person_id === targetId)
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const open = mine.filter((n) => !n.corrected_at);
     const done = mine.filter((n) => n.corrected_at);
@@ -264,25 +266,56 @@ export function LineNotes({ lines, canManage, personId, productionId, notes }: P
           <span className="text-3xl mb-3 opacity-40">✓</span>
           <h3 className="font-display text-display-sm text-ink mb-2">No line notes</h3>
           <p className="text-body-sm text-ash max-w-md leading-relaxed">
-            When the stage manager logs a line note for you, it&apos;ll show up here with the
-            line as written so you can see exactly what to fix.
+            {readOnly
+              ? "This actor has no line notes yet. Log one from the capture view and it will appear here."
+              : "When the stage manager logs a line note for you, it'll show up here with the line as written so you can see exactly what to fix."}
           </p>
         </div>
       );
     }
 
+    const onToggle = readOnly
+      ? undefined
+      : async (id: string, c: boolean) => { await markLineNoteCorrected(id, c); router.refresh(); };
+
     return (
       <div className="max-w-2xl mx-auto space-y-6">
-        <ActorNoteGroup title={`To fix (${open.length})`} notes={open} onToggle={async (id, c) => { await markLineNoteCorrected(id, c); router.refresh(); }} />
+        <ActorNoteGroup title={`To fix (${open.length})`} notes={open} onToggle={onToggle} />
         {done.length > 0 && (
-          <ActorNoteGroup title={`Got it (${done.length})`} notes={done} dimmed onToggle={async (id, c) => { await markLineNoteCorrected(id, c); router.refresh(); }} />
+          <ActorNoteGroup title={`Got it (${done.length})`} notes={done} dimmed onToggle={onToggle} />
         )}
       </div>
     );
   }
 
+  // ── Actor view: just their own notes ──────────────────────────
+  if (!canManage) {
+    return actorView(personId, false);
+  }
+
   // ── Staff view: capture + review ──────────────────────────────
   const undelivered = notes.filter((n) => !n.given_to_actor);
+
+  // Manager preview: see exactly what one actor's delivery view looks like.
+  if (previewActorId) {
+    const who = cast.find((c) => c.person_id === previewActorId)?.name || "actor";
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="flex items-center justify-between gap-3 mb-5 px-3 py-2 bg-bone/40 border border-bone rounded-card">
+          <p className="text-body-sm text-ash">
+            Previewing what <span className="font-medium text-ink">{who}</span> sees · read-only
+          </p>
+          <button
+            onClick={() => setPreviewActorId(null)}
+            className="px-3 py-1 text-body-xs text-ash hover:text-ink shrink-0"
+          >
+            ← Back to capture
+          </button>
+        </div>
+        {actorView(previewActorId, true)}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -310,15 +343,30 @@ export function LineNotes({ lines, canManage, personId, productionId, notes }: P
             className="px-2 py-1 text-body-sm text-ash hover:text-ink disabled:opacity-30"
           >→</button>
         </div>
-        {undelivered.length > 0 && (
-          <DeliverButton
-            count={undelivered.length}
-            onDeliver={async () => {
-              for (const n of undelivered) await markLineNoteGiven(n.id);
-              router.refresh();
-            }}
-          />
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {cast.length > 0 && (
+            <select
+              value=""
+              onChange={(e) => e.target.value && setPreviewActorId(e.target.value)}
+              className="px-2.5 py-1.5 bg-card border border-bone rounded-card text-body-xs text-ash focus:border-brick focus:outline-none"
+              title="See what an actor's delivery view looks like"
+            >
+              <option value="">Preview as…</option>
+              {cast.map((c) => (
+                <option key={c.person_id} value={c.person_id}>{c.name}</option>
+              ))}
+            </select>
+          )}
+          {undelivered.length > 0 && (
+            <DeliverButton
+              count={undelivered.length}
+              onDeliver={async () => {
+                for (const n of undelivered) await markLineNoteGiven(n.id);
+                router.refresh();
+              }}
+            />
+          )}
+        </div>
       </div>
 
       <p className="text-body-xs text-muted mb-3 print:hidden">
@@ -436,7 +484,7 @@ function ActorNoteGroup({
   title: string;
   notes: LineNote[];
   dimmed?: boolean;
-  onToggle: (id: string, corrected: boolean) => Promise<void>;
+  onToggle?: (id: string, corrected: boolean) => Promise<void>;
 }) {
   return (
     <div>
@@ -458,7 +506,7 @@ function ActorNoteGroup({
                   {n.author_name ? ` — ${n.author_name}` : ""} · {timeAgo(n.created_at)}
                 </p>
               </div>
-              <ToggleGotIt id={n.id} corrected={!!n.corrected_at} onToggle={onToggle} />
+              {onToggle && <ToggleGotIt id={n.id} corrected={!!n.corrected_at} onToggle={onToggle} />}
             </div>
           </div>
         ))}

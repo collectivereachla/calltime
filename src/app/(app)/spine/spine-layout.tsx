@@ -61,6 +61,7 @@ interface Props {
   isLocked: boolean;
   productionId: string;
   lineNotes: LineNote[];
+  cast: { person_id: string; name: string }[];
 }
 
 export function SpineLayout(props: Props) {
@@ -148,6 +149,7 @@ export function SpineLayout(props: Props) {
           personId={props.personId}
           productionId={props.productionId}
           notes={props.lineNotes}
+          cast={props.cast}
         />
       )}
       {tab === "reports" && props.canManage && (
