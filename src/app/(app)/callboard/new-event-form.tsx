@@ -221,6 +221,16 @@ export function NewEventForm({ productions, companyMembers }: Props) {
           <span className="text-body-sm text-ink">Call entire company</span>
         </label>
 
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            name="mandatory"
+            className="w-4 h-4 rounded border-bone text-brick focus:ring-brick"
+          />
+          <span className="text-body-sm text-ink">Mandatory call</span>
+          <span className="text-body-xs text-muted">(auto-confirms everyone, no conflicts allowed)</span>
+        </label>
+
         {/* Person picker — shown when not calling everyone */}
         {!callEveryone && companyMembers.length > 0 && (
           <div className="bg-paper border border-bone rounded-card p-4 max-h-64 overflow-y-auto space-y-3">

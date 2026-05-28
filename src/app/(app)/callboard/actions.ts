@@ -11,6 +11,7 @@ export async function createScheduleEvent(formData: FormData) {
 
   const productionId = formData.get("production_id") as string;
   const callEveryone = formData.get("call_everyone") === "on";
+  const isMandatory = formData.get("mandatory") === "on";
   const personIds = formData.getAll("person_ids") as string[];
   const title = formData.get("title") as string;
   const eventDate = formData.get("event_date") as string;
@@ -36,6 +37,28 @@ export async function createScheduleEvent(formData: FormData) {
       p_person_ids: personIds,
     });
     if (callError) return { error: callError.message };
+  }
+
+  // If mandatory, set the flag and auto-confirm all called people
+  if (isMandatory && eventId) {
+    await supabase.from("schedule_events").update({ mandatory: true }).eq("id", eventId);
+
+    // Get all event_calls for this event and auto-confirm
+    const { data: calls } = await supabase
+      .from("event_calls")
+      .select("id, person_id")
+      .eq("event_id", eventId);
+
+    if (calls && calls.length > 0) {
+      const responses = calls
+        .map((c) => ({
+          event_call_id: c.id,
+          status: "confirmed" as const,
+          responded_at: new Date().toISOString(),
+        }));
+
+      await supabase.from("call_responses").upsert(responses, { onConflict: "event_call_id" });
+    }
   }
 
   // Send "you've been called" emails (fire-and-forget, errors logged internally)
