@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { CostumeBible } from "./costume-bible";
 import { SetDesign } from "./set-design";
-import { StageManagement } from "./stage-management";
 import { DesignRoom } from "./design-room";
 import { makeLightingConfig, makeSoundConfig } from "./design-configs";
 import { BoothTabs } from "./booth-tabs";
@@ -152,25 +151,12 @@ export default async function BoothPage() {
     .eq("org_id", orgId)
     .order("category", { ascending: true });
 
-  // Get SM-enhanced scenes (with characters, props, watchouts)
+  // Get SM-enhanced scenes (with location, used to enrich design scene lists)
   const { data: smScenesData } = await supabase
     .from("scenes")
     .select("*")
     .eq("production_id", activeProduction.id)
     .order("sort_order", { ascending: true });
-
-  // Get props
-  const { data: propsData } = await supabase
-    .from("props")
-    .select("*")
-    .eq("production_id", activeProduction.id);
-
-  // Get action items
-  const { data: actionItemsData } = await supabase
-    .from("action_items")
-    .select("*")
-    .eq("production_id", activeProduction.id)
-    .order("created_at", { ascending: false });
 
   // Get set design elements (including spatial data for stage viewer)
   const { data: setElements } = await supabase
@@ -290,18 +276,6 @@ export default async function BoothPage() {
   const lightingConfig = makeLightingConfig(lightDesigner.name, lightDesigner.role);
   const soundConfig = makeSoundConfig(soundDesigner.name, soundDesigner.role);
 
-  // Get SM name
-  const { data: smAssignments } = await supabase
-    .from("production_assignments")
-    .select("role_title, people(full_name, preferred_name)")
-    .eq("production_id", activeProduction.id)
-    .eq("department", "stage_management")
-    .eq("active", true)
-    .eq("role_title", "Stage Manager")
-    .limit(1);
-  const smPerson = smAssignments?.[0]?.people as unknown as { full_name: string; preferred_name: string | null } | null;
-  const smName = smPerson ? (smPerson.preferred_name || smPerson.full_name) : null;
-
   // Build scene list with locations for design rooms
   const designScenes = scenes.map((s) => {
     const full = (smScenesData as unknown as { id: string; location: string | null }[] || []).find((fs) => fs.id === s.id);
@@ -329,7 +303,6 @@ export default async function BoothPage() {
           { key: "set", label: "Set", designer: setDesigner.name },
           { key: "lights", label: "Lights", designer: lightDesigner.name },
           { key: "sound", label: "Sound", designer: soundDesigner.name },
-          { key: "sm", label: "Stage Mgmt", designer: smName },
         ]}
         contents={{
           costume: (
@@ -382,16 +355,6 @@ export default async function BoothPage() {
               cues={soundData.cues}
               sceneNotes={soundData.sceneNotes}
               canManage={canManage}
-            />
-          ),
-          sm: (
-            <StageManagement
-              scenes={(smScenesData || []) as any}
-              props={(propsData || []) as any}
-              actionItems={(actionItemsData || []) as any}
-              cast={cast}
-              productionId={activeProduction.id}
-              productionTitle={activeProduction.title}
             />
           ),
         }}

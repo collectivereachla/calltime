@@ -3,31 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-export async function submitReport(formData: FormData) {
-  const supabase = await createClient();
-
-  const productionId = formData.get("production_id") as string;
-
-  const { data: report, error } = await supabase.from("sm_reports").insert({
-    production_id: productionId,
-    report_type: formData.get("report_type") as string,
-    report_date: formData.get("report_date") as string,
-    start_time: (formData.get("start_time") as string) || null,
-    end_time: (formData.get("end_time") as string) || null,
-    called: (formData.get("called") as string) || null,
-    absent_late: (formData.get("absent_late") as string) || null,
-    work_completed: (formData.get("work_completed") as string) || null,
-    director_notes: (formData.get("director_notes") as string) || null,
-    action_items: (formData.get("action_items") as string) || null,
-    next_call: (formData.get("next_call") as string) || null,
-  }).select("id").single();
-
-  if (error) return { error: error.message };
-
-  revalidatePath("/booth");
-  return { success: true, reportId: report?.id };
-}
-
 export async function addActionItem(formData: FormData) {
   const supabase = await createClient();
 
@@ -48,7 +23,7 @@ export async function addActionItem(formData: FormData) {
   });
 
   if (error) return { error: error.message };
-  revalidatePath("/booth");
+  revalidatePath("/run");
   return { success: true };
 }
 
@@ -64,7 +39,7 @@ export async function toggleActionItem(itemId: string, done: boolean) {
     .eq("id", itemId);
 
   if (error) return { error: error.message };
-  revalidatePath("/booth");
+  revalidatePath("/run");
   return { success: true };
 }
 
@@ -85,7 +60,7 @@ export async function updateScene(formData: FormData) {
     .eq("id", formData.get("scene_id") as string);
 
   if (error) return { error: error.message };
-  revalidatePath("/booth");
+  revalidatePath("/run");
   return { success: true };
 }
 
@@ -107,7 +82,7 @@ export async function updateProp(formData: FormData) {
     .eq("id", formData.get("prop_id") as string);
 
   if (error) return { error: error.message };
-  revalidatePath("/booth");
+  revalidatePath("/run");
   return { success: true };
 }
 
@@ -124,6 +99,6 @@ export async function addProp(formData: FormData) {
   });
 
   if (error) return { error: error.message };
-  revalidatePath("/booth");
+  revalidatePath("/run");
   return { success: true };
 }

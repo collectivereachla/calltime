@@ -33,10 +33,9 @@ interface Props {
   actionItems: ActionItem[];
   cast: CastMember[];
   productionId: string;
-  productionTitle: string;
 }
 
-export function StageManagement({ scenes, props: propsList, actionItems, cast, productionId, productionTitle }: Props) {
+export function StageTracking({ scenes, props: propsList, actionItems, cast, productionId }: Props) {
   const [tab, setTab] = useState<"scenes" | "props" | "actions">("scenes");
   const [editingScene, setEditingScene] = useState<string | null>(null);
   const [editingProp, setEditingProp] = useState<string | null>(null);

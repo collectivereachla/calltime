@@ -109,12 +109,46 @@ export default async function RunPage() {
     .order("created_at", { ascending: false })
     .limit(20);
 
+  // ── Tracking tab (scene breakdown, props, action items) ──
+  const { data: trackingScenes } = await supabase
+    .from("scenes")
+    .select("*")
+    .eq("production_id", activeProductionId)
+    .order("sort_order", { ascending: true });
+
+  const { data: propsData } = await supabase
+    .from("props")
+    .select("*")
+    .eq("production_id", activeProductionId);
+
+  const { data: actionItemsData } = await supabase
+    .from("action_items")
+    .select("*")
+    .eq("production_id", activeProductionId)
+    .order("created_at", { ascending: false });
+
+  const { data: castData } = await supabase
+    .from("production_assignments")
+    .select("person_id, role_title, people(id, full_name, preferred_name)")
+    .eq("production_id", activeProductionId)
+    .eq("department", "cast")
+    .eq("active", true)
+    .order("role_title", { ascending: true });
+  const cast = (castData || []).filter(c => c.people).map(c => {
+    const p = c.people as unknown as { id: string; full_name: string; preferred_name: string | null };
+    return { person_id: p.id, name: p.preferred_name || p.full_name, role_title: c.role_title };
+  });
+
   return (
     <RunLayout
       production={production}
       canManage={canManage}
       personId={person!.id}
       today={today}
+      trackingScenes={(trackingScenes || []) as never[]}
+      stageProps={(propsData || []) as never[]}
+      actionItems={(actionItemsData || []) as never[]}
+      cast={cast}
       todayEvents={(todayEvents || []).map(e => ({
         id: e.id,
         title: e.title,

@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
+import { StageTracking } from "./stage-tracking";
 import {
   addRunSheetItem, toggleRunSheetItem, deleteRunSheetItem, resetRunSheet,
   submitShowReport, logRehearsalWork,
 } from "./actions";
+
+type TrackingProps = ComponentProps<typeof StageTracking>;
 
 interface TodayEvent {
   id: string; title: string; event_type: string;
@@ -41,9 +44,13 @@ interface Props {
   reports: Report[];
   scenes: Scene[];
   workLog: WorkEntry[];
+  trackingScenes: TrackingProps["scenes"];
+  stageProps: TrackingProps["props"];
+  actionItems: TrackingProps["actionItems"];
+  cast: TrackingProps["cast"];
 }
 
-const TABS = ["Today", "Run Sheet", "Reports", "Work Log"] as const;
+const TABS = ["Today", "Run Sheet", "Tracking", "Reports", "Work Log"] as const;
 
 function formatTime(t: string | null) {
   if (!t) return "";
@@ -78,7 +85,7 @@ const RUN_CATEGORIES = [
 
 const inputClass = "w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors";
 
-export function RunLayout({ production, canManage, personId, today, todayEvents, runSheetItems, reports, scenes, workLog }: Props) {
+export function RunLayout({ production, canManage, personId, today, todayEvents, runSheetItems, reports, scenes, workLog, trackingScenes, stageProps, actionItems, cast }: Props) {
   const [tab, setTab] = useState<typeof TABS[number]>("Today");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -97,7 +104,7 @@ export function RunLayout({ production, canManage, personId, today, todayEvents,
 
       {/* Tabs */}
       <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1">
-        {TABS.map(t => (
+        {TABS.filter(t => t !== "Tracking" || canManage).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-1 text-body-xs font-medium rounded-full whitespace-nowrap transition-colors ${
               tab === t ? "bg-ink text-paper" : "text-ash hover:text-ink"
@@ -234,6 +241,17 @@ export function RunLayout({ production, canManage, personId, today, todayEvents,
             );
           })}
         </div>
+      )}
+
+      {/* ═══ TRACKING (scene breakdown · props · action items) ═══ */}
+      {tab === "Tracking" && canManage && (
+        <StageTracking
+          scenes={trackingScenes}
+          props={stageProps}
+          actionItems={actionItems}
+          cast={cast}
+          productionId={production.id}
+        />
       )}
 
       {/* ═══ REPORTS ═══ */}
