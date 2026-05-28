@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { submitReport, updateScene, updateProp, addProp, addActionItem, toggleActionItem } from "./sm-actions";
+import { updateScene, updateProp, addProp, addActionItem, toggleActionItem } from "./sm-actions";
 import { useRouter } from "next/navigation";
 
 interface Scene {
@@ -17,23 +17,10 @@ interface Prop {
   has_backup: boolean; status: string; notes: string | null;
 }
 
-interface Report {
-  id: string; report_date: string; report_type: string;
-  start_time: string | null; end_time: string | null;
-  work_completed: string | null; director_notes: string | null;
-  absent_late: string | null; action_items: string | null;
-  next_call: string | null; called: string | null;
-}
-
 interface ActionItem {
   id: string; description: string; assigned_to: string | null;
   assigned_by: string | null; department: string | null;
   status: string; due_date: string | null; created_at: string;
-}
-
-interface EventForReport {
-  id: string; title: string; event_date: string;
-  conflicts: string | null;
 }
 
 interface CastMember {
@@ -43,24 +30,20 @@ interface CastMember {
 interface Props {
   scenes: Scene[];
   props: Prop[];
-  reports: Report[];
   actionItems: ActionItem[];
-  events: EventForReport[];
   cast: CastMember[];
   productionId: string;
   productionTitle: string;
 }
 
-export function StageManagement({ scenes, props: propsList, reports, actionItems, events, cast, productionId, productionTitle }: Props) {
-  const [tab, setTab] = useState<"scenes" | "props" | "reports" | "actions" | "new_report">("scenes");
+export function StageManagement({ scenes, props: propsList, actionItems, cast, productionId, productionTitle }: Props) {
+  const [tab, setTab] = useState<"scenes" | "props" | "actions">("scenes");
   const [editingScene, setEditingScene] = useState<string | null>(null);
   const [editingProp, setEditingProp] = useState<string | null>(null);
   const [addingProp, setAddingProp] = useState(false);
   const [addingAction, setAddingAction] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState("");
-  const [absentField, setAbsentField] = useState("");
   const router = useRouter();
 
   const openActions = actionItems.filter(a => a.status !== "done").length;
@@ -81,9 +64,7 @@ export function StageManagement({ scenes, props: propsList, reports, actionItems
   const tabs = [
     { key: "scenes" as const, label: "Scene Breakdown", count: scenes.length },
     { key: "props" as const, label: "Props", count: propsList.length },
-    { key: "reports" as const, label: "Reports", count: reports.length },
     { key: "actions" as const, label: "Action Items", count: openActions || null },
-    { key: "new_report" as const, label: "+ New Report", count: null },
   ];
 
   return (
@@ -241,40 +222,6 @@ export function StageManagement({ scenes, props: propsList, reports, actionItems
       )}
 
       {/* Reports list */}
-      {tab === "reports" && (
-        <div>
-          {reports.length === 0 ? (
-            <div className="bg-card border border-bone rounded-card px-6 py-8 text-center">
-              <p className="text-body-md text-ash">No reports yet.</p>
-              <p className="text-body-xs text-muted mt-1">Click "+ New Report" to file one.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {reports.map((r) => (
-                <div key={r.id} className="bg-card border border-bone rounded-card px-4 md:px-5 py-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-data-sm text-ink">{new Date(r.report_date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
-                      <span className="text-body-xs px-1.5 py-0.5 rounded bg-ink/5 text-ash">{r.report_type}</span>
-                    </div>
-                    {r.start_time && r.end_time && (
-                      <span className="font-mono text-data-sm text-muted">{r.start_time.slice(0,5)}–{r.end_time.slice(0,5)}</span>
-                    )}
-                  </div>
-                  {r.called && (<div className="mb-2"><p className="text-body-xs text-muted uppercase tracking-wider mb-0.5">Called</p><p className="text-body-sm text-ink">{r.called}</p></div>)}
-                  {r.absent_late && (<div className="mb-2"><p className="text-body-xs text-brick uppercase tracking-wider mb-0.5">Absent / Late</p><p className="text-body-sm text-ink">{r.absent_late}</p></div>)}
-                  {r.work_completed && (<div className="mb-2"><p className="text-body-xs text-muted uppercase tracking-wider mb-0.5">Work Completed</p><p className="text-body-sm text-ink">{r.work_completed}</p></div>)}
-                  {r.director_notes && (<div className="mb-2"><p className="text-body-xs text-muted uppercase tracking-wider mb-0.5">Director Notes</p><p className="text-body-sm text-ink">{r.director_notes}</p></div>)}
-                  {r.action_items && (<div className="mb-2"><p className="text-body-xs text-brick uppercase tracking-wider mb-0.5">Action Items</p><p className="text-body-sm text-ink">{r.action_items}</p></div>)}
-                  {r.next_call && (<div><p className="text-body-xs text-muted uppercase tracking-wider mb-0.5">Next Call</p><p className="text-body-sm text-ink font-medium">{r.next_call}</p></div>)}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* New Report form */}
       {/* Action Items checklist */}
       {tab === "actions" && (
         <div>
@@ -347,82 +294,6 @@ export function StageManagement({ scenes, props: propsList, reports, actionItems
         </div>
       )}
 
-      {/* New Report form with event auto-population */}
-      {tab === "new_report" && (
-        <form action={(fd) => { fd.set("production_id", productionId); handleAction(submitReport, fd).then(() => setTab("reports")); }}
-          className="bg-card border border-bone rounded-card px-4 md:px-6 py-5 space-y-4">
-          <h3 className="text-body-md font-medium text-ink">New Rehearsal Report</h3>
-
-          {/* Event selector — auto-populates absent and work fields */}
-          {events.length > 0 && (
-            <div>
-              <label className="block text-body-xs text-ash mb-1">Link to event (auto-fills absent/late from conflicts)</label>
-              <select
-                value={selectedEvent}
-                onChange={(e) => {
-                  setSelectedEvent(e.target.value);
-                  const evt = events.find(ev => ev.id === e.target.value);
-                  if (evt?.conflicts) setAbsentField(evt.conflicts);
-                }}
-                className="w-full px-3 py-1.5 bg-paper border border-bone rounded-card text-body-sm text-ink focus:outline-none">
-                <option value="">Select today&rsquo;s event...</option>
-                {events.map(e => (
-                  <option key={e.id} value={e.id}>{e.event_date} — {e.title}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-body-xs text-ash mb-1">Date</label>
-              <input name="report_date" type="date" defaultValue={new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" })} required className="w-full px-3 py-1.5 bg-paper border border-bone rounded-card font-mono text-data-sm text-ink focus:border-brick focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-body-xs text-ash mb-1">Type</label>
-              <select name="report_type" className="w-full px-3 py-1.5 bg-paper border border-bone rounded-card text-body-sm text-ink focus:outline-none">
-                <option value="rehearsal">Rehearsal</option>
-                <option value="performance">Performance</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-body-xs text-ash mb-1">Start</label>
-              <input name="start_time" type="time" className="w-full px-3 py-1.5 bg-paper border border-bone rounded-card font-mono text-data-sm text-ink focus:border-brick focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-body-xs text-ash mb-1">End</label>
-              <input name="end_time" type="time" className="w-full px-3 py-1.5 bg-paper border border-bone rounded-card font-mono text-data-sm text-ink focus:border-brick focus:outline-none" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-body-xs text-ash mb-1">Called</label>
-            <input name="called" placeholder="Full cast, Act I cast, etc." className="w-full px-3 py-1.5 bg-paper border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-body-xs text-brick mb-1">Absent / Late {absentField && "(auto-filled from conflicts)"}</label>
-            <textarea name="absent_late" value={absentField} onChange={(e) => setAbsentField(e.target.value)} rows={2} placeholder="Names and reasons — auto-fills when you select an event above" className="w-full px-3 py-1.5 bg-paper border border-brick/20 rounded-card text-body-sm text-ink focus:border-brick focus:outline-none resize-none" />
-          </div>
-          <div>
-            <label className="block text-body-xs text-ash mb-1">Work Completed / Scenes Rehearsed</label>
-            <textarea name="work_completed" rows={3} defaultValue={selectedEvent ? events.find(e => e.id === selectedEvent)?.title || "" : ""} placeholder="What was accomplished today" className="w-full px-3 py-1.5 bg-paper border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none resize-none" />
-          </div>
-          <div>
-            <label className="block text-body-xs text-ash mb-1">Director Notes</label>
-            <textarea name="director_notes" rows={2} placeholder="Notes from the director" className="w-full px-3 py-1.5 bg-paper border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none resize-none" />
-          </div>
-          <div>
-            <label className="block text-body-xs text-brick mb-1">Action Items</label>
-            <textarea name="action_items" rows={2} placeholder="Follow-ups for departments — these will also appear in the Action Items checklist" className="w-full px-3 py-1.5 bg-paper border border-brick/20 rounded-card text-body-sm text-ink focus:border-brick focus:outline-none resize-none" />
-          </div>
-          <div>
-            <label className="block text-body-xs text-ash mb-1">Next Call</label>
-            <input name="next_call" placeholder="Saturday 6:45 PM — Full Cast — DOF Sanctuary" className="w-full px-3 py-1.5 bg-paper border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none" />
-          </div>
-          <button type="submit" disabled={loading} className="px-6 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 transition-colors disabled:opacity-50">
-            {loading ? "Submitting..." : "Submit Report"}
-          </button>
-        </form>
-      )}
     </div>
   );
 }

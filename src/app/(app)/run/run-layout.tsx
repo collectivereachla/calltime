@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   addRunSheetItem, toggleRunSheetItem, deleteRunSheetItem, resetRunSheet,
-  addLineNote, markLineNoteGiven,
   submitShowReport, logRehearsalWork,
 } from "./actions";
 
@@ -29,14 +28,6 @@ interface Report {
   completed_by_name: string | null;
 }
 
-interface LineNote {
-  id: string; person_id: string; actor_name: string;
-  scene_ref: string | null; line_ref: string | null;
-  note_type: string; content: string; given_to_actor: boolean;
-  author_name: string | null; created_at: string;
-}
-
-interface CastMember { id: string; name: string; role: string; }
 interface Scene { id: string; act: number; scene_number: number; title: string | null; }
 interface WorkEntry { id: string; work_type: string; run_count: number; notes: string | null; created_at: string; scene_label: string | null; }
 
@@ -48,13 +39,11 @@ interface Props {
   todayEvents: TodayEvent[];
   runSheetItems: RunSheetItem[];
   reports: Report[];
-  lineNotes: LineNote[];
-  castMembers: CastMember[];
   scenes: Scene[];
   workLog: WorkEntry[];
 }
 
-const TABS = ["Today", "Run Sheet", "Reports", "Line Notes", "Work Log"] as const;
+const TABS = ["Today", "Run Sheet", "Reports", "Work Log"] as const;
 
 function formatTime(t: string | null) {
   if (!t) return "";
@@ -79,15 +68,6 @@ const STATUS_COLORS: Record<string, string> = {
   conflict: "text-conflict bg-conflict/10",
 };
 
-const NOTE_TYPES = [
-  { value: "missed", label: "Missed line" },
-  { value: "paraphrase", label: "Paraphrase" },
-  { value: "jumped", label: "Jumped" },
-  { value: "called", label: "Called for line" },
-  { value: "added", label: "Added words" },
-  { value: "other", label: "Other" },
-];
-
 const RUN_CATEGORIES = [
   { value: "preshow", label: "Preshow" },
   { value: "act_1", label: "Act 1" },
@@ -98,7 +78,7 @@ const RUN_CATEGORIES = [
 
 const inputClass = "w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors";
 
-export function RunLayout({ production, canManage, personId, today, todayEvents, runSheetItems, reports, lineNotes, castMembers, scenes, workLog }: Props) {
+export function RunLayout({ production, canManage, personId, today, todayEvents, runSheetItems, reports, scenes, workLog }: Props) {
   const [tab, setTab] = useState<typeof TABS[number]>("Today");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -289,45 +269,6 @@ export function RunLayout({ production, canManage, personId, today, todayEvents,
         </div>
       )}
 
-      {/* ═══ LINE NOTES ═══ */}
-      {tab === "Line Notes" && (
-        <div>
-          {canManage && <LineNoteForm productionId={production.id} castMembers={castMembers} />}
-
-          {lineNotes.length === 0 ? (
-            <p className="text-body-sm text-muted py-4">No line notes yet.</p>
-          ) : (
-            <div className="space-y-2 mt-4">
-              {lineNotes.map(n => (
-                <div key={n.id} className={`bg-card border rounded-card px-4 py-3 ${n.given_to_actor ? "border-confirmed/30 opacity-60" : "border-bone"}`}>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-body-sm">
-                        <span className="font-medium text-ink">{n.actor_name}</span>
-                        <span className="text-body-xs text-muted ml-2">{n.note_type.replace("_", " ")}</span>
-                      </p>
-                      <p className="text-body-sm text-ash mt-0.5">{n.content}</p>
-                      <p className="text-body-xs text-muted mt-1">
-                        {n.scene_ref}{n.scene_ref && n.line_ref ? " · " : ""}{n.line_ref}
-                        {n.author_name ? ` — ${n.author_name}` : ""}
-                        {" · "}{timeAgo(n.created_at)}
-                      </p>
-                    </div>
-                    {canManage && !n.given_to_actor && (
-                      <button
-                        onClick={async () => { await markLineNoteGiven(n.id); router.refresh(); }}
-                        className="text-body-xs text-muted hover:text-confirmed transition-colors shrink-0 ml-3">
-                        ✓ given
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ═══ WORK LOG ═══ */}
       {tab === "Work Log" && (
         <div>
@@ -455,67 +396,6 @@ function ReportForm({ productionId, today }: { productionId: string; today: stri
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={loading} className="px-4 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 disabled:opacity-50">
           {loading ? "Filing..." : "File report"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-body-sm text-ash hover:text-ink transition-colors">Cancel</button>
-      </div>
-    </form>
-  );
-}
-
-function LineNoteForm({ productionId, castMembers }: { productionId: string; castMembers: CastMember[] }) {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
-
-  if (!open) return (
-    <button onClick={() => setOpen(true)} className="px-4 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 transition-colors">
-      Add line note
-    </button>
-  );
-
-  return (
-    <form onSubmit={async (e) => {
-      e.preventDefault();
-      setLoading(true);
-      const fd = new FormData(e.currentTarget);
-      fd.set("production_id", productionId);
-      await addLineNote(fd);
-      setLoading(false);
-      setOpen(false);
-      router.refresh();
-    }} className="bg-card border border-bone rounded-card p-4 space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-body-sm text-ash mb-1">Actor</label>
-          <select name="person_id" required className={inputClass}>
-            <option value="">Select...</option>
-            {castMembers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.role})</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-body-sm text-ash mb-1">Type</label>
-          <select name="note_type" className={inputClass}>
-            {NOTE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-body-sm text-ash mb-1">Scene</label>
-          <input type="text" name="scene_ref" placeholder="e.g. Act 1, Sc 3" className={inputClass} />
-        </div>
-        <div>
-          <label className="block text-body-sm text-ash mb-1">Line ref</label>
-          <input type="text" name="line_ref" placeholder="e.g. pg 12 or cue line" className={inputClass} />
-        </div>
-      </div>
-      <div>
-        <label className="block text-body-sm text-ash mb-1">Note</label>
-        <textarea name="content" required rows={2} placeholder="What happened" className={inputClass} />
-      </div>
-      <div className="flex gap-2 pt-1">
-        <button type="submit" disabled={loading} className="px-4 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 disabled:opacity-50">
-          {loading ? "Adding..." : "Add note"}
         </button>
         <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-body-sm text-ash hover:text-ink transition-colors">Cancel</button>
       </div>

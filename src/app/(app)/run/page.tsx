@@ -94,22 +94,6 @@ export default async function RunPage() {
     .order("report_date", { ascending: false })
     .limit(10);
 
-  // Line notes
-  const { data: lineNotes } = await supabase
-    .from("line_notes")
-    .select("*, actor:person_id(full_name, preferred_name), author:created_by(full_name, preferred_name)")
-    .eq("production_id", activeProductionId)
-    .order("created_at", { ascending: false })
-    .limit(30);
-
-  // Cast members for line note dropdown
-  const { data: castMembers } = await supabase
-    .from("production_assignments")
-    .select("person_id, role_title, people(id, full_name, preferred_name)")
-    .eq("production_id", activeProductionId)
-    .eq("department", "cast")
-    .eq("active", true);
-
   // Scenes for work log
   const { data: scenes } = await supabase
     .from("scenes")
@@ -167,23 +151,6 @@ export default async function RunPage() {
           action_items: r.action_items, next_call: r.next_call,
           completed_by_name: by?.preferred_name || by?.full_name || null,
         };
-      })}
-      lineNotes={(lineNotes || []).map(n => {
-        const actor = n.actor as unknown as { full_name: string; preferred_name: string | null } | null;
-        const author = n.author as unknown as { full_name: string; preferred_name: string | null } | null;
-        return {
-          id: n.id, person_id: n.person_id,
-          actor_name: actor?.preferred_name || actor?.full_name || "Unknown",
-          scene_ref: n.scene_ref, line_ref: n.line_ref,
-          note_type: n.note_type, content: n.content,
-          given_to_actor: n.given_to_actor,
-          author_name: author?.preferred_name || author?.full_name || null,
-          created_at: n.created_at,
-        };
-      })}
-      castMembers={(castMembers || []).filter(c => c.people).map(c => {
-        const p = c.people as unknown as { id: string; full_name: string; preferred_name: string | null };
-        return { id: p.id, name: p.preferred_name || p.full_name, role: c.role_title };
       })}
       scenes={(scenes || []).map(s => ({
         id: s.id, act: s.act, scene_number: s.scene_number, title: s.title,
