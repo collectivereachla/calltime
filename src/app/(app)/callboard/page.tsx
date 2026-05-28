@@ -100,6 +100,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
         location,
         notes,
         production_id,
+        mandatory,
         productions(title),
         event_calls(
           id,
@@ -428,6 +429,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
                         currentStatus={myResponse?.status || null}
                         currentPersonId={person!.id}
                         canManage={canManage}
+                        mandatory={(event as unknown as { mandatory: boolean }).mandatory}
                         companyMembers={companyMembers.map((m) => ({ id: m.id, name: m.name }))}
                         calls={calls.map((call) => {
                           const p = call.people as unknown as {

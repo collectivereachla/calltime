@@ -19,15 +19,16 @@ interface CompanyMember {
 
 interface Props {
   eventId: string;
-  eventCallId: string | null; // null if current user isn't called
+  eventCallId: string | null;
   currentStatus: string | null;
   calls: CallInfo[];
   canManage: boolean;
   currentPersonId: string;
   companyMembers: CompanyMember[];
+  mandatory?: boolean;
 }
 
-export function EventCard({ eventId, eventCallId, currentStatus, calls, canManage, currentPersonId, companyMembers }: Props) {
+export function EventCard({ eventId, eventCallId, currentStatus, calls, canManage, currentPersonId, companyMembers, mandatory }: Props) {
   const [activeStatus, setActiveStatus] = useState<string | null>(currentStatus);
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [addedCalls, setAddedCalls] = useState<CallInfo[]>([]);
@@ -133,11 +134,20 @@ export function EventCard({ eventId, eventCallId, currentStatus, calls, canManag
       {/* Response buttons (if user is called) */}
       {eventCallId && (
         <div className="mt-3 pt-3 border-t border-bone print:hidden">
-          {error && <p className="text-body-xs text-brick mb-2">{error}</p>}
-          {saved && <p className="text-body-xs text-confirmed mb-2">Response saved.</p>}
+          {mandatory ? (
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1.5 text-body-xs font-medium rounded-full border border-confirmed bg-confirmed/10 text-confirmed">
+                Confirmed ✓
+              </span>
+              <span className="text-body-xs text-ash font-medium uppercase tracking-wider">Mandatory call</span>
+            </div>
+          ) : (
+            <>
+              {error && <p className="text-body-xs text-brick mb-2">{error}</p>}
+              {saved && <p className="text-body-xs text-confirmed mb-2">Response saved.</p>}
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-body-xs text-muted mr-1">Respond:</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-body-xs text-muted mr-1">Respond:</span>
             <button
               onClick={() => handleRespond("confirmed")}
               disabled={loading}
@@ -203,6 +213,8 @@ export function EventCard({ eventId, eventCallId, currentStatus, calls, canManag
                 Cancel
               </button>
             </div>
+          )}
+            </>
           )}
         </div>
       )}
