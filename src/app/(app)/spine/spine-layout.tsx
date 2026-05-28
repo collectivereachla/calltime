@@ -150,6 +150,7 @@ export function SpineLayout(props: Props) {
           productionId={props.productionId}
           notes={props.lineNotes}
           cast={props.cast}
+          annotations={props.annotations}
         />
       )}
       {tab === "reports" && props.canManage && (

@@ -195,6 +195,7 @@ export default async function SpinePage({
     script_line_id: string | null;
     scene_ref: string | null;
     line_ref: string | null;
+    category: string;
     note_type: string;
     content: string;
     marked_text: string | null;
@@ -221,6 +222,7 @@ export default async function SpinePage({
         script_line_id: n.script_line_id,
         scene_ref: n.scene_ref,
         line_ref: n.line_ref,
+        category: n.category,
         note_type: n.note_type,
         content: n.content,
         marked_text: n.marked_text,

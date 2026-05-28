@@ -14,6 +14,13 @@ interface ScriptLine {
   content: string;
 }
 
+interface Annotation {
+  id: string;
+  script_line_id: string;
+  note_type: string;
+  content: string;
+}
+
 export interface LineNote {
   id: string;
   person_id: string;
@@ -22,6 +29,7 @@ export interface LineNote {
   script_line_id: string | null;
   scene_ref: string | null;
   line_ref: string | null;
+  category: string;
   note_type: string;
   content: string;
   marked_text: string | null;
@@ -37,11 +45,14 @@ interface Props {
   productionId: string;
   notes: LineNote[];
   cast: { person_id: string; name: string }[];
+  annotations: Annotation[];
 }
+
+type NoteCategory = "line" | "blocking";
 
 // Naturalistic-tuned note types. note_type is free text in the DB; these are the
 // fast-capture palette. Order = frequency in an off-book run.
-const NOTE_TYPES: { value: string; label: string; short: string; span?: boolean }[] = [
+const LINE_TYPES: { value: string; label: string; short: string; span?: boolean }[] = [
   { value: "called_line", label: "Called line", short: "Line" },
   { value: "dropped", label: "Dropped", short: "Dropped", span: true },
   { value: "paraphrased", label: "Paraphrased", short: "Para" },
@@ -49,8 +60,18 @@ const NOTE_TYPES: { value: string; label: string; short: string; span?: boolean 
   { value: "cue", label: "Cue", short: "Cue" },
 ];
 
+// Blocking-issue types: what an actor commonly gets wrong in execution.
+const BLOCKING_TYPES: { value: string; label: string; short: string }[] = [
+  { value: "position", label: "Wrong position", short: "Position" },
+  { value: "cross", label: "Missed / wrong cross", short: "Cross" },
+  { value: "entrance", label: "Entrance", short: "Entrance" },
+  { value: "exit", label: "Exit", short: "Exit" },
+];
+
+const ALL_TYPES = [...LINE_TYPES, ...BLOCKING_TYPES];
+
 function typeLabel(value: string): string {
-  return NOTE_TYPES.find((t) => t.value === value)?.label || value.replace(/_/g, " ");
+  return ALL_TYPES.find((t) => t.value === value)?.label || value.replace(/_/g, " ");
 }
 
 function timeAgo(iso: string): string {
@@ -63,9 +84,21 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export function LineNotes({ lines, canManage, personId, productionId, notes, cast }: Props) {
+export function LineNotes({ lines, canManage, personId, productionId, notes, cast, annotations }: Props) {
   const router = useRouter();
   const [previewActorId, setPreviewActorId] = useState<string | null>(null);
+
+  // Planned blocking, keyed by line — shown inline so the SM follows the full prompt book.
+  const blockingByLine = useMemo(() => {
+    const m = new Map<string, Annotation[]>();
+    for (const a of annotations) {
+      if (a.note_type !== "blocking") continue;
+      const arr = m.get(a.script_line_id) || [];
+      arr.push(a);
+      m.set(a.script_line_id, arr);
+    }
+    return m;
+  }, [annotations]);
 
   // Markable lines = dialogue with a character (those resolve to an actor).
   const renderable = useMemo(
@@ -148,7 +181,7 @@ export function LineNotes({ lines, canManage, personId, productionId, notes, cas
 
   const tracked = markableInScene.find((l) => l.id === trackedId) || null;
 
-  async function commit(line: ScriptLine, noteType: string, markedText: string | null) {
+  async function commit(line: ScriptLine, noteType: string, markedText: string | null, category: NoteCategory) {
     setSaving(true);
     const res = await addFastLineNote({
       productionId,
@@ -156,6 +189,7 @@ export function LineNotes({ lines, canManage, personId, productionId, notes, cas
       noteType,
       markedText,
       eventId: null,
+      category,
     });
     setSaving(false);
     setOpenLineId(null);
@@ -165,41 +199,58 @@ export function LineNotes({ lines, canManage, personId, productionId, notes, cas
       setFlash({ lineId: line.id, text: res.error });
       setTimeout(() => setFlash(null), 3500);
     } else {
-      setFlash({ lineId: line.id, text: `${typeLabel(noteType)} → logged` });
+      const verb = category === "blocking" ? "Blocking" : typeLabel(noteType);
+      setFlash({ lineId: line.id, text: `${verb} → logged` });
       setTimeout(() => setFlash(null), 1400);
       router.refresh();
     }
   }
 
-  function handleType(line: ScriptLine, t: (typeof NOTE_TYPES)[number]) {
+  function handleLineType(line: ScriptLine, t: (typeof LINE_TYPES)[number]) {
     if (t.span) {
       // Open word selector; specifying words is optional.
       setSpanFor(line.id);
       setSpanWords(new Set());
     } else {
-      commit(line, t.value, null);
+      commit(line, t.value, null, "line");
     }
   }
 
   function paletteFor(line: ScriptLine) {
     return (
-      <div className="flex flex-wrap gap-1.5 mt-1.5 print:hidden">
-        {NOTE_TYPES.map((t) => (
+      <div className="mt-1.5 space-y-1.5 print:hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-data-sm text-muted uppercase tracking-wider w-14 shrink-0">Line</span>
+          {LINE_TYPES.map((t) => (
+            <button
+              key={t.value}
+              disabled={saving}
+              onClick={() => handleLineType(line, t)}
+              className="px-2.5 py-1 rounded-card border border-bone bg-card text-data-sm text-ink hover:border-brick hover:text-brick transition-colors disabled:opacity-40"
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-data-sm text-muted uppercase tracking-wider w-14 shrink-0">Blocking</span>
+          {BLOCKING_TYPES.map((t) => (
+            <button
+              key={t.value}
+              disabled={saving}
+              onClick={() => commit(line, t.value, null, "blocking")}
+              className="px-2.5 py-1 rounded-card border border-bone bg-card text-data-sm text-ink hover:border-confirmed hover:text-confirmed transition-colors disabled:opacity-40"
+            >
+              {t.label}
+            </button>
+          ))}
           <button
-            key={t.value}
-            disabled={saving}
-            onClick={(e) => { e.stopPropagation(); handleType(line, t); }}
-            className="px-2.5 py-1 rounded-card border border-bone bg-card text-data-sm text-ink hover:border-brick hover:text-brick transition-colors disabled:opacity-40"
+            onClick={() => { setOpenLineId(null); setSpanFor(null); }}
+            className="px-2 py-1 text-data-sm text-muted hover:text-ink ml-auto"
           >
-            {t.label}
+            ✕
           </button>
-        ))}
-        <button
-          onClick={(e) => { e.stopPropagation(); setOpenLineId(null); setSpanFor(null); }}
-          className="px-2 py-1 text-data-sm text-muted hover:text-ink"
-        >
-          ✕
-        </button>
+        </div>
       </div>
     );
   }
@@ -235,7 +286,7 @@ export function LineNotes({ lines, canManage, personId, productionId, notes, cas
             disabled={saving}
             onClick={() => {
               const marked = words.filter((_, i) => spanWords.has(i)).join(" ").trim();
-              commit(line, "dropped", marked || null);
+              commit(line, "dropped", marked || null, "line");
             }}
             className="px-3 py-1 bg-ink text-paper text-body-xs font-medium rounded-card hover:bg-ink/90 disabled:opacity-50"
           >
@@ -391,10 +442,17 @@ export function LineNotes({ lines, canManage, personId, productionId, notes, cas
 
           if (!markable) {
             // Context line (stage direction / setting) — shown, not tappable.
+            const blk = blockingByLine.get(line.id);
             return (
-              <p key={line.id} className="text-body-sm text-ash italic py-1 leading-relaxed">
-                {line.content}
-              </p>
+              <div key={line.id} className="py-1">
+                <p className="text-body-sm text-ash italic leading-relaxed">{line.content}</p>
+                {blk?.map((a) => (
+                  <p key={a.id} className="text-body-sm text-confirmed mt-0.5 pl-3 border-l-2 border-confirmed/40 leading-relaxed">
+                    <span className="uppercase tracking-wider text-data-sm text-confirmed/80 mr-1.5">blocking</span>
+                    {a.content}
+                  </p>
+                ))}
+              </div>
             );
           }
 
@@ -423,6 +481,13 @@ export function LineNotes({ lines, canManage, personId, productionId, notes, cas
               )}
               <p className="text-body-md text-ink leading-relaxed">{line.content}</p>
 
+              {blockingByLine.get(line.id)?.map((a) => (
+                <p key={a.id} className="text-body-sm text-confirmed mt-0.5 pl-3 border-l-2 border-confirmed/40 leading-relaxed">
+                  <span className="uppercase tracking-wider text-data-sm text-confirmed/80 mr-1.5">blocking</span>
+                  {a.content}
+                </p>
+              ))}
+
               {flash?.lineId === line.id && (
                 <p className="text-data-sm text-confirmed mt-1">{flash.text}</p>
               )}
@@ -443,13 +508,13 @@ export function LineNotes({ lines, canManage, personId, productionId, notes, cas
             </p>
             <div className="flex items-center gap-1.5">
               <button onClick={() => advance(-1)} className="px-2 py-1.5 text-body-sm text-ash hover:text-ink">↑</button>
-              {NOTE_TYPES.map((t) => (
+              {LINE_TYPES.map((t) => (
                 <button
                   key={t.value}
                   disabled={saving}
                   onClick={() => {
                     if (t.span) { setOpenLineId(tracked.id); setSpanFor(tracked.id); setSpanWords(new Set()); lineRefs.current.get(tracked.id)?.scrollIntoView({ block: "center", behavior: "smooth" }); }
-                    else commit(tracked, t.value, null);
+                    else commit(tracked, t.value, null, "line");
                   }}
                   className="flex-1 px-2 py-1.5 rounded-card bg-ink text-paper text-data-sm font-medium hover:bg-ink/90 disabled:opacity-40"
                 >
@@ -457,6 +522,19 @@ export function LineNotes({ lines, canManage, personId, productionId, notes, cas
                 </button>
               ))}
               <button onClick={() => advance(1)} className="px-2 py-1.5 text-body-sm text-ash hover:text-ink">↓</button>
+            </div>
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <span className="text-data-sm text-muted uppercase tracking-wider px-1">Blk</span>
+              {BLOCKING_TYPES.map((t) => (
+                <button
+                  key={t.value}
+                  disabled={saving}
+                  onClick={() => commit(tracked, t.value, null, "blocking")}
+                  className="flex-1 px-2 py-1.5 rounded-card border border-confirmed/40 bg-card text-confirmed text-data-sm font-medium hover:bg-confirmed/10 disabled:opacity-40"
+                >
+                  {t.short}
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -494,11 +572,24 @@ function ActorNoteGroup({
           <div key={n.id} className={`bg-card border border-bone rounded-card p-4 ${dimmed ? "opacity-60" : ""}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-data-sm text-brick uppercase tracking-wider">{typeLabel(n.note_type)}</p>
-                <p className="text-body-md text-ink leading-relaxed mt-0.5">
-                  {n.marked_text ? <span className="line-through text-brick">{n.marked_text}</span> : n.content}
-                </p>
-                {n.marked_text && (
+                <div className="flex items-center gap-2">
+                  <span className={`text-data-sm uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                    n.category === "blocking" ? "bg-confirmed/15 text-confirmed" : "bg-brick/10 text-brick"
+                  }`}>
+                    {n.category === "blocking" ? "Blocking" : "Line"}
+                  </span>
+                  <span className="text-data-sm text-ash uppercase tracking-wider">{typeLabel(n.note_type)}</span>
+                </div>
+                {n.category === "blocking" ? (
+                  <p className="text-body-md text-ink leading-relaxed mt-1">
+                    Should be: <span className="text-ink">{n.content}</span>
+                  </p>
+                ) : (
+                  <p className="text-body-md text-ink leading-relaxed mt-1">
+                    {n.marked_text ? <span className="line-through text-brick">{n.marked_text}</span> : n.content}
+                  </p>
+                )}
+                {n.category !== "blocking" && n.marked_text && (
                   <p className="text-body-sm text-ash mt-0.5">in: {n.content}</p>
                 )}
                 <p className="text-body-xs text-muted mt-1">

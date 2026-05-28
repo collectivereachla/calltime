@@ -143,6 +143,7 @@ export async function addFastLineNote(input: {
   noteType: string;
   markedText?: string | null;
   eventId?: string | null;
+  category?: "line" | "blocking";
 }) {
   const supabase = await createClient();
 
@@ -178,6 +179,24 @@ export async function addFastLineNote(input: {
   const sceneRef = line.act != null && line.scene != null
     ? `Act ${line.act}, Sc ${line.scene}` : null;
   const lineRef = `L${line.line_number}`;
+  const category = input.category === "blocking" ? "blocking" : "line";
+
+  // For a blocking note, the useful content is the *intended* blocking for this
+  // moment (the planned blocking annotation), so the actor sees what the move
+  // should be. For a line note, the content is the line as written.
+  let content: string;
+  if (category === "blocking") {
+    const { data: blockingAnno } = await supabase
+      .from("script_annotations")
+      .select("content")
+      .eq("script_line_id", line.id)
+      .eq("note_type", "blocking")
+      .limit(1)
+      .maybeSingle();
+    content = blockingAnno?.content?.trim() || line.content;
+  } else {
+    content = input.markedText?.trim() ? input.markedText.trim() : line.content;
+  }
 
   const { error } = await supabase.from("line_notes").insert({
     production_id: input.productionId,
@@ -186,10 +205,10 @@ export async function addFastLineNote(input: {
     script_line_id: line.id,
     scene_ref: sceneRef,
     line_ref: lineRef,
-    note_type: input.noteType || "missed",
-    // The script line IS the note: store the correct text, plus the marked span if given.
-    content: input.markedText?.trim() ? input.markedText.trim() : line.content,
-    marked_text: input.markedText?.trim() || null,
+    category,
+    note_type: input.noteType || (category === "blocking" ? "position" : "missed"),
+    content,
+    marked_text: category === "line" ? (input.markedText?.trim() || null) : null,
     created_by: person.id,
   });
   if (error) return { error: error.message };
@@ -207,7 +226,7 @@ export async function addFastLineNote(input: {
       actorPersonId: person.id,
       action: "line_note_added",
       entityType: "line_note",
-      summary: `${authorName} gave ${actorName} a line note`,
+      summary: `${authorName} gave ${actorName} a ${category} note`,
     }).catch(() => {});
   }
 
