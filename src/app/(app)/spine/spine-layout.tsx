@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SpineViewer } from "./spine-viewer";
 import { LineLab } from "./line-lab";
+import { LineNotes, type LineNote } from "./line-notes";
 import { ScriptReports } from "./script-reports";
 import { VersionBar } from "./version-bar";
 
@@ -43,7 +44,7 @@ export interface ScriptVersion {
   annotation_count: number;
 }
 
-type Tab = "script" | "linelab" | "reports";
+type Tab = "script" | "linelab" | "linenotes" | "reports";
 
 interface Props {
   lines: ScriptLine[];
@@ -59,6 +60,7 @@ interface Props {
   activeVersionId: string;
   isLocked: boolean;
   productionId: string;
+  lineNotes: LineNote[];
 }
 
 export function SpineLayout(props: Props) {
@@ -78,6 +80,7 @@ export function SpineLayout(props: Props) {
   const tabs: { key: Tab; label: string; staffOnly?: boolean }[] = [
     { key: "script", label: "Script" },
     { key: "linelab", label: isMonologue ? "Monologue Lab" : "Line Lab" },
+    { key: "linenotes", label: "Line Notes" },
     { key: "reports", label: "Reports", staffOnly: true },
   ];
 
@@ -136,6 +139,15 @@ export function SpineLayout(props: Props) {
           personId={props.personId}
           isMonologue={isMonologue}
           soloCharacter={soloCharacter}
+        />
+      )}
+      {tab === "linenotes" && (
+        <LineNotes
+          lines={props.lines}
+          canManage={props.canManage}
+          personId={props.personId}
+          productionId={props.productionId}
+          notes={props.lineNotes}
         />
       )}
       {tab === "reports" && props.canManage && (

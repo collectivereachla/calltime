@@ -186,6 +186,51 @@ export default async function SpinePage({
     myCharacters = assignments?.map((a) => a.role_title) || [];
   }
 
+  // Line notes for this production (capture/review/delivery live in Spine).
+  let lineNotes: {
+    id: string;
+    person_id: string;
+    actor_name: string;
+    author_name: string | null;
+    script_line_id: string | null;
+    scene_ref: string | null;
+    line_ref: string | null;
+    note_type: string;
+    content: string;
+    marked_text: string | null;
+    given_to_actor: boolean;
+    corrected_at: string | null;
+    created_at: string;
+  }[] = [];
+
+  if (productionIds.length > 0) {
+    const { data } = await supabase
+      .from("line_notes")
+      .select("*, actor:person_id(full_name, preferred_name), author:created_by(full_name, preferred_name)")
+      .eq("production_id", productionIds[0])
+      .order("created_at", { ascending: false })
+      .limit(300);
+    lineNotes = (data || []).map((n) => {
+      const actor = n.actor as unknown as { full_name: string; preferred_name: string | null } | null;
+      const author = n.author as unknown as { full_name: string; preferred_name: string | null } | null;
+      return {
+        id: n.id,
+        person_id: n.person_id,
+        actor_name: actor?.preferred_name || actor?.full_name || "Unknown",
+        author_name: author?.preferred_name || author?.full_name || null,
+        script_line_id: n.script_line_id,
+        scene_ref: n.scene_ref,
+        line_ref: n.line_ref,
+        note_type: n.note_type,
+        content: n.content,
+        marked_text: n.marked_text,
+        given_to_actor: n.given_to_actor,
+        corrected_at: n.corrected_at,
+        created_at: n.created_at,
+      };
+    });
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="mb-8">
@@ -230,6 +275,7 @@ export default async function SpinePage({
           activeVersionId={activeScript.id}
           isLocked={activeScript.is_locked}
           productionId={productionIds[0]}
+          lineNotes={lineNotes}
         />
       )}
     </div>

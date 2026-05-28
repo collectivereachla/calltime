@@ -125,6 +125,108 @@ export async function addLineNote(formData: FormData) {
   return { success: true };
 }
 
+// Resolve a script character name (e.g. "ISAAC" or "ISAAC / NARRATOR") to the
+// person playing it, via production_assignments.role_title. Mirrors the matcher
+// used in Line Lab so dual-role casting resolves correctly.
+function characterMatchesRole(character: string, roleTitle: string): boolean {
+  const charParts = character.toUpperCase().split(" / ").map((s) => s.trim());
+  const roleParts = roleTitle.toUpperCase().split(" / ").map((s) => s.trim());
+  return charParts.some((c) => roleParts.some((r) => r === c));
+}
+
+// Fast capture: one tap on a script line + a note type. The actor is derived
+// from the line's character — no dropdown. marked_text is the optional
+// dropped/added span the SM highlighted on the line itself.
+export async function addFastLineNote(input: {
+  productionId: string;
+  scriptLineId: string;
+  noteType: string;
+  markedText?: string | null;
+  eventId?: string | null;
+}) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: person } = await supabase
+    .from("people").select("id, full_name, preferred_name").eq("user_id", user.id).single();
+  if (!person) return { error: "No person record" };
+
+  // The line being marked — gives us character, act/scene, and content for refs.
+  const { data: line } = await supabase
+    .from("script_lines")
+    .select("id, line_number, act, scene, character, content")
+    .eq("id", input.scriptLineId)
+    .single();
+  if (!line) return { error: "Script line not found" };
+  if (!line.character) return { error: "That line has no character to assign a note to" };
+
+  // Resolve the actor from the character.
+  const { data: cast } = await supabase
+    .from("production_assignments")
+    .select("person_id, role_title")
+    .eq("production_id", input.productionId)
+    .eq("department", "cast")
+    .eq("active", true);
+
+  const match = (cast || []).find((c) => characterMatchesRole(line.character!, c.role_title));
+  if (!match) {
+    return { error: `No active cast member is assigned to ${line.character}. Add the casting in Company first.` };
+  }
+
+  const sceneRef = line.act != null && line.scene != null
+    ? `Act ${line.act}, Sc ${line.scene}` : null;
+  const lineRef = `L${line.line_number}`;
+
+  const { error } = await supabase.from("line_notes").insert({
+    production_id: input.productionId,
+    event_id: input.eventId || null,
+    person_id: match.person_id,
+    script_line_id: line.id,
+    scene_ref: sceneRef,
+    line_ref: lineRef,
+    note_type: input.noteType || "missed",
+    // The script line IS the note: store the correct text, plus the marked span if given.
+    content: input.markedText?.trim() ? input.markedText.trim() : line.content,
+    marked_text: input.markedText?.trim() || null,
+    created_by: person.id,
+  });
+  if (error) return { error: error.message };
+
+  const { data: prod } = await supabase
+    .from("productions").select("org_id").eq("id", input.productionId).single();
+  const { data: actor } = await supabase
+    .from("people").select("preferred_name, full_name").eq("id", match.person_id).single();
+  if (prod && actor) {
+    const actorName = actor.preferred_name || actor.full_name.split(" ")[0];
+    const authorName = person.preferred_name || person.full_name.split(" ")[0];
+    logActivity({
+      productionId: input.productionId,
+      orgId: prod.org_id,
+      actorPersonId: person.id,
+      action: "line_note_added",
+      entityType: "line_note",
+      summary: `${authorName} gave ${actorName} a line note`,
+    }).catch(() => {});
+  }
+
+  revalidatePath("/run");
+  return { success: true, actorPersonId: match.person_id };
+}
+
+// Actor acknowledges a note ("Got it") — distinct from the SM marking it delivered.
+export async function markLineNoteCorrected(noteId: string, corrected: boolean) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("line_notes")
+    .update({ corrected_at: corrected ? new Date().toISOString() : null })
+    .eq("id", noteId);
+  if (error) return { error: error.message };
+  revalidatePath("/run");
+  return { success: true };
+}
+
 export async function markLineNoteGiven(noteId: string) {
   const supabase = await createClient();
   const { error } = await supabase
