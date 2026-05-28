@@ -144,6 +144,8 @@ export async function addFastLineNote(input: {
   markedText?: string | null;
   eventId?: string | null;
   category?: "line" | "blocking";
+  personId?: string | null;   // explicit actor (e.g. blocking on a stage direction)
+  content?: string | null;    // explicit content (e.g. a tapped blocking note)
 }) {
   const supabase = await createClient();
 
@@ -161,19 +163,24 @@ export async function addFastLineNote(input: {
     .eq("id", input.scriptLineId)
     .single();
   if (!line) return { error: "Script line not found" };
-  if (!line.character) return { error: "That line has no character to assign a note to" };
 
-  // Resolve the actor from the character.
-  const { data: cast } = await supabase
-    .from("production_assignments")
-    .select("person_id, role_title")
-    .eq("production_id", input.productionId)
-    .eq("department", "cast")
-    .eq("active", true);
-
-  const match = (cast || []).find((c) => characterMatchesRole(line.character!, c.role_title));
-  if (!match) {
-    return { error: `No active cast member is assigned to ${line.character}. Add the casting in Company first.` };
+  // Resolve the actor. If one was passed explicitly (blocking notes tapped on a
+  // stage direction name the actor directly), use it; otherwise derive from the
+  // line's character.
+  let targetPersonId = input.personId || null;
+  if (!targetPersonId) {
+    if (!line.character) return { error: "That line has no character to assign a note to" };
+    const { data: cast } = await supabase
+      .from("production_assignments")
+      .select("person_id, role_title")
+      .eq("production_id", input.productionId)
+      .eq("department", "cast")
+      .eq("active", true);
+    const match = (cast || []).find((c) => characterMatchesRole(line.character!, c.role_title));
+    if (!match) {
+      return { error: `No active cast member is assigned to ${line.character}. Add the casting in Company first.` };
+    }
+    targetPersonId = match.person_id;
   }
 
   const sceneRef = line.act != null && line.scene != null
@@ -182,18 +189,23 @@ export async function addFastLineNote(input: {
   const category = input.category === "blocking" ? "blocking" : "line";
 
   // For a blocking note, the useful content is the *intended* blocking for this
-  // moment (the planned blocking annotation), so the actor sees what the move
-  // should be. For a line note, the content is the line as written.
+  // moment, so the actor sees what the move should be. A tapped blocking note
+  // passes its content directly; otherwise fall back to the line's planned
+  // blocking annotation, then the line text. Line notes use the line as written.
   let content: string;
   if (category === "blocking") {
-    const { data: blockingAnno } = await supabase
-      .from("script_annotations")
-      .select("content")
-      .eq("script_line_id", line.id)
-      .eq("note_type", "blocking")
-      .limit(1)
-      .maybeSingle();
-    content = blockingAnno?.content?.trim() || line.content;
+    if (input.content?.trim()) {
+      content = input.content.trim();
+    } else {
+      const { data: blockingAnno } = await supabase
+        .from("script_annotations")
+        .select("content")
+        .eq("script_line_id", line.id)
+        .eq("note_type", "blocking")
+        .limit(1)
+        .maybeSingle();
+      content = blockingAnno?.content?.trim() || line.content;
+    }
   } else {
     content = input.markedText?.trim() ? input.markedText.trim() : line.content;
   }
@@ -201,7 +213,7 @@ export async function addFastLineNote(input: {
   const { error } = await supabase.from("line_notes").insert({
     production_id: input.productionId,
     event_id: input.eventId || null,
-    person_id: match.person_id,
+    person_id: targetPersonId,
     script_line_id: line.id,
     scene_ref: sceneRef,
     line_ref: lineRef,
@@ -216,7 +228,7 @@ export async function addFastLineNote(input: {
   const { data: prod } = await supabase
     .from("productions").select("org_id").eq("id", input.productionId).single();
   const { data: actor } = await supabase
-    .from("people").select("preferred_name, full_name").eq("id", match.person_id).single();
+    .from("people").select("preferred_name, full_name").eq("id", targetPersonId).single();
   if (prod && actor) {
     const actorName = actor.preferred_name || actor.full_name.split(" ")[0];
     const authorName = person.preferred_name || person.full_name.split(" ")[0];
@@ -231,7 +243,7 @@ export async function addFastLineNote(input: {
   }
 
   revalidatePath("/run");
-  return { success: true, actorPersonId: match.person_id };
+  return { success: true, actorPersonId: targetPersonId };
 }
 
 // Actor acknowledges a note ("Got it") — distinct from the SM marking it delivered.

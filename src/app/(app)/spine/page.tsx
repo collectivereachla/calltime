@@ -234,7 +234,7 @@ export default async function SpinePage({
   }
 
   // Cast roster — used for the manager "preview as actor" control in Line Notes.
-  let cast: { person_id: string; name: string }[] = [];
+  let cast: { person_id: string; name: string; role_title: string }[] = [];
   if (productionIds.length > 0) {
     const { data: castData } = await supabase
       .from("production_assignments")
@@ -245,7 +245,7 @@ export default async function SpinePage({
       .order("role_title", { ascending: true });
     cast = (castData || []).filter((c) => c.people).map((c) => {
       const p = c.people as unknown as { full_name: string; preferred_name: string | null };
-      return { person_id: c.person_id, name: p.preferred_name || p.full_name };
+      return { person_id: c.person_id, name: p.preferred_name || p.full_name, role_title: c.role_title };
     });
   }
 

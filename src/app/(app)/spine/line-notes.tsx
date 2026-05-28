@@ -44,7 +44,7 @@ interface Props {
   personId: string;
   productionId: string;
   notes: LineNote[];
-  cast: { person_id: string; name: string }[];
+  cast: { person_id: string; name: string; role_title: string }[];
   annotations: Annotation[];
 }
 
@@ -87,6 +87,38 @@ function timeAgo(iso: string): string {
 export function LineNotes({ lines, canManage, personId, productionId, notes, cast, annotations }: Props) {
   const router = useRouter();
   const [previewActorId, setPreviewActorId] = useState<string | null>(null);
+
+  // Blocking-report state: which planned-blocking note is open for reporting,
+  // and which actors are selected for it.
+  const [openBlockingId, setOpenBlockingId] = useState<string | null>(null);
+  const [blkActors, setBlkActors] = useState<Set<string>>(new Set());
+  const [blkFlash, setBlkFlash] = useState<{ id: string; text: string } | null>(null);
+
+  // Best-effort: which cast members are named in a blocking note's text, so the
+  // common actors are pre-selected when the SM taps to report.
+  const detectActors = useCallback(
+    (content: string): string[] => {
+      const up = ` ${content.toUpperCase()} `;
+      return cast
+        .filter((c) =>
+          c.role_title
+            .toUpperCase()
+            .split(" / ")
+            .some((part) => {
+              const p = part.trim();
+              return p.length >= 3 && up.includes(` ${p} `);
+            })
+        )
+        .map((c) => c.person_id);
+    },
+    [cast]
+  );
+
+  function openBlockingReport(a: Annotation) {
+    if (openBlockingId === a.id) { setOpenBlockingId(null); return; }
+    setOpenBlockingId(a.id);
+    setBlkActors(new Set(detectActors(a.content)));
+  }
 
   // Planned blocking, keyed by line — shown inline so the SM follows the full prompt book.
   const blockingByLine = useMemo(() => {
@@ -214,6 +246,111 @@ export function LineNotes({ lines, canManage, personId, productionId, notes, cas
     } else {
       commit(line, t.value, null, "line");
     }
+  }
+
+  // Report a blocking error against a tapped planned-blocking note. The actor(s)
+  // are chosen (a stage direction has no single character), and each gets a note
+  // carrying the intended blocking as content.
+  async function commitBlocking(a: Annotation, noteType: string) {
+    const ids = [...blkActors];
+    if (ids.length === 0) {
+      setBlkFlash({ id: a.id, text: "Pick who it's for first." });
+      setTimeout(() => setBlkFlash(null), 2500);
+      return;
+    }
+    setSaving(true);
+    const results = await Promise.all(
+      ids.map((personId) =>
+        addFastLineNote({
+          productionId,
+          scriptLineId: a.script_line_id,
+          noteType,
+          category: "blocking",
+          personId,
+          content: a.content,
+          eventId: null,
+        })
+      )
+    );
+    setSaving(false);
+    const err = results.find((r) => r?.error)?.error;
+    if (err) {
+      setBlkFlash({ id: a.id, text: err });
+      setTimeout(() => setBlkFlash(null), 3500);
+    } else {
+      setOpenBlockingId(null);
+      setBlkActors(new Set());
+      setBlkFlash({ id: a.id, text: `Blocking → logged to ${ids.length} actor${ids.length > 1 ? "s" : ""}` });
+      setTimeout(() => setBlkFlash(null), 1600);
+      router.refresh();
+    }
+  }
+
+  // A planned-blocking note, tappable to report a blocking error.
+  function blockingNoteEl(a: Annotation) {
+    const isOpen = openBlockingId === a.id;
+    return (
+      <div key={a.id} className="mt-0.5 print:mt-0">
+        <button
+          onClick={(e) => { e.stopPropagation(); openBlockingReport(a); }}
+          className={`block text-left w-full pl-3 border-l-2 leading-relaxed transition-colors ${
+            isOpen ? "border-confirmed bg-confirmed/5" : "border-confirmed/40 hover:bg-confirmed/5"
+          }`}
+        >
+          <span className="uppercase tracking-wider text-data-sm text-confirmed/80 mr-1.5">blocking</span>
+          <span className="text-body-sm text-confirmed">{a.content}</span>
+        </button>
+
+        {isOpen && (
+          <div className="mt-1.5 ml-3 p-2.5 bg-card border border-bone rounded-card print:hidden" onClick={(e) => e.stopPropagation()}>
+            <p className="text-body-xs text-muted mb-1.5">Who missed it? (tap to select)</p>
+            <div className="flex flex-wrap gap-1.5 mb-2.5">
+              {cast.map((c) => {
+                const on = blkActors.has(c.person_id);
+                return (
+                  <button
+                    key={c.person_id}
+                    onClick={() => {
+                      const next = new Set(blkActors);
+                      if (on) next.delete(c.person_id); else next.add(c.person_id);
+                      setBlkActors(next);
+                    }}
+                    className={`px-2 py-1 rounded-card text-data-sm border transition-colors ${
+                      on ? "bg-confirmed text-paper border-confirmed" : "bg-card text-ash border-bone hover:border-confirmed"
+                    }`}
+                    title={c.role_title}
+                  >
+                    {c.name}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-data-sm text-muted uppercase tracking-wider mr-0.5">Issue</span>
+              {BLOCKING_TYPES.map((t) => (
+                <button
+                  key={t.value}
+                  disabled={saving}
+                  onClick={() => commitBlocking(a, t.value)}
+                  className="px-2.5 py-1 rounded-card border border-confirmed/40 bg-card text-confirmed text-data-sm font-medium hover:bg-confirmed/10 disabled:opacity-40"
+                >
+                  {t.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setOpenBlockingId(null)}
+                className="px-2 py-1 text-data-sm text-muted hover:text-ink ml-auto"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+        {blkFlash?.id === a.id && (
+          <p className="text-data-sm text-confirmed mt-1 ml-3">{blkFlash.text}</p>
+        )}
+      </div>
+    );
   }
 
   function paletteFor(line: ScriptLine) {
@@ -446,12 +583,7 @@ export function LineNotes({ lines, canManage, personId, productionId, notes, cas
             return (
               <div key={line.id} className="py-1">
                 <p className="text-body-sm text-ash italic leading-relaxed">{line.content}</p>
-                {blk?.map((a) => (
-                  <p key={a.id} className="text-body-sm text-confirmed mt-0.5 pl-3 border-l-2 border-confirmed/40 leading-relaxed">
-                    <span className="uppercase tracking-wider text-data-sm text-confirmed/80 mr-1.5">blocking</span>
-                    {a.content}
-                  </p>
-                ))}
+                {blk?.map((a) => blockingNoteEl(a))}
               </div>
             );
           }
@@ -481,12 +613,7 @@ export function LineNotes({ lines, canManage, personId, productionId, notes, cas
               )}
               <p className="text-body-md text-ink leading-relaxed">{line.content}</p>
 
-              {blockingByLine.get(line.id)?.map((a) => (
-                <p key={a.id} className="text-body-sm text-confirmed mt-0.5 pl-3 border-l-2 border-confirmed/40 leading-relaxed">
-                  <span className="uppercase tracking-wider text-data-sm text-confirmed/80 mr-1.5">blocking</span>
-                  {a.content}
-                </p>
-              ))}
+              {blockingByLine.get(line.id)?.map((a) => blockingNoteEl(a))}
 
               {flash?.lineId === line.id && (
                 <p className="text-data-sm text-confirmed mt-1">{flash.text}</p>

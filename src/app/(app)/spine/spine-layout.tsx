@@ -61,7 +61,7 @@ interface Props {
   isLocked: boolean;
   productionId: string;
   lineNotes: LineNote[];
-  cast: { person_id: string; name: string }[];
+  cast: { person_id: string; name: string; role_title: string }[];
 }
 
 export function SpineLayout(props: Props) {
