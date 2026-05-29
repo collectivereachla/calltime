@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { EditProfile } from "./edit-profile";
+import { W9Download } from "./w9-download";
 
 const MONTHS = [
   "", "January", "February", "March", "April", "May", "June",
@@ -77,12 +78,14 @@ export default async function MemberDetailPage({
     measurements: Record<string, string> | null;
     w9_submitted: boolean;
     w9_submitted_at: string | null;
+    w9_document_path: string | null;
+    w9_tax_year: number | null;
   } | null = null;
 
   if (isStaff || isSelf) {
     const { data } = await supabase
       .from("member_details")
-      .select("birth_year, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, allergies, dietary_needs, measurements, w9_submitted, w9_submitted_at")
+      .select("birth_year, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, allergies, dietary_needs, measurements, w9_submitted, w9_submitted_at, w9_document_path, w9_tax_year")
       .eq("person_id", personId)
       .single();
     details = data;
@@ -265,6 +268,11 @@ export default async function MemberDetailPage({
             </div>
           </div>
         </div>
+      )}
+
+      {/* W-9 — finance only, locked download */}
+      {isStaff && details?.w9_document_path && (
+        <W9Download path={details.w9_document_path} taxYear={details.w9_tax_year} submittedAt={details.w9_submitted_at} />
       )}
 
       {/* Edit profile — self or staff */}

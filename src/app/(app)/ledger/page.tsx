@@ -244,7 +244,7 @@ export default async function LedgerPage() {
           .or(`production_id.is.null,production_id.eq.${activePid}`)
           .eq("enabled", true)
           .order("sort_order"),
-        supabase.from("member_details").select("w9_submitted").eq("person_id", person!.id).eq("org_id", orgId).maybeSingle(),
+        supabase.from("member_details").select("w9_submitted, w9_tax_year").eq("person_id", person!.id).eq("org_id", orgId).maybeSingle(),
         supabase
           .from("contracts")
           .select("id, role_title, compensation, payer_id")
@@ -258,7 +258,7 @@ export default async function LedgerPage() {
     const defaultPayerId = prodRow?.default_payer_id || null;
     invoiceDefaultPayerId = defaultPayerId;
     invoicePaymentMethods = (pmData || []).map((m) => ({ method: m.method, label: m.label, details: m.details }));
-    invoiceW9OnFile = !!md?.w9_submitted;
+    invoiceW9OnFile = !!md?.w9_submitted && Number(md?.w9_tax_year) >= new Date().getFullYear();
 
     if (canManage) {
       const [{ data: allPayers }, { data: allMethods }] = await Promise.all([

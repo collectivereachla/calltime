@@ -5,6 +5,7 @@ import { AdminTools } from "./admin-tools";
 import { OrgSettings } from "./org-settings";
 import { ConflictsForm } from "./conflicts-form";
 import { NotificationSettings } from "./notification-settings";
+import { W9Card } from "./w9-card";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -65,6 +66,22 @@ export default async function SettingsPage() {
     .eq("person_id", person.id)
     .order("start_date", { ascending: true });
 
+  // W-9 status (member's own, in their org)
+  const { data: myMembership } = await supabase
+    .from("org_memberships").select("org_id").eq("person_id", person.id).limit(1).single();
+  let w9TaxYear: number | null = null;
+  let w9SubmittedAt: string | null = null;
+  if (myMembership) {
+    const { data: w9row } = await supabase
+      .from("member_details")
+      .select("w9_tax_year, w9_submitted_at")
+      .eq("person_id", person.id)
+      .eq("org_id", myMembership.org_id)
+      .maybeSingle();
+    w9TaxYear = w9row?.w9_tax_year ?? null;
+    w9SubmittedAt = w9row?.w9_submitted_at ?? null;
+  }
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 md:px-0">
       <h1 className="font-display text-display-lg text-ink mb-1">Settings</h1>
@@ -77,6 +94,8 @@ export default async function SettingsPage() {
       <div className="mt-10 pt-8 border-t border-bone">
         <ConflictsForm conflicts={conflicts || []} />
       </div>
+
+      <W9Card w9TaxYear={w9TaxYear} submittedAt={w9SubmittedAt} />
 
       <div className="mt-10 pt-8 border-t border-bone">
         <NotificationSettings personId={person.id} />

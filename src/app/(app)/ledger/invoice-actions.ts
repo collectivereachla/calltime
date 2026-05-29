@@ -58,13 +58,15 @@ export async function submitInvoice(input: {
   if (w9Required) {
     const { data: md } = await supabase
       .from("member_details")
-      .select("w9_submitted")
+      .select("w9_submitted, w9_tax_year")
       .eq("person_id", me.id)
       .eq("org_id", production.org_id)
       .maybeSingle();
-    if (!md?.w9_submitted) {
+    const currentYear = new Date().getFullYear();
+    const w9Current = !!md?.w9_submitted && Number(md?.w9_tax_year) >= currentYear;
+    if (!w9Current) {
       return {
-        error: `Payments of $${threshold.toLocaleString()} or more need a W-9 on file before an invoice can be submitted. Please add your W-9 first.`,
+        error: `Payments of $${threshold.toLocaleString()} or more need a current (${currentYear}) W-9 on file before an invoice can be submitted. Please add your W-9 first.`,
         needsW9: true,
       };
     }
