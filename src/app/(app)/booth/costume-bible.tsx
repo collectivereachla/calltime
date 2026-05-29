@@ -39,7 +39,10 @@ interface InventoryItem {
   id: string; category: string; item_name: string; size: string | null;
   thumbnail_url: string | null; available: boolean; notes: string | null;
   assigned_to_person_id: string | null;
+  owner_type: string; owner_name: string | null; owner_person_id: string | null;
 }
+
+interface OrgPerson { id: string; name: string; }
 
 interface Props {
   productionId: string;
@@ -50,6 +53,8 @@ interface Props {
   measurementEntries: MeasurementEntry[];
   inventoryItems: InventoryItem[];
   canManage: boolean;
+  orgId: string;
+  orgPeople: OrgPerson[];
 }
 
 const approvalColors: Record<string, string> = {
@@ -66,7 +71,7 @@ const fittingColors: Record<string, string> = {
   needs_refit: "bg-brick/10 text-brick",
 };
 
-export function CostumeBible({ productionId, scenes, cast, costumeEntries, paradeEntries, measurementEntries, inventoryItems, canManage }: Props) {
+export function CostumeBible({ productionId, scenes, cast, costumeEntries, paradeEntries, measurementEntries, inventoryItems, canManage, orgId, orgPeople }: Props) {
   const [tab, setTab] = useState<"plot" | "parade" | "measurements" | "inventory">("plot");
   const [editingMeasurement, setEditingMeasurement] = useState<string | null>(null);
   const [savingMeasurement, setSavingMeasurement] = useState(false);
@@ -315,7 +320,7 @@ export function CostumeBible({ productionId, scenes, cast, costumeEntries, parad
       )}
       {/* Inventory tab */}
       {tab === "inventory" && (
-        <InventoryTab items={inventoryItems} cast={cast} measurements={measurementEntries} productionId={productionId} />
+        <InventoryTab items={inventoryItems} cast={cast} measurements={measurementEntries} productionId={productionId} orgId={orgId} orgPeople={orgPeople} canManage={canManage} />
       )}
     </div>
   );

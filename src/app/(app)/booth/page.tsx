@@ -171,6 +171,19 @@ export default async function BoothPage() {
     .eq("org_id", orgId)
     .order("category", { ascending: true });
 
+  // Org people — for the inventory owner picker (an owner may be staff, not cast)
+  const { data: orgPeopleData } = await supabase
+    .from("org_memberships")
+    .select("people(id, full_name, preferred_name)")
+    .eq("org_id", orgId)
+    .eq("status", "active");
+
+  const orgPeople = (orgPeopleData || [])
+    .map((m) => m.people as unknown as { id: string; full_name: string; preferred_name: string | null } | null)
+    .filter((p): p is { id: string; full_name: string; preferred_name: string | null } => !!p)
+    .map((p) => ({ id: p.id, name: p.preferred_name || p.full_name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   // Get SM-enhanced scenes (with location, used to enrich design scene lists)
   const { data: smScenesData } = await supabase
     .from("scenes")
@@ -337,6 +350,8 @@ export default async function BoothPage() {
               measurementEntries={(measurementData || []) as any}
               inventoryItems={(inventoryData || []) as any}
               canManage={canManage}
+              orgId={orgId}
+              orgPeople={orgPeople}
             />
           ),
           set: (
