@@ -91,9 +91,22 @@ export default async function HomePage() {
   );
 
   // Who sees the full production activity feed vs. only their own entries.
-  const isLeadership = memberships?.some(
-    (m) => m.role === "owner" || m.role === "production" || m.role === "admin"
-  ) || false;
+  // Full feed: owners/production/admins, plus stage managers and production
+  // staff assigned to the production whose feed is shown.
+  const feedProductionId = activeProductions[0]?.productions.id;
+  const isLeadership =
+    (memberships?.some(
+      (m) => m.role === "owner" || m.role === "production" || m.role === "admin"
+    ) ||
+      (assignments || []).some((a) => {
+        const prod = a.productions as unknown as { id: string };
+        return (
+          a.active &&
+          prod?.id === feedProductionId &&
+          (a.department === "stage_management" ||
+            ["admin", "production", "staff"].includes(a.access_tier))
+        );
+      })) || false;
 
   // Get next upcoming call for this person
   const { data: nextCallData } = await supabase.rpc("get_next_call", {
@@ -203,6 +216,17 @@ export default async function HomePage() {
               </div>
             </div>
           </a>
+        </div>
+      )}
+
+      {/* What changed */}
+      {activeProductions.length > 0 && (
+        <div className="mb-8">
+          <WhatChanged
+            productionId={activeProductions[0].productions.id}
+            personId={person!.id}
+            viewerCanManage={isLeadership}
+          />
         </div>
       )}
 
@@ -358,17 +382,6 @@ export default async function HomePage() {
           <ProductionHealth
             productionId={activeProductions[0].productions.id}
             productionTitle={activeProductions[0].productions.title}
-          />
-        </div>
-      )}
-
-      {/* What Changed — production activity feed */}
-      {activeProductions.length > 0 && (
-        <div className="mt-10">
-          <WhatChanged
-            productionId={activeProductions[0].productions.id}
-            personId={person!.id}
-            viewerCanManage={isLeadership}
           />
         </div>
       )}
