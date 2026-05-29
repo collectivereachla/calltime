@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import {
-  assignInventoryItem,
+  setCostumeAssignees,
   createInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 interface InventoryItem {
   id: string; category: string; item_name: string; size: string | null;
   thumbnail_url: string | null; available: boolean; notes: string | null;
-  assigned_to_person_id: string | null;
+  assignedPersonIds: string[];
   owner_type: string; owner_name: string | null; owner_person_id: string | null;
   storage_location: string | null;
 }
@@ -99,6 +99,7 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
 
   const [migrating, setMigrating] = useState(false);
   const [migrateMsg, setMigrateMsg] = useState<string | null>(null);
+  const [assignOpen, setAssignOpen] = useState<string | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -112,9 +113,13 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
   const measurementMap = new Map<string, MeasurementEntry>();
   for (const m of measurements) measurementMap.set(m.person_id, m);
 
-  async function handleAssign(itemId: string, personId: string) {
-    setLoading(itemId); setAssignError(null);
-    const result = await assignInventoryItem(itemId, personId || null, personId ? productionId : null);
+  async function toggleAssignee(item: InventoryItem, personId: string) {
+    const has = item.assignedPersonIds.includes(personId);
+    const next = has
+      ? item.assignedPersonIds.filter((id) => id !== personId)
+      : [...item.assignedPersonIds, personId];
+    setLoading(item.id); setAssignError(null);
+    const result = await setCostumeAssignees(item.id, productionId, next);
     setLoading(null);
     if (result?.error) { setAssignError(result.error); return; }
     router.refresh();
@@ -225,7 +230,7 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
   const driveCount = items.filter((i) => i.thumbnail_url?.includes("drive.google.com")).length;
 
   const filtered = filter === "all" ? items : items.filter((i) => (i.owner_type || "house") === filter);
-  const assigned = items.filter((i) => i.assigned_to_person_id);
+  const assigned = items.filter((i) => i.assignedPersonIds.length > 0);
 
   const categories = new Map<string, InventoryItem[]>();
   for (const item of filtered) {
@@ -322,15 +327,17 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 {catItems.map((item) => {
-                  const assignedPerson = item.assigned_to_person_id
-                    ? cast.find((c) => c.person_id === item.assigned_to_person_id)
-                    : null;
+                  const assignedNames = item.assignedPersonIds
+                    .map((pid) => cast.find((c) => c.person_id === pid)?.name)
+                    .filter(Boolean) as string[];
+                  const isAssigned = item.assignedPersonIds.length > 0;
                   const isLoading = loading === item.id;
+                  const panelOpen = assignOpen === item.id;
                   return (
                     <div
                       key={item.id}
                       className={`bg-card border rounded-card overflow-hidden transition-colors relative ${
-                        item.assigned_to_person_id ? "border-brick/30" : "border-bone"
+                        isAssigned ? "border-brick/30" : "border-bone"
                       }`}
                     >
                       {item.thumbnail_url ? (
@@ -370,25 +377,47 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
                         >
                           {ownerLabel(item, houseOwner)}
                         </p>
-                        <select
-                          value={item.assigned_to_person_id || ""}
-                          onChange={(e) => handleAssign(item.id, e.target.value)}
-                          disabled={isLoading}
-                          className={`w-full mt-1.5 px-1.5 py-1 text-[11px] rounded border transition-colors ${
-                            item.assigned_to_person_id
+                        <button
+                          onClick={() => { if (canManage) setAssignOpen(panelOpen ? null : item.id); }}
+                          disabled={!canManage}
+                          className={`w-full mt-1.5 px-1.5 py-1 text-[11px] rounded border text-left transition-colors ${
+                            isAssigned
                               ? "border-brick/20 bg-brick/5 text-brick"
                               : "border-bone bg-paper text-ash"
-                          } focus:outline-none focus:border-brick disabled:opacity-50`}
+                          } ${canManage ? "hover:border-brick cursor-pointer" : "cursor-default"}`}
                         >
-                          <option value="">Unassigned</option>
-                          {cast.map((c) => (
-                            <option key={c.person_id} value={c.person_id}>
-                              {c.name} — {c.role_title}
-                            </option>
-                          ))}
-                        </select>
-                        {assignedPerson && (() => {
-                          const m = measurementMap.get(assignedPerson.person_id);
+                          <span className="truncate inline-block max-w-[85%] align-middle">
+                            {isAssigned ? assignedNames.join(", ") : "Unassigned"}
+                          </span>
+                          {canManage && <span className="float-right opacity-60">{panelOpen ? "▴" : "▾"}</span>}
+                        </button>
+
+                        {panelOpen && canManage && (
+                          <div className="mt-1.5 border border-bone rounded p-1.5 bg-paper max-h-44 overflow-y-auto space-y-0.5">
+                            {cast.length === 0 && (
+                              <p className="text-[10px] text-muted px-1 py-0.5">No cast on this production yet.</p>
+                            )}
+                            {cast.map((c) => {
+                              const checked = item.assignedPersonIds.includes(c.person_id);
+                              return (
+                                <button
+                                  key={c.person_id}
+                                  onClick={() => toggleAssignee(item, c.person_id)}
+                                  disabled={isLoading}
+                                  className="w-full flex items-center gap-1.5 px-1 py-0.5 text-[11px] text-left rounded hover:bg-bone/40 disabled:opacity-50"
+                                >
+                                  <span className={`w-3.5 h-3.5 shrink-0 rounded-sm border flex items-center justify-center text-[8px] ${checked ? "bg-brick border-brick text-paper" : "border-ash/40"}`}>
+                                    {checked ? "✓" : ""}
+                                  </span>
+                                  <span className="truncate">{c.name} <span className="text-muted">— {c.role_title}</span></span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {item.assignedPersonIds.length === 1 && (() => {
+                          const m = measurementMap.get(item.assignedPersonIds[0]);
                           if (!m) return null;
                           const dims = [m.chest_bust && `Ch ${m.chest_bust}`, m.waist && `W ${m.waist}`, m.hip && `H ${m.hip}`, m.shoe && `Sh ${m.shoe}`].filter(Boolean);
                           if (dims.length === 0) return null;

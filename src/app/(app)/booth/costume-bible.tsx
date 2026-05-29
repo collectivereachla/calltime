@@ -38,7 +38,7 @@ interface MeasurementEntry {
 interface InventoryItem {
   id: string; category: string; item_name: string; size: string | null;
   thumbnail_url: string | null; available: boolean; notes: string | null;
-  assigned_to_person_id: string | null;
+  assignedPersonIds: string[];
   owner_type: string; owner_name: string | null; owner_person_id: string | null;
   storage_location: string | null;
 }
@@ -304,7 +304,7 @@ export function CostumeBible({ productionId, scenes, cast, costumeEntries, parad
                       <td className="px-2 py-2 border-b border-bone text-body-xs text-muted max-w-[150px] truncate">{m?.notes || "—"}</td>
                       <td className="px-2 py-2 border-b border-bone text-body-xs text-ash max-w-[180px]">
                         {(() => {
-                          const items = inventoryItems.filter(i => i.assigned_to_person_id === member.person_id);
+                          const items = inventoryItems.filter(i => i.assignedPersonIds.includes(member.person_id));
                           if (items.length === 0) return <span className="text-muted">—</span>;
                           return items.map(i => (
                             <span key={i.id} className="inline-block mr-1 mb-0.5 px-1.5 py-0.5 rounded bg-brick/8 text-[10px] text-brick">

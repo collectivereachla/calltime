@@ -78,7 +78,7 @@ export async function WhatChanged({
     const [contractsRes, lineNotesRes, costumesRes, activityRes] = await Promise.all([
       supabase.from("contracts").select("id").eq("person_id", personId),
       supabase.from("line_notes").select("id").eq("person_id", personId),
-      supabase.from("costume_inventory").select("id").eq("assigned_to_person_id", personId),
+      supabase.from("costume_assignments").select("item_id").eq("person_id", personId),
       supabase
         .from("activity_log")
         .select(ACTIVITY_SELECT)
@@ -89,7 +89,7 @@ export async function WhatChanged({
 
     const contractIds = new Set((contractsRes.data || []).map((r: { id: string }) => r.id));
     const lineNoteIds = new Set((lineNotesRes.data || []).map((r: { id: string }) => r.id));
-    const costumeIds = new Set((costumesRes.data || []).map((r: { id: string }) => r.id));
+    const costumeIds = new Set((costumesRes.data || []).map((r: { item_id: string }) => r.item_id));
 
     rawEntries = ((activityRes.data || []) as unknown as RawEntry[])
       .filter((e) => {

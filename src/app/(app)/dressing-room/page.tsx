@@ -61,12 +61,12 @@ export default async function DressingRoomPage() {
   let looks: Look[] = [];
 
   if (activeProduction) {
-    const [piecesRes, looksRes] = await Promise.all([
+    const [assignRes, looksRes] = await Promise.all([
       supabase
-        .from("costume_inventory")
-        .select("id, item_name, category, size, thumbnail_url")
-        .eq("assigned_to_person_id", person.id)
-        .order("category", { ascending: true }),
+        .from("costume_assignments")
+        .select("costume_inventory(id, item_name, category, size, thumbnail_url)")
+        .eq("person_id", person.id)
+        .eq("production_id", activeProduction.id),
       supabase
         .from("costume_plot")
         .select(
@@ -76,7 +76,10 @@ export default async function DressingRoomPage() {
         .eq("person_id", person.id),
     ]);
 
-    pieces = (piecesRes.data || []) as unknown as Piece[];
+    pieces = ((assignRes.data || [])
+      .map((r) => (r as unknown as { costume_inventory: Piece | null }).costume_inventory)
+      .filter((p): p is Piece => !!p))
+      .sort((a, b) => a.category.localeCompare(b.category));
     looks = ((looksRes.data || []) as unknown as Look[]).sort((a, b) => {
       const actA = a.scenes?.act ?? 0;
       const actB = b.scenes?.act ?? 0;

@@ -30,7 +30,7 @@ interface CostumeEntry {
 
 interface InventoryItem {
   id: string; item_name: string; category: string; size: string | null;
-  thumbnail_url: string | null; assigned_to_person_id: string | null;
+  thumbnail_url: string | null; assignedPersonIds: string[];
 }
 
 interface Props {
@@ -143,7 +143,7 @@ export function CostumePlot({ productionId, scenes, cast, entries, inventoryItem
                     const isEditing = editing === key;
 
                     if (isEditing) {
-                      const assignedItems = inventoryItems.filter(i => i.assigned_to_person_id === member.person_id);
+                      const assignedItems = inventoryItems.filter(i => i.assignedPersonIds.includes(member.person_id));
                       return (
                         <td key={scene.id} className="px-1 py-1 border-b border-bone align-top" colSpan={1}>
                           <form action={handleSave} className="space-y-1">

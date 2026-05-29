@@ -3,38 +3,53 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-export async function assignInventoryItem(
+export async function setCostumeAssignees(
   itemId: string,
-  personId: string | null,
-  productionId: string | null
+  productionId: string,
+  personIds: string[]
 ) {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("costume_inventory")
-    .update({
-      assigned_to_person_id: personId,
-      assigned_to_production_id: productionId,
-      available: personId === null,
-    })
-    .eq("id", itemId)
-    .select("id");
+  // Replace the full set of actors this item is assigned to for this production.
+  const { error: delErr } = await supabase
+    .from("costume_assignments")
+    .delete()
+    .eq("item_id", itemId)
+    .eq("production_id", productionId);
+  if (delErr) return { error: delErr.message };
 
-  if (error) return { error: error.message };
+  if (personIds.length > 0) {
+    const rows = personIds.map((pid) => ({
+      item_id: itemId,
+      person_id: pid,
+      production_id: productionId,
+    }));
+    const { data, error } = await supabase
+      .from("costume_assignments")
+      .insert(rows)
+      .select("id");
 
-  // A request that succeeds but matches zero rows means the write was silently
-  // blocked (most likely the session wasn't recognized, so row-level security
-  // matched nothing). Postgres raises no error in that case, so without this
-  // check the action would report a false success and the UI would revert with
-  // no explanation — which is exactly how this bug stayed hidden.
-  if (!data || data.length === 0) {
-    return {
-      error:
-        "The change didn't save. Your session may have expired — please refresh the page and try again.",
-    };
+    if (error) return { error: error.message };
+
+    // Zero inserted rows on a non-empty request means RLS silently blocked the
+    // write (most often an expired session). Postgres raises no error, so this
+    // guard is what surfaces it instead of a false success.
+    if (!data || data.length === 0) {
+      return {
+        error:
+          "The change didn't save. You may not have permission, or your session expired — refresh the page and try again.",
+      };
+    }
   }
 
+  // Keep the legacy availability flag in sync for any older reads.
+  await supabase
+    .from("costume_inventory")
+    .update({ available: personIds.length === 0 })
+    .eq("id", itemId);
+
   revalidatePath("/booth");
+  revalidatePath("/dressing-room");
   return { error: null };
 }
 

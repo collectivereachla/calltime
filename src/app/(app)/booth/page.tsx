@@ -172,6 +172,23 @@ export default async function BoothPage() {
     .eq("org_id", orgId)
     .order("category", { ascending: true });
 
+  // Multi-actor assignments for this production (one item can go to several actors)
+  const { data: costumeAssignmentRows } = await supabase
+    .from("costume_assignments")
+    .select("item_id, person_id")
+    .eq("production_id", activeProduction.id);
+
+  const assigneesByItem = new Map<string, string[]>();
+  for (const r of (costumeAssignmentRows || []) as { item_id: string; person_id: string }[]) {
+    const arr = assigneesByItem.get(r.item_id) || [];
+    arr.push(r.person_id);
+    assigneesByItem.set(r.item_id, arr);
+  }
+  const inventoryItems = (inventoryData || []).map((it) => ({
+    ...it,
+    assignedPersonIds: assigneesByItem.get(it.id) || [],
+  }));
+
   // Org people — for the inventory owner picker (an owner may be staff, not cast)
   const { data: orgPeopleData } = await supabase
     .from("org_memberships")
@@ -372,7 +389,7 @@ export default async function BoothPage() {
               costumeEntries={entries}
               paradeEntries={(paradeData || []) as any}
               measurementEntries={(measurementData || []) as any}
-              inventoryItems={(inventoryData || []) as any}
+              inventoryItems={inventoryItems as any}
               canManage={canManage}
               orgId={orgId}
               orgPeople={orgPeople}
