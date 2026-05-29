@@ -121,6 +121,25 @@ export default async function AppLayout({
     lockedRooms = prod?.locked_rooms || [];
   }
 
+  // Booth is the design/production team's room — hide it from cast in the nav.
+  // (The Booth page enforces the same check server-side.)
+  let boothAccess = memberships.some(
+    (m) => m.role === "owner" || m.role === "production" || m.role === "admin"
+  );
+  if (!boothAccess && activeProductionId) {
+    const { data: boothAssignments } = await supabase
+      .from("production_assignments")
+      .select("access_tier, department")
+      .eq("person_id", person.id)
+      .eq("production_id", activeProductionId)
+      .eq("active", true);
+    boothAccess = (boothAssignments || []).some(
+      (a) =>
+        ["admin", "production", "staff"].includes(a.access_tier) ||
+        a.department === "design"
+    );
+  }
+
   if (isOwner) {
     const { count: csCount } = await supabase
       .from("contracts")
@@ -162,6 +181,7 @@ export default async function AppLayout({
         activeProductionId={activeProductionId}
         lockedRooms={lockedRooms}
         isOwner={isOwner}
+        boothAccess={boothAccess}
       />
       <main className="flex-1 min-w-0 pt-14 pb-16 md:pt-0 md:pb-0">
         {children}

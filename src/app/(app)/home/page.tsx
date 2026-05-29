@@ -101,6 +101,18 @@ export default async function HomePage() {
     .eq("person_id", person!.id)
     .eq("status", "pending");
 
+  // Costume pieces assigned to this person (their own only — read-only view).
+  const { data: myCostumesRaw } = await supabase
+    .from("costume_inventory")
+    .select("id, item_name, category, size, thumbnail_url")
+    .eq("assigned_to_person_id", person!.id)
+    .order("category", { ascending: true });
+
+  const myCostumes = (myCostumesRaw || []) as unknown as {
+    id: string; item_name: string; category: string;
+    size: string | null; thumbnail_url: string | null;
+  }[];
+
   const nextCall = (nextCallData as unknown as {
     event_id: string; event_call_id: string; event_title: string;
     event_type: string; event_date: string; start_time: string | null;
@@ -218,6 +230,45 @@ export default async function HomePage() {
               </span>
             </div>
           </a>
+        </div>
+      )}
+
+      {/* Your costumes — read-only, this person's assigned pieces only */}
+      {myCostumes.length > 0 && (
+        <div className="mb-8">
+          <p className="text-body-xs text-muted uppercase tracking-wider mb-2">Your costumes</p>
+          <div className="bg-card border border-bone rounded-card px-5 py-4">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+              {myCostumes.map((item) => (
+                <div key={item.id} className="rounded-card overflow-hidden border border-bone">
+                  {item.thumbnail_url ? (
+                    <div className="aspect-square bg-bone/20">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item.thumbnail_url}
+                        alt={item.item_name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  ) : (
+                    <div className="aspect-square bg-bone/20 flex items-center justify-center">
+                      <span className="text-ash opacity-40 text-lg">◧</span>
+                    </div>
+                  )}
+                  <div className="px-2 py-1.5">
+                    <p className="text-body-xs font-medium text-ink truncate">{item.item_name}</p>
+                    {item.size && (
+                      <p className="font-mono text-[10px] text-ash">{item.size}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-body-xs text-muted mt-3">
+              The pieces assigned to you. Wardrobe manages any changes.
+            </p>
+          </div>
         </div>
       )}
 

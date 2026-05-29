@@ -29,6 +29,7 @@ interface AppNavProps {
   activeProductionId?: string | null;
   lockedRooms?: string[];
   isOwner?: boolean;
+  boothAccess?: boolean;
 }
 
 const rooms = [
@@ -46,7 +47,7 @@ const rooms = [
 
 const mobileRooms = rooms.filter((r) => r.mobile);
 
-export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, productions = [], activeProductionId = null, lockedRooms = [], isOwner = false }: AppNavProps) {
+export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, productions = [], activeProductionId = null, lockedRooms = [], isOwner = false, boothAccess = true }: AppNavProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const isAdmin = orgs.some((o) => o.role === "owner" || o.role === "admin");
@@ -62,7 +63,7 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, 
     return badges[key] || 0;
   }
 
-  const visibleRooms = rooms.filter((r) => !("adminOnly" in r && r.adminOnly) || isAdmin);
+  const visibleRooms = rooms.filter((r) => (!("adminOnly" in r && r.adminOnly) || isAdmin) && (r.path !== "/booth" || boothAccess));
 
   return (
     <>

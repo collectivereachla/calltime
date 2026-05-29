@@ -35,6 +35,7 @@ export default async function BoothPage() {
   }
 
   const isOwnerOrProd = membership.role === "owner" || membership.role === "production";
+  const isAdmin = membership.role === "admin";
 
   // Get active production from cookie
   const activeProductionId = await getActiveProductionId();
@@ -62,21 +63,28 @@ export default async function BoothPage() {
     activeProduction = prods?.[0] || null;
   }
 
-  // Check if user has a design or staff assignment for this production
+  // Determine access. The Booth is the design/production team's room; cast
+  // members must not see other people's costumes, assignments, or measurements.
+  // Check EVERY active assignment (not just one) so a person who is both cast
+  // and design still gets in.
   let canManage = isOwnerOrProd;
-  if (activeProduction && !canManage) {
-    const { data: assignment } = await supabase
+  let canAccessBooth = isOwnerOrProd || isAdmin;
+  if (activeProduction && (!canManage || !canAccessBooth)) {
+    const { data: assignments } = await supabase
       .from("production_assignments")
       .select("access_tier, department")
       .eq("production_id", activeProduction.id)
       .eq("person_id", person!.id)
-      .eq("active", true)
-      .limit(1)
-      .maybeSingle();
+      .eq("active", true);
 
-    if (assignment) {
-      canManage = ["admin", "production", "staff"].includes(assignment.access_tier) ||
-        assignment.department === "design";
+    const hasDesignOrStaff = (assignments || []).some(
+      (a) =>
+        ["admin", "production", "staff"].includes(a.access_tier) ||
+        a.department === "design"
+    );
+    if (hasDesignOrStaff) {
+      canManage = true;
+      canAccessBooth = true;
     }
   }
 
@@ -85,6 +93,18 @@ export default async function BoothPage() {
       <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10">
         <h1 className="font-display text-display-md text-ink mb-2">Booth</h1>
         <p className="text-body-md text-ash">No active productions. The Booth opens during production.</p>
+      </div>
+    );
+  }
+
+  if (!canAccessBooth) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10">
+        <h1 className="font-display text-display-md text-ink mb-2">Booth</h1>
+        <p className="text-body-md text-ash">
+          The Booth is the design and production team&apos;s room — costume, set, lighting, and sound.
+          Your schedule, script, and costume assignments live on your Home page.
+        </p>
       </div>
     );
   }
