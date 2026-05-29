@@ -40,6 +40,7 @@ interface InventoryItem {
   thumbnail_url: string | null; available: boolean; notes: string | null;
   assigned_to_person_id: string | null;
   owner_type: string; owner_name: string | null; owner_person_id: string | null;
+  storage_location: string | null;
 }
 
 interface OrgPerson { id: string; name: string; }

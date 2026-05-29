@@ -4,6 +4,7 @@ import { SetDesign } from "./set-design";
 import { DesignRoom } from "./design-room";
 import { makeLightingConfig, makeSoundConfig } from "./design-configs";
 import { BoothTabs } from "./booth-tabs";
+import { PropsInventoryTab } from "./props-inventory-tab";
 import { getActiveProductionId } from "@/lib/active-production";
 
 export default async function BoothPage() {
@@ -184,6 +185,13 @@ export default async function BoothPage() {
     .map((p) => ({ id: p.id, name: p.preferred_name || p.full_name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  // Props inventory (org-level owned stock; distinct from per-show prop tracking in Run)
+  const { data: propsInventoryData } = await supabase
+    .from("props_inventory")
+    .select("*")
+    .eq("org_id", orgId)
+    .order("category", { ascending: true });
+
   // Get SM-enhanced scenes (with location, used to enrich design scene lists)
   const { data: smScenesData } = await supabase
     .from("scenes")
@@ -333,6 +341,7 @@ export default async function BoothPage() {
       <BoothTabs
         tabs={[
           { key: "costume", label: "Costume", designer: costumeDesigner.name },
+          { key: "props", label: "Props" },
           { key: "set", label: "Set", designer: setDesigner.name },
           { key: "lights", label: "Lights", designer: lightDesigner.name },
           { key: "sound", label: "Sound", designer: soundDesigner.name },
@@ -352,6 +361,14 @@ export default async function BoothPage() {
               canManage={canManage}
               orgId={orgId}
               orgPeople={orgPeople}
+            />
+          ),
+          props: (
+            <PropsInventoryTab
+              items={(propsInventoryData || []) as any}
+              orgId={orgId}
+              orgPeople={orgPeople}
+              canManage={canManage}
             />
           ),
           set: (

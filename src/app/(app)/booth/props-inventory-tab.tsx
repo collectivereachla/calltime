@@ -2,36 +2,24 @@
 
 import { useState, useRef } from "react";
 import {
-  assignInventoryItem,
-  createInventoryItem,
-  updateInventoryItem,
-  deleteInventoryItem,
-} from "./inventory-actions";
+  createPropItem,
+  updatePropItem,
+  deletePropItem,
+} from "./props-inventory-actions";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
-interface InventoryItem {
+interface PropItem {
   id: string; category: string; item_name: string; size: string | null;
-  thumbnail_url: string | null; available: boolean; notes: string | null;
-  assigned_to_person_id: string | null;
+  thumbnail_url: string | null; notes: string | null;
   owner_type: string; owner_name: string | null; owner_person_id: string | null;
   storage_location: string | null;
 }
 
-interface CastMember { person_id: string; name: string; role_title: string; }
 interface OrgPerson { id: string; name: string; }
 
-interface MeasurementEntry {
-  id: string; person_id: string; fitting_status: string;
-  height: string | null; chest_bust: string | null; waist: string | null;
-  hip: string | null; inseam: string | null; shoe: string | null;
-}
-
 interface Props {
-  items: InventoryItem[];
-  cast: CastMember[];
-  measurements: MeasurementEntry[];
-  productionId: string;
+  items: PropItem[];
   orgId: string;
   orgPeople: OrgPerson[];
   canManage: boolean;
@@ -40,10 +28,10 @@ interface Props {
 type OwnerType = "house" | "individual" | "external";
 
 const catLabels: Record<string, string> = {
-  men: "Men", women: "Women", girls: "Girls", boys: "Boys",
-  accessories: "Accessories", shoes: "Shoes", hats: "Hats", other: "Other",
+  hand: "Hand props", set_dressing: "Set dressing", furniture: "Furniture",
+  consumable: "Consumables", weapon: "Weapons", paper: "Paper & docs", other: "Other",
 };
-const CATEGORY_KEYS = ["men", "women", "girls", "boys", "accessories", "shoes", "hats", "other"];
+const CATEGORY_KEYS = ["hand", "set_dressing", "furniture", "consumable", "weapon", "paper", "other"];
 
 interface FormState {
   itemName: string; category: string; size: string; notes: string;
@@ -53,7 +41,7 @@ interface FormState {
 }
 
 const EMPTY_FORM: FormState = {
-  itemName: "", category: "men", size: "", notes: "",
+  itemName: "", category: "hand", size: "", notes: "",
   ownerType: "house", ownerName: "", ownerPersonId: "",
   storageLocation: "", thumbnailUrl: null,
 };
@@ -84,16 +72,13 @@ function compressImage(file: Blob, maxDim = 1400): Promise<Blob> {
   });
 }
 
-function ownerLabel(item: InventoryItem): string {
+function ownerLabel(item: PropItem): string {
   if (item.owner_type === "house") return "Creative Reach";
   return item.owner_name || (item.owner_type === "external" ? "External" : "Individual");
 }
 
-export function InventoryTab({ items, cast, measurements, productionId, orgId, orgPeople, canManage }: Props) {
-  const [loading, setLoading] = useState<string | null>(null);
-  const [assignError, setAssignError] = useState<string | null>(null);
+export function PropsInventoryTab({ items, orgId, orgPeople, canManage }: Props) {
   const [filter, setFilter] = useState<"all" | OwnerType>("all");
-
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -103,21 +88,10 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  const measurementMap = new Map<string, MeasurementEntry>();
-  for (const m of measurements) measurementMap.set(m.person_id, m);
-
-  async function handleAssign(itemId: string, personId: string) {
-    setLoading(itemId); setAssignError(null);
-    const result = await assignInventoryItem(itemId, personId || null, personId ? productionId : null);
-    setLoading(null);
-    if (result?.error) { setAssignError(result.error); return; }
-    router.refresh();
-  }
-
   function openCreate() {
     setForm(EMPTY_FORM); setEditingId(null); setFormError(null); setModalOpen(true);
   }
-  function openEdit(item: InventoryItem) {
+  function openEdit(item: PropItem) {
     setForm({
       itemName: item.item_name, category: item.category, size: item.size || "",
       notes: item.notes || "",
@@ -140,10 +114,10 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
       const supabase = createClient();
       const path = `${orgId}/${crypto.randomUUID()}.jpg`;
       const { error: upErr } = await supabase.storage
-        .from("costume-photos")
+        .from("props-photos")
         .upload(path, blob, { contentType: "image/jpeg", upsert: false });
       if (upErr) { setFormError(upErr.message); setUploading(false); return; }
-      const { data: urlData } = supabase.storage.from("costume-photos").getPublicUrl(path);
+      const { data: urlData } = supabase.storage.from("props-photos").getPublicUrl(path);
       setForm((f) => ({ ...f, thumbnailUrl: urlData.publicUrl }));
     } catch {
       setFormError("Couldn't process that image. Try another.");
@@ -163,8 +137,8 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
       thumbnailUrl: form.thumbnailUrl,
     };
     const result = editingId
-      ? await updateInventoryItem(editingId, payload)
-      : await createInventoryItem(orgId, payload);
+      ? await updatePropItem(editingId, payload)
+      : await createPropItem(orgId, payload);
     setSaving(false);
     if (result?.error) { setFormError(result.error); return; }
     setModalOpen(false); router.refresh();
@@ -172,23 +146,21 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
 
   async function handleDelete() {
     if (!editingId) return;
-    if (!confirm("Delete this item? This removes it from inventory and any assignment.")) return;
+    if (!confirm("Delete this prop from inventory?")) return;
     setSaving(true); setFormError(null);
-    const result = await deleteInventoryItem(editingId);
+    const result = await deletePropItem(editingId);
     setSaving(false);
     if (result?.error) { setFormError(result.error); return; }
     setModalOpen(false); router.refresh();
   }
 
-  // Owner picker select value for the "individual" case
   const individualSelectValue = form.ownerPersonId
     ? form.ownerPersonId
     : form.ownerName ? "__other__" : "";
 
   const filtered = filter === "all" ? items : items.filter((i) => (i.owner_type || "house") === filter);
-  const assigned = items.filter((i) => i.assigned_to_person_id);
 
-  const categories = new Map<string, InventoryItem[]>();
+  const categories = new Map<string, PropItem[]>();
   for (const item of filtered) {
     if (!categories.has(item.category)) categories.set(item.category, []);
     categories.get(item.category)!.push(item);
@@ -205,16 +177,15 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
     <div>
       <div className="flex items-start justify-between gap-3 mb-4">
         <p className="text-body-xs text-ash">
-          {items.length} item{items.length === 1 ? "" : "s"}.
-          {assigned.length > 0 && ` ${assigned.length} assigned.`}
-          <span className="text-muted"> Assign items to actors with the dropdown on each card.</span>
+          {items.length} prop{items.length === 1 ? "" : "s"} in stock.
+          <span className="text-muted"> Owned-stock inventory — per-show prop tracking lives in the Run room.</span>
         </p>
         {canManage && (
           <button
             onClick={openCreate}
             className="shrink-0 px-3 py-1.5 text-body-xs font-medium rounded-card bg-brick text-paper hover:bg-brick/90 transition-colors"
           >
-            + Add item
+            + Add prop
           </button>
         )}
       </div>
@@ -235,19 +206,13 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
         ))}
       </div>
 
-      {assignError && (
-        <div className="mb-4 bg-conflict/10 border border-conflict/30 rounded-card px-4 py-3">
-          <p className="text-body-xs text-conflict">{assignError}</p>
-        </div>
-      )}
-
       {filtered.length === 0 ? (
         <div className="bg-card border border-bone rounded-card px-6 py-8 text-center">
           <p className="text-body-md text-ash">
-            {items.length === 0 ? "No inventory items yet." : "No items match this filter."}
+            {items.length === 0 ? "No props in inventory yet." : "No props match this filter."}
           </p>
           {canManage && items.length === 0 && (
-            <p className="text-body-xs text-muted mt-1">Use “Add item” to photograph and catalog a piece.</p>
+            <p className="text-body-xs text-muted mt-1">Use “Add prop” to photograph and catalog a piece.</p>
           )}
         </div>
       ) : (
@@ -258,83 +223,47 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
                 {catLabels[cat] || cat} ({catItems.length})
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                {catItems.map((item) => {
-                  const assignedPerson = item.assigned_to_person_id
-                    ? cast.find((c) => c.person_id === item.assigned_to_person_id)
-                    : null;
-                  const isLoading = loading === item.id;
-                  return (
-                    <div
-                      key={item.id}
-                      className={`bg-card border rounded-card overflow-hidden transition-colors relative ${
-                        item.assigned_to_person_id ? "border-brick/30" : "border-bone"
-                      }`}
-                    >
-                      {item.thumbnail_url ? (
-                        <div className="aspect-square bg-bone/20">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={item.thumbnail_url} alt={item.item_name} className="w-full h-full object-cover" loading="lazy" />
-                        </div>
-                      ) : (
-                        <div className="aspect-square bg-bone/20 flex items-center justify-center">
-                          <span className="text-ash opacity-30 text-lg">◨</span>
-                        </div>
-                      )}
-                      {canManage && (
-                        <button
-                          onClick={() => openEdit(item)}
-                          className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-paper/85 border border-bone text-ash hover:text-brick hover:border-brick flex items-center justify-center text-[11px] transition-colors"
-                          title="Edit item"
-                        >
-                          ✎
-                        </button>
-                      )}
-                      <div className="px-2.5 py-2">
-                        <p className="text-body-xs font-medium text-ink truncate">{item.item_name}</p>
-                        {item.size && <p className="font-mono text-[10px] text-ash">{item.size}</p>}
-                        {item.storage_location && (
-                          <p className="text-[10px] text-muted truncate">📍 {item.storage_location}</p>
-                        )}
-                        <p
-                          className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider ${
-                            item.owner_type === "house"
-                              ? "bg-ash/10 text-ash"
-                              : item.owner_type === "external"
-                              ? "bg-tentative/15 text-tentative"
-                              : "bg-brick/10 text-brick"
-                          }`}
-                          title="Owner"
-                        >
-                          {ownerLabel(item)}
-                        </p>
-                        <select
-                          value={item.assigned_to_person_id || ""}
-                          onChange={(e) => handleAssign(item.id, e.target.value)}
-                          disabled={isLoading}
-                          className={`w-full mt-1.5 px-1.5 py-1 text-[11px] rounded border transition-colors ${
-                            item.assigned_to_person_id
-                              ? "border-brick/20 bg-brick/5 text-brick"
-                              : "border-bone bg-paper text-ash"
-                          } focus:outline-none focus:border-brick disabled:opacity-50`}
-                        >
-                          <option value="">Unassigned</option>
-                          {cast.map((c) => (
-                            <option key={c.person_id} value={c.person_id}>
-                              {c.name} — {c.role_title}
-                            </option>
-                          ))}
-                        </select>
-                        {assignedPerson && (() => {
-                          const m = measurementMap.get(assignedPerson.person_id);
-                          if (!m) return null;
-                          const dims = [m.chest_bust && `Ch ${m.chest_bust}`, m.waist && `W ${m.waist}`, m.hip && `H ${m.hip}`, m.shoe && `Sh ${m.shoe}`].filter(Boolean);
-                          if (dims.length === 0) return null;
-                          return <p className="text-[9px] text-muted mt-1 font-mono leading-tight">{dims.join(" · ")}</p>;
-                        })()}
+                {catItems.map((item) => (
+                  <div key={item.id} className="bg-card border border-bone rounded-card overflow-hidden relative">
+                    {item.thumbnail_url ? (
+                      <div className="aspect-square bg-bone/20">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={item.thumbnail_url} alt={item.item_name} className="w-full h-full object-cover" loading="lazy" />
                       </div>
+                    ) : (
+                      <div className="aspect-square bg-bone/20 flex items-center justify-center">
+                        <span className="text-ash opacity-30 text-lg">◇</span>
+                      </div>
+                    )}
+                    {canManage && (
+                      <button
+                        onClick={() => openEdit(item)}
+                        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-paper/85 border border-bone text-ash hover:text-brick hover:border-brick flex items-center justify-center text-[11px] transition-colors"
+                        title="Edit prop"
+                      >
+                        ✎
+                      </button>
+                    )}
+                    <div className="px-2.5 py-2">
+                      <p className="text-body-xs font-medium text-ink truncate">{item.item_name}</p>
+                      {item.size && <p className="font-mono text-[10px] text-ash">{item.size}</p>}
+                      {item.storage_location && (
+                        <p className="text-[10px] text-muted truncate">📍 {item.storage_location}</p>
+                      )}
+                      <p
+                        className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider ${
+                          item.owner_type === "house"
+                            ? "bg-ash/10 text-ash"
+                            : item.owner_type === "external"
+                            ? "bg-tentative/15 text-tentative"
+                            : "bg-brick/10 text-brick"
+                        }`}
+                      >
+                        {ownerLabel(item)}
+                      </p>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -348,12 +277,11 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-4 border-b border-bone flex items-center justify-between sticky top-0 bg-paper">
-              <h3 className="font-display text-body-lg text-ink">{editingId ? "Edit item" : "Add item"}</h3>
+              <h3 className="font-display text-body-lg text-ink">{editingId ? "Edit prop" : "Add prop"}</h3>
               <button onClick={() => !saving && setModalOpen(false)} className="text-ash hover:text-ink text-lg leading-none">×</button>
             </div>
 
             <div className="px-5 py-4 space-y-4">
-              {/* Photo */}
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => fileRef.current?.click()}
@@ -381,11 +309,11 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
               </div>
 
               <div>
-                <label className="text-body-xs text-muted block mb-1">Item name</label>
+                <label className="text-body-xs text-muted block mb-1">Prop name</label>
                 <input
                   value={form.itemName}
                   onChange={(e) => setForm((f) => ({ ...f, itemName: e.target.value }))}
-                  placeholder="e.g. Vest, Dress Shirt"
+                  placeholder="e.g. Pocket watch, Wooden chair"
                   className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-card text-ink focus:outline-none focus:border-brick"
                 />
               </div>
@@ -402,17 +330,16 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
                   </select>
                 </div>
                 <div>
-                  <label className="text-body-xs text-muted block mb-1">Size</label>
+                  <label className="text-body-xs text-muted block mb-1">Size / dimensions</label>
                   <input
                     value={form.size}
                     onChange={(e) => setForm((f) => ({ ...f, size: e.target.value }))}
-                    placeholder="e.g. XL, 34/32"
+                    placeholder="e.g. small, 3ft"
                     className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-card text-ink focus:outline-none focus:border-brick"
                   />
                 </div>
               </div>
 
-              {/* Owner */}
               <div>
                 <label className="text-body-xs text-muted block mb-1">Owner</label>
                 <select
@@ -435,9 +362,7 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
                     value={individualSelectValue}
                     onChange={(e) => {
                       const v = e.target.value;
-                      if (v === "__other__") {
-                        setForm((f) => ({ ...f, ownerPersonId: "", ownerName: "" }));
-                      } else if (v === "") {
+                      if (v === "__other__" || v === "") {
                         setForm((f) => ({ ...f, ownerPersonId: "", ownerName: "" }));
                       } else {
                         const p = orgPeople.find((op) => op.id === v);
@@ -475,7 +400,7 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
                 <input
                   value={form.storageLocation}
                   onChange={(e) => setForm((f) => ({ ...f, storageLocation: e.target.value }))}
-                  placeholder="e.g. Wardrobe rack B, Bin 3"
+                  placeholder="e.g. Props shelf 2, Backstage left"
                   className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-card text-ink focus:outline-none focus:border-brick"
                 />
               </div>
@@ -486,7 +411,7 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
                   value={form.notes}
                   onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                   rows={2}
-                  placeholder="Condition, alterations, where it lives…"
+                  placeholder="Condition, fragile, where it came from…"
                   className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-card text-ink focus:outline-none focus:border-brick resize-none"
                 />
               </div>
@@ -505,7 +430,7 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
                   Cancel
                 </button>
                 <button onClick={handleSave} disabled={saving || uploading} className="px-4 py-2 text-body-sm font-medium rounded-card bg-brick text-paper hover:bg-brick/90 disabled:opacity-50">
-                  {saving ? "Saving…" : editingId ? "Save" : "Add item"}
+                  {saving ? "Saving…" : editingId ? "Save" : "Add prop"}
                 </button>
               </div>
             </div>
