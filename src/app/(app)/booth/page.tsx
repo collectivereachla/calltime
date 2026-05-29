@@ -371,12 +371,15 @@ export default async function BoothPage() {
     .eq("active", true);
 
   function findDesigner(roleLike: string): { name: string | null; role: string | null } {
-    const match = (designAssignments || []).find((a) =>
-      a.role_title.toLowerCase().includes(roleLike.toLowerCase())
+    const matches = (designAssignments || []).filter(
+      (a) => a.role_title.toLowerCase().includes(roleLike.toLowerCase()) && a.people
     );
-    if (!match || !match.people) return { name: null, role: null };
-    const p = match.people as unknown as { full_name: string; preferred_name: string | null };
-    return { name: p.preferred_name || p.full_name, role: match.role_title };
+    if (matches.length === 0) return { name: null, role: null };
+    const names = matches.map((m) => {
+      const p = m.people as unknown as { full_name: string; preferred_name: string | null };
+      return p.preferred_name || p.full_name;
+    });
+    return { name: names.join(" & "), role: matches[0].role_title };
   }
 
   // The production's costume designer, as an owner option for inventory
