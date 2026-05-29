@@ -34,6 +34,7 @@ const catLabels: Record<string, string> = {
 
 export function InventoryTab({ items, cast, measurements, productionId }: Props) {
   const [loading, setLoading] = useState<string | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
   const router = useRouter();
 
   const measurementMap = new Map<string, MeasurementEntry>();
@@ -41,12 +42,19 @@ export function InventoryTab({ items, cast, measurements, productionId }: Props)
 
   async function handleAssign(itemId: string, personId: string) {
     setLoading(itemId);
-    await assignInventoryItem(
+    setAssignError(null);
+    const result = await assignInventoryItem(
       itemId,
       personId || null,
       personId ? productionId : null
     );
     setLoading(null);
+    if (result?.error) {
+      // Surface the failure instead of silently reverting — a swallowed result
+      // here is what hid this bug in the first place.
+      setAssignError(result.error);
+      return;
+    }
     router.refresh();
   }
 
@@ -64,6 +72,12 @@ export function InventoryTab({ items, cast, measurements, productionId }: Props)
         Costume inventory from Google Drive. {assigned.length > 0 && `${assigned.length} items assigned.`}
         <span className="text-muted"> Assign items to actors using the dropdown on each card.</span>
       </p>
+
+      {assignError && (
+        <div className="mb-4 bg-conflict/10 border border-conflict/30 rounded-card px-4 py-3">
+          <p className="text-body-xs text-conflict">{assignError}</p>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="bg-card border border-bone rounded-card px-6 py-8 text-center">
