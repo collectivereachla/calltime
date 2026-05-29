@@ -90,6 +90,11 @@ export default async function HomePage() {
     (m) => m.role === "owner" || m.role === "production"
   );
 
+  // Who sees the full production activity feed vs. only their own entries.
+  const isLeadership = memberships?.some(
+    (m) => m.role === "owner" || m.role === "production" || m.role === "admin"
+  ) || false;
+
   // Get next upcoming call for this person
   const { data: nextCallData } = await supabase.rpc("get_next_call", {
     p_person_id: person!.id,
@@ -360,7 +365,11 @@ export default async function HomePage() {
       {/* What Changed — production activity feed */}
       {activeProductions.length > 0 && (
         <div className="mt-10">
-          <WhatChanged productionId={activeProductions[0].productions.id} />
+          <WhatChanged
+            productionId={activeProductions[0].productions.id}
+            personId={person!.id}
+            viewerCanManage={isLeadership}
+          />
         </div>
       )}
 

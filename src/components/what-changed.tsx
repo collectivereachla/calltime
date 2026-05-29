@@ -34,27 +34,83 @@ const ACTION_ICONS: Record<string, string> = {
   greenroom_message: "💬",
 };
 
-export async function WhatChanged({ productionId }: { productionId: string }) {
+type RawEntry = {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  summary: string;
+  created_at: string;
+  actor_person_id: string | null;
+  people: { preferred_name: string | null; full_name: string } | null;
+};
+
+const ACTIVITY_SELECT =
+  "id, action, entity_type, entity_id, summary, created_at, actor_person_id, people:actor_person_id(preferred_name, full_name)";
+
+export async function WhatChanged({
+  productionId,
+  personId,
+  viewerCanManage,
+}: {
+  productionId: string;
+  personId: string;
+  viewerCanManage: boolean;
+}) {
   const supabase = await createClient();
 
-  const { data: entries } = await supabase
-    .from("activity_log")
-    .select("id, action, entity_type, summary, created_at, actor_person_id, people:actor_person_id(preferred_name, full_name)")
-    .eq("production_id", productionId)
-    .order("created_at", { ascending: false })
-    .limit(20);
+  let rawEntries: RawEntry[] = [];
 
-  const feed: ActivityEntry[] = (entries || []).map((e) => {
-    const person = e.people as unknown as { preferred_name: string | null; full_name: string } | null;
-    return {
-      id: e.id,
-      action: e.action,
-      entity_type: e.entity_type,
-      summary: e.summary,
-      created_at: e.created_at,
-      actor_name: person?.preferred_name || person?.full_name || null,
-    };
-  });
+  if (viewerCanManage) {
+    // Production leadership sees the full activity feed.
+    const { data } = await supabase
+      .from("activity_log")
+      .select(ACTIVITY_SELECT)
+      .eq("production_id", productionId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    rawEntries = (data || []) as unknown as RawEntry[];
+  } else {
+    // Everyone else sees only what pertains to them: things they did, plus
+    // changes to their own contract, line notes addressed to them, and their
+    // own costume assignments. Other people's contracts, conflicts, and notes
+    // never appear.
+    const [contractsRes, lineNotesRes, costumesRes, activityRes] = await Promise.all([
+      supabase.from("contracts").select("id").eq("person_id", personId),
+      supabase.from("line_notes").select("id").eq("person_id", personId),
+      supabase.from("costume_inventory").select("id").eq("assigned_to_person_id", personId),
+      supabase
+        .from("activity_log")
+        .select(ACTIVITY_SELECT)
+        .eq("production_id", productionId)
+        .order("created_at", { ascending: false })
+        .limit(200),
+    ]);
+
+    const contractIds = new Set((contractsRes.data || []).map((r: { id: string }) => r.id));
+    const lineNoteIds = new Set((lineNotesRes.data || []).map((r: { id: string }) => r.id));
+    const costumeIds = new Set((costumesRes.data || []).map((r: { id: string }) => r.id));
+
+    rawEntries = ((activityRes.data || []) as unknown as RawEntry[])
+      .filter((e) => {
+        if (e.actor_person_id === personId) return true;
+        if (e.entity_id == null) return false;
+        if (e.entity_type === "contract") return contractIds.has(e.entity_id);
+        if (e.entity_type === "line_note") return lineNoteIds.has(e.entity_id);
+        if (e.entity_type === "costume_inventory") return costumeIds.has(e.entity_id);
+        return false;
+      })
+      .slice(0, 20);
+  }
+
+  const feed: ActivityEntry[] = rawEntries.map((e) => ({
+    id: e.id,
+    action: e.action,
+    entity_type: e.entity_type,
+    summary: e.summary,
+    created_at: e.created_at,
+    actor_name: e.people?.preferred_name || e.people?.full_name || null,
+  }));
 
   if (feed.length === 0) {
     return (
