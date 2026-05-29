@@ -3,6 +3,46 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
+export async function setPropAssignees(
+  itemId: string,
+  productionId: string,
+  personIds: string[]
+) {
+  const supabase = await createClient();
+
+  // Replace the full set of actors this prop is assigned to for this production.
+  const { error: delErr } = await supabase
+    .from("prop_assignments")
+    .delete()
+    .eq("item_id", itemId)
+    .eq("production_id", productionId);
+  if (delErr) return { error: delErr.message };
+
+  if (personIds.length > 0) {
+    const rows = personIds.map((pid) => ({
+      item_id: itemId,
+      person_id: pid,
+      production_id: productionId,
+    }));
+    const { data, error } = await supabase
+      .from("prop_assignments")
+      .insert(rows)
+      .select("id");
+
+    if (error) return { error: error.message };
+    if (!data || data.length === 0) {
+      return {
+        error:
+          "The change didn't save. You may not have permission, or your session expired — refresh the page and try again.",
+      };
+    }
+  }
+
+  revalidatePath("/booth");
+  revalidatePath("/dressing-room");
+  return { error: null };
+}
+
 type OwnerType = "house" | "individual" | "external";
 
 const CATEGORIES = ["hand", "set_dressing", "furniture", "consumable", "weapon", "paper", "other"];

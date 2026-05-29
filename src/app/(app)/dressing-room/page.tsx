@@ -6,6 +6,11 @@ const CATEGORY_LABELS: Record<string, string> = {
   accessories: "Accessories", shoes: "Shoes", hats: "Hats", other: "Other",
 };
 
+const PROP_CATEGORY_LABELS: Record<string, string> = {
+  hand: "Hand prop", set_dressing: "Set dressing", furniture: "Furniture",
+  consumable: "Consumable", weapon: "Weapon", paper: "Paper & docs", other: "Other",
+};
+
 type Piece = {
   id: string; item_name: string; category: string;
   size: string | null; thumbnail_url: string | null;
@@ -58,13 +63,19 @@ export default async function DressingRoomPage() {
   const activeProduction = prods.find((p) => p.id === cookieProd) || prods[0] || null;
 
   let pieces: Piece[] = [];
+  let props: Piece[] = [];
   let looks: Look[] = [];
 
   if (activeProduction) {
-    const [assignRes, looksRes] = await Promise.all([
+    const [assignRes, propsRes, looksRes] = await Promise.all([
       supabase
         .from("costume_assignments")
         .select("costume_inventory(id, item_name, category, size, thumbnail_url)")
+        .eq("person_id", person.id)
+        .eq("production_id", activeProduction.id),
+      supabase
+        .from("prop_assignments")
+        .select("props_inventory(id, item_name, category, size, thumbnail_url)")
         .eq("person_id", person.id)
         .eq("production_id", activeProduction.id),
       supabase
@@ -80,6 +91,11 @@ export default async function DressingRoomPage() {
       .map((r) => (r as unknown as { costume_inventory: Piece | null }).costume_inventory)
       .filter((p): p is Piece => !!p))
       .sort((a, b) => a.category.localeCompare(b.category));
+
+    props = ((propsRes.data || [])
+      .map((r) => (r as unknown as { props_inventory: Piece | null }).props_inventory)
+      .filter((p): p is Piece => !!p))
+      .sort((a, b) => a.category.localeCompare(b.category));
     looks = ((looksRes.data || []) as unknown as Look[]).sort((a, b) => {
       const actA = a.scenes?.act ?? 0;
       const actB = b.scenes?.act ?? 0;
@@ -89,7 +105,7 @@ export default async function DressingRoomPage() {
   }
 
   const displayName = person.preferred_name || person.full_name;
-  const isEmpty = pieces.length === 0 && looks.length === 0;
+  const isEmpty = pieces.length === 0 && props.length === 0 && looks.length === 0;
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
@@ -111,7 +127,7 @@ export default async function DressingRoomPage() {
         <div className="bg-card border border-bone rounded-card px-6 py-8 text-center">
           <p className="text-body-md text-ash">Nothing here yet.</p>
           <p className="text-body-xs text-muted mt-1">
-            When wardrobe assigns your costumes, they&apos;ll appear here.
+            When wardrobe assigns your costumes and props, they&apos;ll appear here.
           </p>
         </div>
       ) : (
@@ -142,6 +158,40 @@ export default async function DressingRoomPage() {
                       {item.size && <p className="font-mono text-[10px] text-ash">{item.size}</p>}
                       <p className="text-[9px] text-muted uppercase tracking-wider mt-0.5">
                         {CATEGORY_LABELS[item.category] || item.category}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {props.length > 0 && (
+            <div>
+              <p className="text-body-xs text-muted uppercase tracking-wider mb-2">Your props</p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                {props.map((item) => (
+                  <div key={item.id} className="rounded-card overflow-hidden border border-bone bg-card">
+                    {item.thumbnail_url ? (
+                      <div className="aspect-square bg-bone/20">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={item.thumbnail_url}
+                          alt={item.item_name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    ) : (
+                      <div className="aspect-square bg-bone/20 flex items-center justify-center">
+                        <span className="text-ash opacity-40 text-lg">◇</span>
+                      </div>
+                    )}
+                    <div className="px-2 py-1.5">
+                      <p className="text-body-xs font-medium text-ink truncate">{item.item_name}</p>
+                      {item.size && <p className="font-mono text-[10px] text-ash">{item.size}</p>}
+                      <p className="text-[9px] text-muted uppercase tracking-wider mt-0.5">
+                        {PROP_CATEGORY_LABELS[item.category] || item.category}
                       </p>
                     </div>
                   </div>

@@ -209,6 +209,23 @@ export default async function BoothPage() {
     .eq("org_id", orgId)
     .order("category", { ascending: true });
 
+  // Multi-actor assignments for props in this production
+  const { data: propAssignmentRows } = await supabase
+    .from("prop_assignments")
+    .select("item_id, person_id")
+    .eq("production_id", activeProduction.id);
+
+  const propAssigneesByItem = new Map<string, string[]>();
+  for (const r of (propAssignmentRows || []) as { item_id: string; person_id: string }[]) {
+    const arr = propAssigneesByItem.get(r.item_id) || [];
+    arr.push(r.person_id);
+    propAssigneesByItem.set(r.item_id, arr);
+  }
+  const propsInventoryItems = (propsInventoryData || []).map((it) => ({
+    ...it,
+    assignedPersonIds: propAssigneesByItem.get(it.id) || [],
+  }));
+
   // Get SM-enhanced scenes (with location, used to enrich design scene lists)
   const { data: smScenesData } = await supabase
     .from("scenes")
@@ -399,9 +416,11 @@ export default async function BoothPage() {
           ),
           props: (
             <PropsInventoryTab
-              items={(propsInventoryData || []) as any}
+              items={propsInventoryItems as any}
               orgId={orgId}
               orgPeople={orgPeople}
+              cast={cast}
+              productionId={activeProduction.id}
               canManage={canManage}
               houseOwner={houseOwner}
               costumeDesigner={costumeDesignerOwner}

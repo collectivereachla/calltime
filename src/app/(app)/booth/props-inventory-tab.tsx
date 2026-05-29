@@ -5,6 +5,7 @@ import {
   createPropItem,
   updatePropItem,
   deletePropItem,
+  setPropAssignees,
 } from "./props-inventory-actions";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -14,14 +15,18 @@ interface PropItem {
   thumbnail_url: string | null; notes: string | null;
   owner_type: string; owner_name: string | null; owner_person_id: string | null;
   storage_location: string | null;
+  assignedPersonIds: string[];
 }
 
 interface OrgPerson { id: string; name: string; }
+interface CastMember { person_id: string; name: string; role_title: string; }
 
 interface Props {
   items: PropItem[];
   orgId: string;
   orgPeople: OrgPerson[];
+  cast: CastMember[];
+  productionId: string;
   canManage: boolean;
   houseOwner: string;
   costumeDesigner: OrgPerson | null;
@@ -79,7 +84,7 @@ function ownerLabel(item: PropItem, houseOwner: string): string {
   return item.owner_name || (item.owner_type === "external" ? "Company" : "Individual");
 }
 
-export function PropsInventoryTab({ items, orgId, orgPeople, canManage, houseOwner, costumeDesigner }: Props) {
+export function PropsInventoryTab({ items, orgId, orgPeople, cast, productionId, canManage, houseOwner, costumeDesigner }: Props) {
   const [filter, setFilter] = useState<"all" | OwnerType>("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -87,8 +92,23 @@ export function PropsInventoryTab({ items, orgId, orgPeople, canManage, houseOwn
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<string | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
+  const [assignOpen, setAssignOpen] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  async function toggleAssignee(item: PropItem, personId: string) {
+    const has = item.assignedPersonIds.includes(personId);
+    const next = has
+      ? item.assignedPersonIds.filter((id) => id !== personId)
+      : [...item.assignedPersonIds, personId];
+    setLoading(item.id); setAssignError(null);
+    const result = await setPropAssignees(item.id, productionId, next);
+    setLoading(null);
+    if (result?.error) { setAssignError(result.error); return; }
+    router.refresh();
+  }
 
   function openCreate() {
     setForm(EMPTY_FORM); setEditingId(null); setFormError(null); setModalOpen(true);
@@ -235,8 +255,15 @@ export function PropsInventoryTab({ items, orgId, orgPeople, canManage, houseOwn
                 {catLabels[cat] || cat} ({catItems.length})
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                {catItems.map((item) => (
-                  <div key={item.id} className="bg-card border border-bone rounded-card overflow-hidden relative">
+                {catItems.map((item) => {
+                  const assignedNames = item.assignedPersonIds
+                    .map((pid) => cast.find((c) => c.person_id === pid)?.name)
+                    .filter(Boolean) as string[];
+                  const isAssigned = item.assignedPersonIds.length > 0;
+                  const isLoading = loading === item.id;
+                  const panelOpen = assignOpen === item.id;
+                  return (
+                  <div key={item.id} className={`bg-card border rounded-card overflow-hidden relative ${isAssigned ? "border-brick/30" : "border-bone"}`}>
                     {item.thumbnail_url ? (
                       <div className="aspect-square bg-bone/20">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -273,9 +300,48 @@ export function PropsInventoryTab({ items, orgId, orgPeople, canManage, houseOwn
                       >
                         {ownerLabel(item, houseOwner)}
                       </p>
+
+                      <button
+                        onClick={() => { if (canManage) setAssignOpen(panelOpen ? null : item.id); }}
+                        disabled={!canManage}
+                        className={`w-full mt-1.5 px-1.5 py-1 text-[11px] rounded border text-left transition-colors ${
+                          isAssigned ? "border-brick/20 bg-brick/5 text-brick" : "border-bone bg-paper text-ash"
+                        } ${canManage ? "hover:border-brick cursor-pointer" : "cursor-default"}`}
+                      >
+                        <span className="truncate inline-block max-w-[85%] align-middle">
+                          {isAssigned ? assignedNames.join(", ") : "Used by — none"}
+                        </span>
+                        {canManage && <span className="float-right opacity-60">{panelOpen ? "▴" : "▾"}</span>}
+                      </button>
+
+                      {panelOpen && canManage && (
+                        <div className="mt-1.5 border border-bone rounded p-1.5 bg-paper max-h-44 overflow-y-auto space-y-0.5">
+                          {assignError && <p className="text-[10px] text-brick px-1 py-0.5">{assignError}</p>}
+                          {cast.length === 0 && (
+                            <p className="text-[10px] text-muted px-1 py-0.5">No cast on this production yet.</p>
+                          )}
+                          {cast.map((c) => {
+                            const checked = item.assignedPersonIds.includes(c.person_id);
+                            return (
+                              <button
+                                key={c.person_id}
+                                onClick={() => toggleAssignee(item, c.person_id)}
+                                disabled={isLoading}
+                                className="w-full flex items-center gap-1.5 px-1 py-0.5 text-[11px] text-left rounded hover:bg-bone/40 disabled:opacity-50"
+                              >
+                                <span className={`w-3.5 h-3.5 shrink-0 rounded-sm border flex items-center justify-center text-[8px] ${checked ? "bg-brick border-brick text-paper" : "border-ash/40"}`}>
+                                  {checked ? "✓" : ""}
+                                </span>
+                                <span className="truncate">{c.name} <span className="text-muted">— {c.role_title}</span></span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
