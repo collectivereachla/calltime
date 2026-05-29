@@ -40,6 +40,7 @@ const rooms = [
   { name: "Spine", path: "/spine", icon: "▥" },
   { name: "Run", path: "/run", icon: "▶" },
   { name: "Booth", path: "/booth", icon: "◧" },
+  { name: "Dressing Room", path: "/dressing-room", icon: "◨" },
   { name: "Ledger", path: "/ledger", icon: "▧" },
   { name: "Applications", path: "/applications", icon: "◇", adminOnly: true },
   { name: "Archive", path: "/archive", icon: "▣" },
@@ -63,7 +64,7 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, 
     return badges[key] || 0;
   }
 
-  const visibleRooms = rooms.filter((r) => (!("adminOnly" in r && r.adminOnly) || isAdmin) && (r.path !== "/booth" || boothAccess));
+  const visibleRooms = rooms.filter((r) => (!("adminOnly" in r && r.adminOnly) || isAdmin) && (r.path !== "/booth" || boothAccess) && (r.path !== "/dressing-room" || !boothAccess));
 
   return (
     <>
