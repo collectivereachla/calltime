@@ -141,6 +141,20 @@ export default async function BoothPage() {
     };
   });
 
+  // Musicians (band) — for assigning instrument inputs on the mic plot
+  const { data: musicData } = await supabase
+    .from("production_assignments")
+    .select("person_id, role_title, people(id, full_name, preferred_name)")
+    .eq("production_id", activeProduction.id)
+    .eq("department", "music")
+    .eq("active", true)
+    .order("role_title", { ascending: true });
+
+  const musicians = (musicData || []).filter((a) => a.people != null).map((a) => {
+    const p = a.people as unknown as { id: string; full_name: string; preferred_name: string | null };
+    return { person_id: p.id, name: p.preferred_name || p.full_name, role_title: a.role_title };
+  });
+
   // Get costume plot entries
   const { data: plotData } = await supabase.rpc("get_costume_plot", {
     p_production_id: activeProduction.id,
@@ -489,6 +503,7 @@ export default async function BoothPage() {
                 productionId={activeProduction.id}
                 mics={mics as any}
                 cast={cast}
+                musicians={musicians}
                 canManage={canManage}
               />
             </div>

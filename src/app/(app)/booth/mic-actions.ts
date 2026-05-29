@@ -9,6 +9,8 @@ interface MicFields {
   element: string | null;
   isBackup: boolean;
   notes: string | null;
+  inputType: string;
+  connection: string;
 }
 
 function clean(f: MicFields) {
@@ -18,6 +20,8 @@ function clean(f: MicFields) {
     element: f.element?.trim() || null,
     is_backup: !!f.isBackup,
     notes: f.notes?.trim() || null,
+    input_type: ["lav", "handheld", "instrument", "other"].includes(f.inputType) ? f.inputType : "lav",
+    connection: ["wireless", "di", "wired"].includes(f.connection) ? f.connection : "wireless",
   };
 }
 

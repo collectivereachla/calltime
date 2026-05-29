@@ -16,7 +16,7 @@ type Piece = {
   size: string | null; thumbnail_url: string | null;
 };
 
-type MicInfo = { pack_number: string; element: string | null; channel: string | null };
+type MicInfo = { pack_number: string; element: string | null; channel: string | null; input_type: string | null };
 
 type Look = {
   scene_id: string; character_name: string | null;
@@ -90,7 +90,7 @@ export default async function DressingRoomPage() {
         .eq("person_id", person.id),
       supabase
         .from("mic_assignments")
-        .select("wireless_mics(pack_number, element, channel)")
+        .select("wireless_mics(pack_number, element, channel, input_type)")
         .eq("person_id", person.id)
         .eq("production_id", activeProduction.id)
         .maybeSingle(),
@@ -136,7 +136,7 @@ export default async function DressingRoomPage() {
 
       {myMic && (
         <div className="mb-6 inline-flex items-center gap-2 bg-brick/5 border border-brick/20 rounded-card px-3 py-2">
-          <span className="text-body-xs text-muted uppercase tracking-wider">Mic</span>
+          <span className="text-body-xs text-muted uppercase tracking-wider">{myMic.input_type === "instrument" ? "Input" : "Mic"}</span>
           <span className="font-mono text-body-md font-semibold text-brick">{myMic.pack_number}</span>
           {(myMic.element || myMic.channel) && (
             <span className="text-body-xs text-ash">
