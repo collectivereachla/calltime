@@ -4,6 +4,7 @@ import { useState } from "react";
 import { LedgerView } from "./ledger-view";
 import { BudgetView } from "./budget-view";
 import { TemplatesView } from "./templates-view";
+import { InvoicesView, type InvoiceRow } from "./invoices-view";
 
 interface Contract {
   id: string;
@@ -64,7 +65,7 @@ interface RevenueItem {
   is_received: boolean;
 }
 
-type Tab = "contracts" | "budget" | "templates";
+type Tab = "contracts" | "invoices" | "budget" | "templates";
 
 interface Props {
   contracts: Contract[];
@@ -81,6 +82,11 @@ interface Props {
   orgName: string;
   productions: { id: string; title: string; first_rehearsal: string | null; opening_date: string | null; closing_date: string | null }[];
   systemTemplates: { id: string; contract_type: string; title: string; body_markdown: string; is_system: boolean }[];
+  invoices: InvoiceRow[];
+  invoiceMyContract: { id: string; role_title: string; compensation: string | null; billTo: string | null; baseAmount: number | null } | null;
+  invoicePaymentMethods: { method: string; label: string | null; details: string | null }[];
+  invoiceW9Threshold: number;
+  invoiceW9OnFile: boolean;
 }
 
 export function LedgerLayout(props: Props) {
@@ -97,6 +103,7 @@ export function LedgerLayout(props: Props) {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "contracts", label: "Contracts" },
+    { key: "invoices" as Tab, label: "Invoices" },
     ...(showBudget ? [{ key: "budget" as Tab, label: "Budget" }] : []),
     ...(showTemplates ? [{ key: "templates" as Tab, label: "Templates" }] : []),
   ];
@@ -131,6 +138,18 @@ export function LedgerLayout(props: Props) {
           personName={props.personName}
           orgName={props.orgName}
           productions={props.productions}
+        />
+      )}
+
+      {tab === "invoices" && (
+        <InvoicesView
+          canManage={props.canManage}
+          personId={props.personId}
+          myContract={props.invoiceMyContract}
+          paymentMethods={props.invoicePaymentMethods}
+          w9Threshold={props.invoiceW9Threshold}
+          w9OnFile={props.invoiceW9OnFile}
+          invoices={props.invoices}
         />
       )}
 

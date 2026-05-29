@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { LedgerLayout } from "./ledger-layout";
 import { getActiveProductionId } from "@/lib/active-production";
+import { parseCompensationAmount } from "./invoice-utils";
 
 export default async function LedgerPage() {
   const supabase = await createClient();
@@ -209,6 +210,95 @@ export default async function LedgerPage() {
     revenueItems = data || [];
   }
 
+  // ---- Invoices ----
+  const activePid = productionIds[0] || null;
+  type InvoiceRow = {
+    id: string; person_id: string; base_amount: number; payment_method: string | null;
+    payment_details: string | null; status: string; w9_required: boolean; submitted_at: string;
+    person_name: string; payer_name: string | null; total: number;
+    lines: { description: string; amount: number; is_base: boolean }[];
+  };
+  let invoiceMyContract:
+    | { id: string; role_title: string; compensation: string | null; billTo: string | null; baseAmount: number | null }
+    | null = null;
+  let invoicePaymentMethods: { method: string; label: string | null; details: string | null }[] = [];
+  let invoiceW9Threshold = 600;
+  let invoiceW9OnFile = false;
+  let invoices: InvoiceRow[] = [];
+
+  if (activePid) {
+    const { data: orgRow } = await supabase.from("organizations").select("settings").eq("id", orgId).single();
+    invoiceW9Threshold = Number((orgRow?.settings as Record<string, unknown> | null)?.w9_threshold ?? 600);
+
+    const [{ data: payersData }, { data: prodRow }, { data: pmData }, { data: md }, { data: myCRow }] =
+      await Promise.all([
+        supabase.from("payers").select("id, name").eq("org_id", orgId),
+        supabase.from("productions").select("default_payer_id").eq("id", activePid).single(),
+        supabase
+          .from("payment_method_options")
+          .select("method, label, details, production_id, enabled, sort_order")
+          .eq("org_id", orgId)
+          .or(`production_id.is.null,production_id.eq.${activePid}`)
+          .eq("enabled", true)
+          .order("sort_order"),
+        supabase.from("member_details").select("w9_submitted").eq("person_id", person!.id).eq("org_id", orgId).maybeSingle(),
+        supabase
+          .from("contracts")
+          .select("id, role_title, compensation, payer_id")
+          .eq("production_id", activePid)
+          .eq("person_id", person!.id)
+          .eq("status", "countersigned")
+          .maybeSingle(),
+      ]);
+
+    const payerName = new Map((payersData || []).map((p) => [p.id, p.name]));
+    const defaultPayerId = prodRow?.default_payer_id || null;
+    invoicePaymentMethods = (pmData || []).map((m) => ({ method: m.method, label: m.label, details: m.details }));
+    invoiceW9OnFile = !!md?.w9_submitted;
+
+    if (myCRow) {
+      const billToId = myCRow.payer_id || defaultPayerId;
+      invoiceMyContract = {
+        id: myCRow.id,
+        role_title: myCRow.role_title,
+        compensation: myCRow.compensation,
+        billTo: billToId ? payerName.get(billToId) || null : null,
+        baseAmount: parseCompensationAmount(myCRow.compensation),
+      };
+    }
+
+    let invQ = supabase
+      .from("invoices")
+      .select(
+        "id, person_id, base_amount, payment_method, payment_details, status, w9_required, submitted_at, people(full_name, preferred_name), payers(name), invoice_line_items(description, amount, is_base, sort_order)"
+      )
+      .eq("production_id", activePid);
+    if (!canManage) invQ = invQ.eq("person_id", person!.id);
+    const { data: invRows } = await invQ.order("submitted_at", { ascending: false });
+
+    invoices = (invRows || []).map((r) => {
+      const p = r.people as unknown as { full_name: string; preferred_name: string | null } | null;
+      const pay = r.payers as unknown as { name: string } | null;
+      const lines = ((r.invoice_line_items as unknown as { description: string; amount: number; is_base: boolean; sort_order: number }[]) || [])
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((l) => ({ description: l.description, amount: Number(l.amount), is_base: l.is_base }));
+      return {
+        id: r.id,
+        person_id: r.person_id,
+        base_amount: Number(r.base_amount),
+        payment_method: r.payment_method,
+        payment_details: r.payment_details,
+        status: r.status,
+        w9_required: r.w9_required,
+        submitted_at: r.submitted_at,
+        person_name: p ? p.preferred_name || p.full_name : "—",
+        payer_name: pay?.name || null,
+        total: lines.reduce((s, l) => s + l.amount, 0),
+        lines,
+      };
+    });
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="mb-8">
@@ -238,6 +328,11 @@ export default async function LedgerPage() {
           orgName={orgName}
           productions={productions || []}
           systemTemplates={systemTemplates}
+          invoices={invoices}
+          invoiceMyContract={invoiceMyContract}
+          invoicePaymentMethods={invoicePaymentMethods}
+          invoiceW9Threshold={invoiceW9Threshold}
+          invoiceW9OnFile={invoiceW9OnFile}
         />
       )}
     </div>
