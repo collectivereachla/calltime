@@ -22,7 +22,7 @@ export default async function BoothPage() {
 
   const { data: membership } = await supabase
     .from("org_memberships")
-    .select("org_id, role, organizations(id, name)")
+    .select("org_id, role, organizations(id, name, inventory_house_owner)")
     .eq("person_id", person!.id)
     .limit(1)
     .single();
@@ -296,7 +296,7 @@ export default async function BoothPage() {
   // Get designer names from production assignments
   const { data: designAssignments } = await supabase
     .from("production_assignments")
-    .select("role_title, people(full_name, preferred_name)")
+    .select("role_title, people(id, full_name, preferred_name)")
     .eq("production_id", activeProduction.id)
     .eq("department", "design")
     .eq("active", true);
@@ -309,6 +309,21 @@ export default async function BoothPage() {
     const p = match.people as unknown as { full_name: string; preferred_name: string | null };
     return { name: p.preferred_name || p.full_name, role: match.role_title };
   }
+
+  // The production's costume designer, as an owner option for inventory
+  function findDesignerPerson(roleLike: string): { id: string; name: string } | null {
+    const match = (designAssignments || []).find((a) =>
+      a.role_title.toLowerCase().includes(roleLike.toLowerCase())
+    );
+    if (!match || !match.people) return null;
+    const p = match.people as unknown as { id: string; full_name: string; preferred_name: string | null };
+    return { id: p.id, name: p.preferred_name || p.full_name };
+  }
+  const costumeDesignerOwner = findDesignerPerson("costume");
+  const houseOwner =
+    (membership.organizations as unknown as { inventory_house_owner: string | null; name: string }).inventory_house_owner
+    || (membership.organizations as unknown as { name: string }).name
+    || "House stock";
 
   const lightDesigner = findDesigner("light");
   const soundDesigner = findDesigner("sound");
@@ -361,6 +376,8 @@ export default async function BoothPage() {
               canManage={canManage}
               orgId={orgId}
               orgPeople={orgPeople}
+              houseOwner={houseOwner}
+              costumeDesigner={costumeDesignerOwner}
             />
           ),
           props: (
@@ -369,6 +386,8 @@ export default async function BoothPage() {
               orgId={orgId}
               orgPeople={orgPeople}
               canManage={canManage}
+              houseOwner={houseOwner}
+              costumeDesigner={costumeDesignerOwner}
             />
           ),
           set: (

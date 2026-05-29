@@ -23,6 +23,8 @@ interface Props {
   orgId: string;
   orgPeople: OrgPerson[];
   canManage: boolean;
+  houseOwner: string;
+  costumeDesigner: OrgPerson | null;
 }
 
 type OwnerType = "house" | "individual" | "external";
@@ -72,12 +74,12 @@ function compressImage(file: Blob, maxDim = 1400): Promise<Blob> {
   });
 }
 
-function ownerLabel(item: PropItem): string {
-  if (item.owner_type === "house") return "Creative Reach";
-  return item.owner_name || (item.owner_type === "external" ? "External" : "Individual");
+function ownerLabel(item: PropItem, houseOwner: string): string {
+  if (item.owner_type === "house") return houseOwner;
+  return item.owner_name || (item.owner_type === "external" ? "Company" : "Individual");
 }
 
-export function PropsInventoryTab({ items, orgId, orgPeople, canManage }: Props) {
+export function PropsInventoryTab({ items, orgId, orgPeople, canManage, houseOwner, costumeDesigner }: Props) {
   const [filter, setFilter] = useState<"all" | OwnerType>("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -154,9 +156,19 @@ export function PropsInventoryTab({ items, orgId, orgPeople, canManage }: Props)
     setModalOpen(false); router.refresh();
   }
 
+  const ownerMode: "house" | "designer" | "individual" | "company" =
+    form.ownerType === "house" ? "house"
+    : form.ownerType === "external" ? "company"
+    : (costumeDesigner && form.ownerPersonId === costumeDesigner.id) ? "designer"
+    : "individual";
+
   const individualSelectValue = form.ownerPersonId
     ? form.ownerPersonId
     : form.ownerName ? "__other__" : "";
+
+  const knownCompanies = Array.from(
+    new Set(items.filter((i) => i.owner_type === "external" && i.owner_name).map((i) => i.owner_name as string))
+  ).sort();
 
   const filtered = filter === "all" ? items : items.filter((i) => (i.owner_type || "house") === filter);
 
@@ -168,9 +180,9 @@ export function PropsInventoryTab({ items, orgId, orgPeople, canManage }: Props)
 
   const ownerFilters: { key: "all" | OwnerType; label: string }[] = [
     { key: "all", label: "All" },
-    { key: "house", label: "Creative Reach" },
+    { key: "house", label: houseOwner },
     { key: "individual", label: "Individuals" },
-    { key: "external", label: "External" },
+    { key: "external", label: "Companies" },
   ];
 
   return (
@@ -259,7 +271,7 @@ export function PropsInventoryTab({ items, orgId, orgPeople, canManage }: Props)
                             : "bg-brick/10 text-brick"
                         }`}
                       >
-                        {ownerLabel(item)}
+                        {ownerLabel(item, houseOwner)}
                       </p>
                     </div>
                   </div>
@@ -343,20 +355,29 @@ export function PropsInventoryTab({ items, orgId, orgPeople, canManage }: Props)
               <div>
                 <label className="text-body-xs text-muted block mb-1">Owner</label>
                 <select
-                  value={form.ownerType}
+                  value={ownerMode}
                   onChange={(e) => {
-                    const t = e.target.value as OwnerType;
-                    setForm((f) => ({ ...f, ownerType: t, ownerName: "", ownerPersonId: "" }));
+                    const m = e.target.value;
+                    if (m === "house") {
+                      setForm((f) => ({ ...f, ownerType: "house", ownerName: "", ownerPersonId: "" }));
+                    } else if (m === "designer" && costumeDesigner) {
+                      setForm((f) => ({ ...f, ownerType: "individual", ownerPersonId: costumeDesigner.id, ownerName: costumeDesigner.name }));
+                    } else if (m === "individual") {
+                      setForm((f) => ({ ...f, ownerType: "individual", ownerPersonId: "", ownerName: "" }));
+                    } else if (m === "company") {
+                      setForm((f) => ({ ...f, ownerType: "external", ownerPersonId: "", ownerName: "" }));
+                    }
                   }}
                   className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-card text-ink focus:outline-none focus:border-brick"
                 >
-                  <option value="house">Creative Reach (house stock)</option>
-                  <option value="individual">An individual (cast or staff)</option>
-                  <option value="external">An external org (e.g. BTE)</option>
+                  <option value="house">{houseOwner} (house stock)</option>
+                  {costumeDesigner && <option value="designer">{costumeDesigner.name} — costume designer</option>}
+                  <option value="individual">Another individual…</option>
+                  <option value="company">A company…</option>
                 </select>
               </div>
 
-              {form.ownerType === "individual" && (
+              {ownerMode === "individual" && (
                 <div className="space-y-2">
                   <select
                     value={individualSelectValue}
@@ -386,13 +407,19 @@ export function PropsInventoryTab({ items, orgId, orgPeople, canManage }: Props)
                 </div>
               )}
 
-              {form.ownerType === "external" && (
-                <input
-                  value={form.ownerName}
-                  onChange={(e) => setForm((f) => ({ ...f, ownerName: e.target.value }))}
-                  placeholder="Organization name (e.g. BTE)"
-                  className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-card text-ink focus:outline-none focus:border-brick"
-                />
+              {ownerMode === "company" && (
+                <>
+                  <input
+                    list="props-company-names"
+                    value={form.ownerName}
+                    onChange={(e) => setForm((f) => ({ ...f, ownerName: e.target.value }))}
+                    placeholder="Company name (e.g. Creative Reach)"
+                    className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-card text-ink focus:outline-none focus:border-brick"
+                  />
+                  <datalist id="props-company-names">
+                    {knownCompanies.map((c) => <option key={c} value={c} />)}
+                  </datalist>
+                </>
               )}
 
               <div>

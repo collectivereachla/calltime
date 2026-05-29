@@ -56,6 +56,8 @@ interface Props {
   canManage: boolean;
   orgId: string;
   orgPeople: OrgPerson[];
+  houseOwner: string;
+  costumeDesigner: OrgPerson | null;
 }
 
 const approvalColors: Record<string, string> = {
@@ -72,7 +74,7 @@ const fittingColors: Record<string, string> = {
   needs_refit: "bg-brick/10 text-brick",
 };
 
-export function CostumeBible({ productionId, scenes, cast, costumeEntries, paradeEntries, measurementEntries, inventoryItems, canManage, orgId, orgPeople }: Props) {
+export function CostumeBible({ productionId, scenes, cast, costumeEntries, paradeEntries, measurementEntries, inventoryItems, canManage, orgId, orgPeople, houseOwner, costumeDesigner }: Props) {
   const [tab, setTab] = useState<"plot" | "parade" | "measurements" | "inventory">("plot");
   const [editingMeasurement, setEditingMeasurement] = useState<string | null>(null);
   const [savingMeasurement, setSavingMeasurement] = useState(false);
@@ -321,7 +323,7 @@ export function CostumeBible({ productionId, scenes, cast, costumeEntries, parad
       )}
       {/* Inventory tab */}
       {tab === "inventory" && (
-        <InventoryTab items={inventoryItems} cast={cast} measurements={measurementEntries} productionId={productionId} orgId={orgId} orgPeople={orgPeople} canManage={canManage} />
+        <InventoryTab items={inventoryItems} cast={cast} measurements={measurementEntries} productionId={productionId} orgId={orgId} orgPeople={orgPeople} canManage={canManage} houseOwner={houseOwner} costumeDesigner={costumeDesigner} />
       )}
     </div>
   );
