@@ -16,6 +16,8 @@ type Piece = {
   size: string | null; thumbnail_url: string | null;
 };
 
+type MicInfo = { pack_number: string; element: string | null; channel: string | null };
+
 type Look = {
   scene_id: string; character_name: string | null;
   costume_description: string | null; change_notes: string | null;
@@ -65,9 +67,10 @@ export default async function DressingRoomPage() {
   let pieces: Piece[] = [];
   let props: Piece[] = [];
   let looks: Look[] = [];
+  let myMic: MicInfo | null = null;
 
   if (activeProduction) {
-    const [assignRes, propsRes, looksRes] = await Promise.all([
+    const [assignRes, propsRes, looksRes, micRes] = await Promise.all([
       supabase
         .from("costume_assignments")
         .select("costume_inventory(id, item_name, category, size, thumbnail_url)")
@@ -85,7 +88,15 @@ export default async function DressingRoomPage() {
         )
         .eq("production_id", activeProduction.id)
         .eq("person_id", person.id),
+      supabase
+        .from("mic_assignments")
+        .select("wireless_mics(pack_number, element, channel)")
+        .eq("person_id", person.id)
+        .eq("production_id", activeProduction.id)
+        .maybeSingle(),
     ]);
+
+    myMic = (micRes.data as unknown as { wireless_mics: MicInfo | null } | null)?.wireless_mics || null;
 
     pieces = ((assignRes.data || [])
       .map((r) => (r as unknown as { costume_inventory: Piece | null }).costume_inventory)
@@ -105,7 +116,7 @@ export default async function DressingRoomPage() {
   }
 
   const displayName = person.preferred_name || person.full_name;
-  const isEmpty = pieces.length === 0 && props.length === 0 && looks.length === 0;
+  const isEmpty = pieces.length === 0 && props.length === 0 && looks.length === 0 && !myMic;
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
@@ -122,6 +133,18 @@ export default async function DressingRoomPage() {
           )}
         </p>
       </div>
+
+      {myMic && (
+        <div className="mb-6 inline-flex items-center gap-2 bg-brick/5 border border-brick/20 rounded-card px-3 py-2">
+          <span className="text-body-xs text-muted uppercase tracking-wider">Mic</span>
+          <span className="font-mono text-body-md font-semibold text-brick">{myMic.pack_number}</span>
+          {(myMic.element || myMic.channel) && (
+            <span className="text-body-xs text-ash">
+              {[myMic.element, myMic.channel && `ch ${myMic.channel}`].filter(Boolean).join(" · ")}
+            </span>
+          )}
+        </div>
+      )}
 
       {isEmpty ? (
         <div className="bg-card border border-bone rounded-card px-6 py-8 text-center">

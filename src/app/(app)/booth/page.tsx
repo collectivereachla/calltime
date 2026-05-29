@@ -5,6 +5,7 @@ import { DesignRoom } from "./design-room";
 import { makeLightingConfig, makeSoundConfig } from "./design-configs";
 import { BoothTabs } from "./booth-tabs";
 import { PropsInventoryTab } from "./props-inventory-tab";
+import { MicPlot } from "./mic-plot";
 import { getActiveProductionId } from "@/lib/active-production";
 
 export default async function BoothPage() {
@@ -327,6 +328,26 @@ export default async function BoothPage() {
     fetchDeptData("sound"),
   ]);
 
+  // Wireless mics + their actor assignments for this production
+  const { data: micRows } = await supabase
+    .from("wireless_mics")
+    .select("*")
+    .eq("production_id", activeProduction.id);
+  const { data: micAssignRows } = await supabase
+    .from("mic_assignments")
+    .select("mic_id, person_id")
+    .eq("production_id", activeProduction.id);
+  const micAssigneesByMic = new Map<string, string[]>();
+  for (const r of (micAssignRows || []) as { mic_id: string; person_id: string }[]) {
+    const arr = micAssigneesByMic.get(r.mic_id) || [];
+    arr.push(r.person_id);
+    micAssigneesByMic.set(r.mic_id, arr);
+  }
+  const mics = (micRows || []).map((m) => ({
+    ...m,
+    assignedPersonIds: micAssigneesByMic.get(m.id) || [],
+  }));
+
   // Get designer names from production assignments
   const { data: designAssignments } = await supabase
     .from("production_assignments")
@@ -452,17 +473,25 @@ export default async function BoothPage() {
             />
           ),
           sound: (
-            <DesignRoom
-              config={soundConfig}
-              productionId={activeProduction.id}
-              scenes={designScenes}
-              elements={soundData.elements}
-              references={soundData.references}
-              milestones={soundData.milestones}
-              cues={soundData.cues}
-              sceneNotes={soundData.sceneNotes}
-              canManage={canManage}
-            />
+            <div className="space-y-8">
+              <DesignRoom
+                config={soundConfig}
+                productionId={activeProduction.id}
+                scenes={designScenes}
+                elements={soundData.elements}
+                references={soundData.references}
+                milestones={soundData.milestones}
+                cues={soundData.cues}
+                sceneNotes={soundData.sceneNotes}
+                canManage={canManage}
+              />
+              <MicPlot
+                productionId={activeProduction.id}
+                mics={mics as any}
+                cast={cast}
+                canManage={canManage}
+              />
+            </div>
           ),
         }}
       />
