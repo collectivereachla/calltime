@@ -216,7 +216,7 @@ export default async function LedgerPage() {
     id: string; person_id: string; base_amount: number; payment_method: string | null;
     payment_details: string | null; status: string; w9_required: boolean; submitted_at: string;
     person_name: string; payer_name: string | null; total: number;
-    lines: { description: string; amount: number; is_base: boolean }[];
+    lines: { id?: string; description: string; amount: number; is_base: boolean }[];
   };
   let invoiceMyContract:
     | { id: string; role_title: string; compensation: string | null; billTo: string | null; baseAmount: number | null }
@@ -225,6 +225,9 @@ export default async function LedgerPage() {
   let invoiceW9Threshold = 600;
   let invoiceW9OnFile = false;
   let invoices: InvoiceRow[] = [];
+  let invoiceDefaultPayerId: string | null = null;
+  let invoiceFinancePayers: { id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; address: string | null }[] = [];
+  let invoiceFinanceMethods: { id: string; method: string; label: string | null; production_id: string | null; enabled: boolean }[] = [];
 
   if (activePid) {
     const { data: orgRow } = await supabase.from("organizations").select("settings").eq("id", orgId).single();
@@ -253,8 +256,25 @@ export default async function LedgerPage() {
 
     const payerName = new Map((payersData || []).map((p) => [p.id, p.name]));
     const defaultPayerId = prodRow?.default_payer_id || null;
+    invoiceDefaultPayerId = defaultPayerId;
     invoicePaymentMethods = (pmData || []).map((m) => ({ method: m.method, label: m.label, details: m.details }));
     invoiceW9OnFile = !!md?.w9_submitted;
+
+    if (canManage) {
+      const [{ data: allPayers }, { data: allMethods }] = await Promise.all([
+        supabase.from("payers").select("id, name, contact_name, email, phone, address").eq("org_id", orgId).order("name"),
+        supabase
+          .from("payment_method_options")
+          .select("id, method, label, production_id, enabled, sort_order")
+          .eq("org_id", orgId)
+          .or(`production_id.is.null,production_id.eq.${activePid}`)
+          .order("sort_order"),
+      ]);
+      invoiceFinancePayers = allPayers || [];
+      invoiceFinanceMethods = (allMethods || []).map((m) => ({
+        id: m.id, method: m.method, label: m.label, production_id: m.production_id, enabled: m.enabled,
+      }));
+    }
 
     if (myCRow) {
       const billToId = myCRow.payer_id || defaultPayerId;
@@ -270,7 +290,7 @@ export default async function LedgerPage() {
     let invQ = supabase
       .from("invoices")
       .select(
-        "id, person_id, base_amount, payment_method, payment_details, status, w9_required, submitted_at, people(full_name, preferred_name), payers(name), invoice_line_items(description, amount, is_base, sort_order)"
+        "id, person_id, base_amount, payment_method, payment_details, status, w9_required, submitted_at, people(full_name, preferred_name), payers(name), invoice_line_items(id, description, amount, is_base, sort_order)"
       )
       .eq("production_id", activePid);
     if (!canManage) invQ = invQ.eq("person_id", person!.id);
@@ -279,9 +299,9 @@ export default async function LedgerPage() {
     invoices = (invRows || []).map((r) => {
       const p = r.people as unknown as { full_name: string; preferred_name: string | null } | null;
       const pay = r.payers as unknown as { name: string } | null;
-      const lines = ((r.invoice_line_items as unknown as { description: string; amount: number; is_base: boolean; sort_order: number }[]) || [])
+      const lines = ((r.invoice_line_items as unknown as { id: string; description: string; amount: number; is_base: boolean; sort_order: number }[]) || [])
         .sort((a, b) => a.sort_order - b.sort_order)
-        .map((l) => ({ description: l.description, amount: Number(l.amount), is_base: l.is_base }));
+        .map((l) => ({ id: l.id, description: l.description, amount: Number(l.amount), is_base: l.is_base }));
       return {
         id: r.id,
         person_id: r.person_id,
@@ -333,6 +353,12 @@ export default async function LedgerPage() {
           invoicePaymentMethods={invoicePaymentMethods}
           invoiceW9Threshold={invoiceW9Threshold}
           invoiceW9OnFile={invoiceW9OnFile}
+          invoiceProductionId={activePid || ""}
+          invoiceProductionTitle={productions[0]?.title || ""}
+          invoiceOrgId={orgId}
+          invoiceDefaultPayerId={invoiceDefaultPayerId}
+          invoiceFinancePayers={invoiceFinancePayers}
+          invoiceFinanceMethods={invoiceFinanceMethods}
         />
       )}
     </div>

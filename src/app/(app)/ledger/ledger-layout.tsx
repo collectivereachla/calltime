@@ -87,6 +87,12 @@ interface Props {
   invoicePaymentMethods: { method: string; label: string | null; details: string | null }[];
   invoiceW9Threshold: number;
   invoiceW9OnFile: boolean;
+  invoiceProductionId: string;
+  invoiceProductionTitle: string;
+  invoiceOrgId: string;
+  invoiceDefaultPayerId: string | null;
+  invoiceFinancePayers: { id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; address: string | null }[];
+  invoiceFinanceMethods: { id: string; method: string; label: string | null; production_id: string | null; enabled: boolean }[];
 }
 
 export function LedgerLayout(props: Props) {
@@ -150,6 +156,12 @@ export function LedgerLayout(props: Props) {
           w9Threshold={props.invoiceW9Threshold}
           w9OnFile={props.invoiceW9OnFile}
           invoices={props.invoices}
+          productionId={props.invoiceProductionId}
+          productionTitle={props.invoiceProductionTitle}
+          orgId={props.invoiceOrgId}
+          defaultPayerId={props.invoiceDefaultPayerId}
+          financePayers={props.invoiceFinancePayers}
+          financeMethods={props.invoiceFinanceMethods}
         />
       )}
 

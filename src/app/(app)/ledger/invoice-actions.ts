@@ -114,3 +114,57 @@ export async function submitInvoice(input: {
   revalidatePath("/ledger");
   return { error: null };
 }
+
+// ---- Finance management (owner/production only; enforced by RLS) ----
+
+export async function addInvoiceLine(invoiceId: string, description: string, amount: number) {
+  const supabase = await createClient();
+  if (!description?.trim()) return { error: "A description is required." };
+  if (!(amount > 0)) return { error: "Enter an amount greater than zero." };
+
+  const { data, error } = await supabase
+    .from("invoice_line_items")
+    .insert({ invoice_id: invoiceId, description: description.trim(), amount, is_base: false, sort_order: 100 })
+    .select("id");
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: "Couldn't add the line — you may not have permission." };
+
+  revalidatePath("/ledger");
+  return { error: null };
+}
+
+export async function deleteInvoiceLine(lineId: string) {
+  const supabase = await createClient();
+  // The locked base line can't be removed here.
+  const { data, error } = await supabase
+    .from("invoice_line_items")
+    .delete()
+    .eq("id", lineId)
+    .eq("is_base", false)
+    .select("id");
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: "Couldn't remove the line." };
+
+  revalidatePath("/ledger");
+  return { error: null };
+}
+
+export async function setInvoiceStatus(invoiceId: string, status: string) {
+  const supabase = await createClient();
+  if (!["submitted", "approved", "paid", "void"].includes(status)) return { error: "Invalid status." };
+
+  const patch: Record<string, unknown> = { status };
+  patch.approved_at = status === "approved" || status === "paid" ? new Date().toISOString() : null;
+  patch.paid_at = status === "paid" ? new Date().toISOString() : null;
+
+  const { data, error } = await supabase
+    .from("invoices")
+    .update(patch)
+    .eq("id", invoiceId)
+    .select("id");
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: "Couldn't update the invoice — you may not have permission." };
+
+  revalidatePath("/ledger");
+  return { error: null };
+}
