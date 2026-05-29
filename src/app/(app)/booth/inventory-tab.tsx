@@ -8,6 +8,7 @@ import {
   deleteInventoryItem,
 } from "./inventory-actions";
 import { createClient } from "@/lib/supabase/client";
+import { migrateCostumePhotos } from "./migrate-photos-actions";
 import { useRouter } from "next/navigation";
 
 interface InventoryItem {
@@ -93,6 +94,9 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
   const [loading, setLoading] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | OwnerType>("all");
+
+  const [migrating, setMigrating] = useState(false);
+  const [migrateMsg, setMigrateMsg] = useState<string | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -180,10 +184,32 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
     setModalOpen(false); router.refresh();
   }
 
+  async function handleMigrate() {
+    const total = items.filter((i) => i.thumbnail_url?.includes("drive.google.com")).length;
+    setMigrating(true);
+    setMigrateMsg(`Moving ${total} photos into Calltime…`);
+    let done = 0;
+    while (true) {
+      const r = await migrateCostumePhotos(orgId, 6);
+      if (r.error) { setMigrateMsg(`Error: ${r.error}`); break; }
+      done += r.migrated;
+      if (r.remaining === 0) { setMigrateMsg(`Done — ${done} photo${done === 1 ? "" : "s"} now stored in Calltime.`); break; }
+      if (r.migrated === 0) {
+        setMigrateMsg(`Stopped — ${r.remaining} photo${r.remaining === 1 ? "" : "s"} couldn't be fetched from Drive (they still display from Drive). You can retry.`);
+        break;
+      }
+      setMigrateMsg(`Moved ${done} of ${total}…`);
+    }
+    setMigrating(false);
+    router.refresh();
+  }
+
   // Owner picker select value for the "individual" case
   const individualSelectValue = form.ownerPersonId
     ? form.ownerPersonId
     : form.ownerName ? "__other__" : "";
+
+  const driveCount = items.filter((i) => i.thumbnail_url?.includes("drive.google.com")).length;
 
   const filtered = filter === "all" ? items : items.filter((i) => (i.owner_type || "house") === filter);
   const assigned = items.filter((i) => i.assigned_to_person_id);
@@ -218,6 +244,30 @@ export function InventoryTab({ items, cast, measurements, productionId, orgId, o
           </button>
         )}
       </div>
+
+      {canManage && (driveCount > 0 || migrating || migrateMsg) && (
+        <div className="mb-4 bg-tentative/10 border border-tentative/30 rounded-card px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-body-xs text-ink">
+            {migrateMsg ? (
+              migrateMsg
+            ) : (
+              <>
+                <span className="font-medium">{driveCount} photo{driveCount === 1 ? "" : "s"}</span> still load from Google Drive.
+                <span className="text-muted"> Move them into Calltime so Drive can be retired.</span>
+              </>
+            )}
+          </div>
+          {driveCount > 0 && (
+            <button
+              onClick={handleMigrate}
+              disabled={migrating}
+              className="shrink-0 px-3 py-1.5 text-body-xs font-medium rounded-card bg-ink text-paper hover:bg-ink/90 transition-colors disabled:opacity-50"
+            >
+              {migrating ? "Moving…" : "Move into Calltime"}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-1.5 mb-5">
         {ownerFilters.map((f) => (
