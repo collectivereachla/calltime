@@ -291,7 +291,7 @@ export function SetDesign({ productionId, scenes, elements, references, mileston
 
           {/* Guidance for less experienced designers */}
           <div className="bg-bone/20 border border-bone rounded-card px-5 py-4">
-            <h3 className="text-body-sm font-medium text-ink mb-2">Where to start</h3>
+            <h3 className="text-body-sm font-medium text-ink mb-2">Where to Start</h3>
             <div className="space-y-2 text-body-sm text-ash">
               <p>Start with the <strong className="text-ink">Scene Breakdown</strong> tab. Read each scene's location and write what the audience needs to see — what tells the story of this place?</p>
               <p>From those notes, identify the <strong className="text-ink">Set Pieces</strong> you need to build or source. A "cabin" might be a door frame + window flat + porch railing — break it into buildable parts.</p>
@@ -521,7 +521,7 @@ export function SetDesign({ productionId, scenes, elements, references, mileston
 
           {showAddRef && (
             <div className="bg-card border border-bone rounded-card p-5 mb-4 space-y-3">
-              <h3 className="text-body-md font-medium text-ink">Upload reference</h3>
+              <h3 className="text-body-md font-medium text-ink">Upload Reference</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-body-xs text-ash mb-1">Title</label>

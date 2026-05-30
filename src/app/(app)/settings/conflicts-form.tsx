@@ -83,7 +83,7 @@ export function ConflictsForm({ conflicts }: { conflicts: Conflict[] }) {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-display text-display-sm">My availability</h3>
+          <h3 className="font-display text-display-sm">My Availability</h3>
           <p className="text-body-sm text-ash mt-1">
             Submit dates you&apos;re unavailable. Your SM and director will see these when building the schedule.
           </p>

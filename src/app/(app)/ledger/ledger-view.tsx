@@ -490,7 +490,7 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
           )}
           {canSign && showContent && (
             <div className="px-6 py-6 bg-paper border-t border-bone print:hidden">
-              <h3 className="font-display text-display-sm text-ink mb-3">Sign this contract</h3>
+              <h3 className="font-display text-display-sm text-ink mb-3">Sign This Contract</h3>
               <p className="text-body-sm text-ash mb-4">
                 Sign below and type your full legal name to agree to the terms outlined in this agreement.
               </p>

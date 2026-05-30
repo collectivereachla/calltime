@@ -177,7 +177,7 @@ export function InvoicesView(props: Props) {
         </div>
       ) : (
         <div className="bg-card border border-bone rounded-card p-5">
-          <h3 className="text-body-md font-medium text-ink mb-3">Submit your invoice</h3>
+          <h3 className="text-body-md font-medium text-ink mb-3">Submit Your Invoice</h3>
           <div className="grid grid-cols-2 gap-x-6 gap-y-3 mb-4">
             <div>
               <p className="text-body-xs text-muted">Bill to</p>

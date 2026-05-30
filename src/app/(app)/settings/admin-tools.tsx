@@ -121,7 +121,7 @@ export function AdminTools({ activeProduction }: Props) {
 
   return (
     <section>
-      <h2 className="text-body-md font-medium text-ink mb-4">Admin tools</h2>
+      <h2 className="text-body-md font-medium text-ink mb-4">Admin Tools</h2>
 
       {/* Room locks */}
       {activeProduction && (

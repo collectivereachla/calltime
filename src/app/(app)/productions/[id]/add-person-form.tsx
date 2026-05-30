@@ -92,7 +92,7 @@ export function AddPersonForm({ productionId, orgMembers }: Props) {
   return (
     <div className="bg-card border border-bone rounded-card p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-body-md font-medium text-ink">Add person</h3>
+        <h3 className="text-body-md font-medium text-ink">Add Person</h3>
         {orgMembers.length > 0 && (
           <div className="flex gap-1">
             <button

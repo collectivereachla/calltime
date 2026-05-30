@@ -111,7 +111,7 @@ export function NewEventForm({ productions, companyMembers }: Props) {
 
   return (
     <div className="bg-card border border-bone rounded-card p-5">
-      <h3 className="text-body-md font-medium text-ink mb-4">New event</h3>
+      <h3 className="text-body-md font-medium text-ink mb-4">New Event</h3>
 
       <form action={handleSubmit} className="space-y-4">
         {error && (

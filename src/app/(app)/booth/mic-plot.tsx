@@ -189,7 +189,7 @@ export function MicPlot({ productionId, mics, cast, musicians, canManage }: Prop
     <div>
       <div className="flex items-center justify-between gap-3 mb-3">
         <div>
-          <h3 className="text-body-sm font-medium text-ink">Sound inputs</h3>
+          <h3 className="text-body-sm font-medium text-ink">Sound Inputs</h3>
           <p className="text-body-xs text-muted">
             {mics.length} input{mics.length === 1 ? "" : "s"} · {assignedCount} assigned.
             {" "}Lav packs, handhelds, and band inputs — assign each to who uses it.

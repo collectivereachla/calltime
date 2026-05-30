@@ -156,7 +156,7 @@ export function VersionBar({ versions, activeVersionId, isLocked, canManage, pro
       {/* New version form */}
       {showNewVersion && canManage && (
         <div className="mt-4 bg-card border border-bone rounded-card p-5">
-          <h3 className="text-body-md font-medium text-ink mb-3">Create new version</h3>
+          <h3 className="text-body-md font-medium text-ink mb-3">Create New Version</h3>
           <p className="text-body-xs text-muted mb-4">
             This duplicates the current script ({activeVersion?.version}) into a new working copy. The current version will be locked.
           </p>
@@ -216,7 +216,7 @@ export function VersionBar({ versions, activeVersionId, isLocked, canManage, pro
       {/* Version history */}
       {showHistory && (
         <div className="mt-4 bg-card border border-bone rounded-card p-5">
-          <h3 className="text-body-md font-medium text-ink mb-4">Version history</h3>
+          <h3 className="text-body-md font-medium text-ink mb-4">Version History</h3>
           <div className="space-y-2">
             {versions.map((v) => {
               const isActive = v.id === activeVersionId;

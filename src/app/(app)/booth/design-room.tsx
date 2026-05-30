@@ -579,7 +579,7 @@ export function DesignRoom({ config, productionId, scenes, elements, references,
           )}
           {showRefForm && (
             <div className="bg-card border border-bone rounded-card p-5 mb-4 space-y-3">
-              <h3 className="text-body-md font-medium text-ink">Upload reference</h3>
+              <h3 className="text-body-md font-medium text-ink">Upload Reference</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-body-xs text-ash mb-1">Title</label>
@@ -690,7 +690,7 @@ export function DesignRoom({ config, productionId, scenes, elements, references,
 
           {/* Guidance */}
           <div className="bg-bone/20 border border-bone rounded-card px-5 py-4">
-            <h3 className="text-body-sm font-medium text-ink mb-2">Where to start</h3>
+            <h3 className="text-body-sm font-medium text-ink mb-2">Where to Start</h3>
             <div className="space-y-2 text-body-sm text-ash">
               {config.guidance.map((step, i) => <p key={i} dangerouslySetInnerHTML={{ __html: step }} />)}
             </div>

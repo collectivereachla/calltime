@@ -70,7 +70,7 @@ export async function WelcomeChecklist({ personId, productionId }: Props) {
   return (
     <div className="bg-card border border-brick/20 rounded-card p-5 mb-8">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-display text-display-sm text-ink">Getting started</h3>
+        <h3 className="font-display text-display-sm text-ink">Getting Started</h3>
         <span className="text-body-xs text-muted">{doneCount}/{steps.length}</span>
       </div>
       <div className="space-y-2">

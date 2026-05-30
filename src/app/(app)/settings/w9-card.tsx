@@ -41,7 +41,7 @@ export function W9Card({
 
   return (
     <div className="mt-10 pt-8 border-t border-bone">
-      <h2 className="text-body-lg font-medium text-ink">Tax form (W-9)</h2>
+      <h2 className="text-body-lg font-medium text-ink">Tax Form (W-9)</h2>
       <p className="text-body-sm text-ash mt-1 mb-4">
         Required before you can be paid {/* threshold mentioned in Ledger */}at or above the reporting threshold.
         Your W-9 is stored privately and is only visible to your organization&apos;s finance admins.
