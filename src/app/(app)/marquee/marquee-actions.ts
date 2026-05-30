@@ -4,6 +4,25 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+const VALID_CATEGORIES = ["flyer", "photo", "headshot", "highlight", "other"];
+
+// Rename / recategorize an asset. RLS allows the uploader or owners/production.
+export async function updatePromoAsset(id: string, caption: string, category: string) {
+  const supabase = await createClient();
+  const patch: { caption: string | null; category?: string } = {
+    caption: caption?.trim() || null,
+  };
+  if (VALID_CATEGORIES.includes(category)) patch.category = category;
+
+  const { data, error } = await supabase
+    .from("promo_assets").update(patch).eq("id", id).select("id");
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: "Couldn't save — you can only edit files you uploaded." };
+
+  revalidatePath("/marquee");
+  return { error: null };
+}
+
 // Record metadata after the browser has uploaded the file straight to storage.
 export async function recordPromoAsset(input: {
   productionId: string;
@@ -12,6 +31,8 @@ export async function recordPromoAsset(input: {
   mimeType: string | null;
   sizeBytes: number | null;
   caption: string;
+  category: string;
+  durationSeconds: number | null;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -56,6 +77,8 @@ export async function recordPromoAsset(input: {
       size_bytes: input.sizeBytes,
       caption: input.caption?.trim() || null,
       is_official: isOfficial,
+      category: VALID_CATEGORIES.includes(input.category) ? input.category : "other",
+      duration_seconds: input.durationSeconds,
     })
     .select("id");
 

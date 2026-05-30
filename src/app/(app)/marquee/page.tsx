@@ -29,6 +29,7 @@ export default async function MarqueePage() {
     id: string; file_name: string; mime_type: string | null; size_bytes: number | null;
     caption: string | null; created_at: string; uploaded_by: string | null; file_path: string;
     uploaderName: string; isImage: boolean; previewUrl: string | null; isOfficial: boolean;
+    isVideo: boolean; category: string; durationSeconds: number | null;
   };
   let assets: Asset[] = [];
 
@@ -38,15 +39,17 @@ export default async function MarqueePage() {
 
     const { data: rows } = await supabase
       .from("promo_assets")
-      .select("id, file_name, mime_type, size_bytes, caption, created_at, uploaded_by, file_path, is_official, people(full_name, preferred_name)")
+      .select("id, file_name, mime_type, size_bytes, caption, created_at, uploaded_by, file_path, is_official, category, duration_seconds, people(full_name, preferred_name)")
       .eq("production_id", pid)
       .order("created_at", { ascending: false });
 
     const list = rows || [];
-    const imagePaths = list.filter((r) => (r.mime_type || "").startsWith("image/")).map((r) => r.file_path);
+    const mediaPaths = list
+      .filter((r) => (r.mime_type || "").startsWith("image/") || (r.mime_type || "").startsWith("video/"))
+      .map((r) => r.file_path);
     const signed = new Map<string, string>();
-    if (imagePaths.length > 0) {
-      const { data: signedList } = await supabase.storage.from("promo-assets").createSignedUrls(imagePaths, 3600);
+    if (mediaPaths.length > 0) {
+      const { data: signedList } = await supabase.storage.from("promo-assets").createSignedUrls(mediaPaths, 3600);
       for (const s of signedList || []) {
         if (s.signedUrl && s.path) signed.set(s.path, s.signedUrl);
       }
@@ -55,6 +58,7 @@ export default async function MarqueePage() {
     assets = list.map((r) => {
       const p = r.people as unknown as { full_name: string; preferred_name: string | null } | null;
       const isImage = (r.mime_type || "").startsWith("image/");
+      const isVideo = (r.mime_type || "").startsWith("video/");
       return {
         id: r.id,
         file_name: r.file_name,
@@ -66,8 +70,11 @@ export default async function MarqueePage() {
         file_path: r.file_path,
         uploaderName: p ? p.preferred_name || p.full_name : "—",
         isImage,
-        previewUrl: isImage ? signed.get(r.file_path) || null : null,
+        isVideo,
+        previewUrl: isImage || isVideo ? signed.get(r.file_path) || null : null,
         isOfficial: !!r.is_official,
+        category: r.category || "other",
+        durationSeconds: r.duration_seconds,
       };
     });
   }
