@@ -64,13 +64,15 @@ export default async function MarqueePage() {
   }
 
   let prodTitle = "";
+  type Person = { id: string; name: string };
   type Asset = {
     id: string; file_name: string; mime_type: string | null; size_bytes: number | null;
     caption: string | null; created_at: string; uploaded_by: string | null; file_path: string;
     uploaderName: string; isImage: boolean; previewUrl: string | null; isOfficial: boolean;
-    isVideo: boolean; category: string; durationSeconds: number | null;
+    isVideo: boolean; category: string; durationSeconds: number | null; tagged: Person[];
   };
   let assets: Asset[] = [];
+  const roster: Person[] = [];
 
   if (pid) {
     const { data: prod } = await supabase.from("productions").select("title").eq("id", pid).single();
@@ -94,6 +96,36 @@ export default async function MarqueePage() {
       }
     }
 
+    // Tags per asset + the roster of people who can be tagged.
+    const assetIds = list.map((r) => r.id);
+    const tagsByAsset = new Map<string, Person[]>();
+    if (assetIds.length > 0) {
+      const { data: tagRows } = await supabase
+        .from("promo_asset_tags")
+        .select("asset_id, person_id, people(full_name, preferred_name)")
+        .in("asset_id", assetIds);
+      for (const t of tagRows || []) {
+        const pp = t.people as unknown as { full_name: string; preferred_name: string | null } | null;
+        const arr = tagsByAsset.get(t.asset_id) || [];
+        arr.push({ id: t.person_id, name: pp ? pp.preferred_name || pp.full_name : "—" });
+        tagsByAsset.set(t.asset_id, arr);
+      }
+    }
+
+    const { data: rosterRows } = await supabase
+      .from("production_assignments")
+      .select("person_id, people(full_name, preferred_name)")
+      .eq("production_id", pid)
+      .eq("active", true);
+    const seen = new Set<string>();
+    for (const a of rosterRows || []) {
+      if (seen.has(a.person_id)) continue;
+      seen.add(a.person_id);
+      const pp = a.people as unknown as { full_name: string; preferred_name: string | null } | null;
+      roster.push({ id: a.person_id, name: pp ? pp.preferred_name || pp.full_name : "—" });
+    }
+    roster.sort((a, b) => a.name.localeCompare(b.name));
+
     assets = list.map((r) => {
       const p = r.people as unknown as { full_name: string; preferred_name: string | null } | null;
       const isImage = (r.mime_type || "").startsWith("image/");
@@ -114,6 +146,7 @@ export default async function MarqueePage() {
         isOfficial: !!r.is_official,
         category: r.category || "other",
         durationSeconds: r.duration_seconds,
+        tagged: tagsByAsset.get(r.id) || [],
       };
     });
   }
@@ -135,6 +168,7 @@ export default async function MarqueePage() {
           canManage={canManage}
           canApprove={canApprove}
           assets={assets}
+          roster={roster}
         />
       )}
     </div>

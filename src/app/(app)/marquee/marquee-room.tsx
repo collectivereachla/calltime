@@ -3,13 +3,14 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { recordPromoAsset, deletePromoAsset, getPromoDownloadUrl, updatePromoAsset, setPromoOfficial } from "./marquee-actions";
+import { recordPromoAsset, deletePromoAsset, getPromoDownloadUrl, updatePromoAsset, setPromoOfficial, setPromoTags } from "./marquee-actions";
 
+interface Person { id: string; name: string }
 interface Asset {
   id: string; file_name: string; mime_type: string | null; size_bytes: number | null;
   caption: string | null; created_at: string; uploaded_by: string | null; file_path: string;
   uploaderName: string; isImage: boolean; previewUrl: string | null; isOfficial: boolean;
-  isVideo: boolean; category: string; durationSeconds: number | null;
+  isVideo: boolean; category: string; durationSeconds: number | null; tagged: Person[];
 }
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
   canManage: boolean;
   canApprove: boolean;
   assets: Asset[];
+  roster: Person[];
 }
 
 const MAX_BYTES = 100 * 1024 * 1024;
@@ -26,13 +28,39 @@ const MAX_VIDEO_SECONDS = 35;
 
 const CATEGORIES = [
   { key: "flyer", label: "Flyers" },
-  { key: "photo", label: "Promotional photos" },
+  { key: "photo", label: "Promotional Photos" },
   { key: "headshot", label: "Headshots" },
-  { key: "highlight", label: "Company highlights" },
+  { key: "highlight", label: "Company Highlights" },
   { key: "other", label: "Other" },
 ];
 const CAT_ORDER: Record<string, number> = { flyer: 0, photo: 1, headshot: 2, highlight: 3, other: 4 };
 const CAT_LABEL: Record<string, string> = Object.fromEntries(CATEGORIES.map((c) => [c.key, c.label]));
+
+// Top-level so it keeps a stable identity across re-renders (no focus loss).
+function PeoplePicker({ roster, selected, onToggle }: { roster: Person[]; selected: string[]; onToggle: (id: string) => void }) {
+  const [q, setQ] = useState("");
+  const shown = q.trim() ? roster.filter((p) => p.name.toLowerCase().includes(q.toLowerCase())) : roster;
+  return (
+    <div className="border border-bone rounded-card bg-paper p-2 w-full">
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people…"
+        className="w-full px-2 py-1 text-body-xs rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick mb-1.5" />
+      <div className="max-h-40 overflow-y-auto flex flex-col gap-0.5">
+        {shown.length === 0 ? (
+          <p className="text-body-xs text-muted px-1 py-1">No matches.</p>
+        ) : shown.map((p) => {
+          const on = selected.includes(p.id);
+          return (
+            <button key={p.id} type="button" onClick={() => onToggle(p.id)}
+              className={`text-left text-body-xs px-2 py-1 rounded flex items-center justify-between ${on ? "bg-brick/10 text-ink" : "text-ash hover:bg-bone/50"}`}>
+              <span>{p.name}</span>
+              {on && <span className="text-brick">✓</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function formatBytes(n: number | null) {
   if (!n) return "";
@@ -64,12 +92,14 @@ function getVideoDuration(file: File): Promise<number> {
   });
 }
 
-export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApprove, assets }: Props) {
+export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApprove, assets, roster }: Props) {
   const router = useRouter();
   const supabase = createClient();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [uploadCategory, setUploadCategory] = useState("photo");
+  const [uploadTags, setUploadTags] = useState<string[]>([]);
+  const [tagPanelOpen, setTagPanelOpen] = useState(false);
   const [filter, setFilter] = useState("all");
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -79,7 +109,10 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
   const [editing, setEditing] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editCategory, setEditCategory] = useState("other");
+  const [editTags, setEditTags] = useState<string[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
+
+  const toggle = (arr: string[], id: string) => (arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
 
   async function handleFiles(files: FileList) {
     setError(null);
@@ -115,11 +148,14 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
         productionId, filePath: path, fileName: file.name,
         mimeType: file.type || null, sizeBytes: file.size, caption: "",
         category: uploadCategory, durationSeconds: duration,
+        taggedPersonIds: uploadTags,
       });
       if (res?.error) setError(`${file.name}: ${res.error}`);
     }
     setUploading(false);
     setProgress(null);
+    setUploadTags([]);
+    setTagPanelOpen(false);
     if (fileRef.current) fileRef.current.value = "";
     router.refresh();
   }
@@ -151,10 +187,15 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
     setEditing(a.id);
     setEditName(a.caption || a.file_name);
     setEditCategory(a.category || "other");
+    setEditTags(a.tagged.map((t) => t.id));
   }
   async function saveEdit(a: Asset) {
     setSavingEdit(true); setError(null);
     const res = await updatePromoAsset(a.id, editName, editCategory);
+    if (!res?.error) {
+      const tagRes = await setPromoTags(a.id, editTags);
+      if (tagRes?.error) { setSavingEdit(false); setError(tagRes.error); return; }
+    }
     setSavingEdit(false);
     if (res?.error) { setError(res.error); return; }
     setEditing(null);
@@ -197,6 +238,12 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
                 className="px-2 py-1 text-body-xs rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick">
                 {CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
               </select>
+              {roster.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-muted mb-1">Tag people (they&apos;ll be notified)</p>
+                  <PeoplePicker roster={roster} selected={editTags} onToggle={(id) => setEditTags((t) => toggle(t, id))} />
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <button onClick={() => saveEdit(a)} disabled={savingEdit}
                   className="px-2 py-1 text-[11px] font-medium rounded bg-ink text-paper hover:bg-ink/90 disabled:opacity-50">
@@ -217,11 +264,16 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
               )}
               <span className="self-start text-[10px] text-muted bg-bone/60 rounded px-1.5 py-0.5">{CAT_LABEL[a.category] || "Other"}</span>
               <p className="text-[10px] text-muted">{a.uploaderName}{a.size_bytes ? ` · ${formatBytes(a.size_bytes)}` : ""}</p>
+              {a.tagged.length > 0 && (
+                <p className="text-[10px] text-ash truncate" title={a.tagged.map((t) => t.name).join(", ")}>
+                  Tagged: {a.tagged.map((t) => t.name).join(", ")}
+                </p>
+              )}
               <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
                 <button onClick={() => handleDownload(a)} className="text-[11px] font-medium text-brick hover:underline">Download</button>
                 {canEdit && <button onClick={() => startEdit(a)} className="text-[11px] text-ash hover:text-ink">Rename</button>}
                 {canApprove && (
-                  <button onClick={() => handleSetOfficial(a, !a.isOfficial)} className="text-[11px] text-ash hover:text-ink" title={a.isOfficial ? "Move to Company uploads" : "Promote to Approved"}>
+                  <button onClick={() => handleSetOfficial(a, !a.isOfficial)} className="text-[11px] text-ash hover:text-ink" title={a.isOfficial ? "Move to Company Uploads" : "Promote to Approved"}>
                     {a.isOfficial ? "Unapprove" : "Approve"}
                   </button>
                 )}
@@ -260,7 +312,19 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
           }`}>
           {uploading ? "Uploading…" : "+ Upload photos / flyers / video"}
         </label>
+        {roster.length > 0 && (
+          <button type="button" onClick={() => setTagPanelOpen((o) => !o)} disabled={uploading}
+            className="px-3 py-2 text-body-sm rounded-card border border-bone text-ash hover:text-ink hover:border-brick">
+            Tag people{uploadTags.length > 0 ? ` (${uploadTags.length})` : ""}
+          </button>
+        )}
       </div>
+      {tagPanelOpen && roster.length > 0 && (
+        <div className="mb-4 max-w-sm">
+          <p className="text-body-xs text-muted mb-1">These people will be notified when you upload.</p>
+          <PeoplePicker roster={roster} selected={uploadTags} onToggle={(id) => setUploadTags((t) => toggle(t, id))} />
+        </div>
+      )}
       <p className="text-body-xs text-muted mb-1">
         Originals stay full resolution. Photos, flyers, PDFs, and video clips up to {MAX_VIDEO_SECONDS} seconds (max 100 MB). Everyone can download.
       </p>
@@ -304,7 +368,7 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
 
           <section>
             <div className="flex items-baseline gap-2 mb-3">
-              <h2 className="text-body-lg font-medium text-ink">Company uploads</h2>
+              <h2 className="text-body-lg font-medium text-ink">Company Uploads</h2>
               <span className="text-body-xs text-muted">shared by other company members</span>
             </div>
             {member.length === 0 ? (

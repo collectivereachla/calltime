@@ -3,8 +3,39 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createNotification } from "@/lib/notifications";
 
 const VALID_CATEGORIES = ["flyer", "photo", "headshot", "highlight", "other"];
+const CATEGORY_LABEL: Record<string, string> = {
+  flyer: "Flyers", photo: "Promotional Photos", headshot: "Headshots", highlight: "Company Highlights", other: "Other",
+};
+
+// Tag people on an asset and notify anyone newly tagged.
+async function applyTags(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  assetId: string,
+  personIds: string[],
+  notifyPersonIds: string[],
+  context: { orgId: string; productionTitle: string; categoryLabel: string }
+) {
+  const clean = Array.from(new Set(personIds.filter(Boolean)));
+  if (clean.length > 0) {
+    await supabase
+      .from("promo_asset_tags")
+      .insert(clean.map((pid) => ({ asset_id: assetId, person_id: pid })))
+      .select("asset_id");
+  }
+  for (const pid of notifyPersonIds) {
+    createNotification({
+      personId: pid,
+      orgId: context.orgId,
+      type: "promo_tag",
+      title: "You were tagged in Marquee",
+      body: `${context.categoryLabel}${context.productionTitle ? ` · ${context.productionTitle}` : ""}`,
+      link: "/marquee",
+    }).catch(() => {});
+  }
+}
 
 // Production leadership = org owner/production/admin, or a designer / stage
 // manager / director / production-tier assignment on this show. Shared by the
@@ -80,6 +111,7 @@ export async function recordPromoAsset(input: {
   caption: string;
   category: string;
   durationSeconds: number | null;
+  taggedPersonIds?: string[];
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -88,12 +120,13 @@ export async function recordPromoAsset(input: {
   if (!me) return { error: "We couldn't find your member profile." };
 
   const { data: production } = await supabase
-    .from("productions").select("org_id").eq("id", input.productionId).single();
+    .from("productions").select("org_id, title").eq("id", input.productionId).single();
   if (!production) return { error: "Production not found." };
 
   // Auto-approve uploads from production leadership.
   const isOfficial = await isProductionLeadership(supabase, me.id, input.productionId, production.org_id);
 
+  const category = VALID_CATEGORIES.includes(input.category) ? input.category : "other";
   const { data, error } = await supabase
     .from("promo_assets")
     .insert({
@@ -106,13 +139,73 @@ export async function recordPromoAsset(input: {
       size_bytes: input.sizeBytes,
       caption: input.caption?.trim() || null,
       is_official: isOfficial,
-      category: VALID_CATEGORIES.includes(input.category) ? input.category : "other",
+      category,
       duration_seconds: input.durationSeconds,
     })
     .select("id");
 
   if (error) return { error: error.message };
   if (!data || data.length === 0) return { error: "Couldn't save the upload." };
+
+  const tagIds = (input.taggedPersonIds || []).filter((pid) => pid !== me.id);
+  if (tagIds.length > 0) {
+    await applyTags(supabase, data[0].id, tagIds, tagIds, {
+      orgId: production.org_id,
+      productionTitle: production.title || "",
+      categoryLabel: CATEGORY_LABEL[category] || "Other",
+    });
+  }
+
+  revalidatePath("/marquee");
+  return { error: null };
+}
+
+// Replace an asset's tags; notify only people who are newly added.
+export async function setPromoTags(assetId: string, personIds: string[]) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "You're not signed in." };
+  const { data: me } = await supabase.from("people").select("id").eq("user_id", user.id).single();
+  if (!me) return { error: "We couldn't find your member profile." };
+
+  const { data: asset } = await supabase
+    .from("promo_assets")
+    .select("id, org_id, category, productions(title)")
+    .eq("id", assetId)
+    .single();
+  if (!asset) return { error: "File not found." };
+
+  const { data: existing } = await supabase
+    .from("promo_asset_tags").select("person_id").eq("asset_id", assetId);
+  const existingIds = new Set((existing || []).map((t) => t.person_id));
+  const want = new Set(personIds.filter(Boolean));
+
+  const toAdd = [...want].filter((id) => !existingIds.has(id));
+  const toRemove = [...existingIds].filter((id) => !want.has(id));
+
+  if (toRemove.length > 0) {
+    const { error: delErr } = await supabase
+      .from("promo_asset_tags").delete().eq("asset_id", assetId).in("person_id", toRemove);
+    if (delErr) return { error: delErr.message };
+  }
+  if (toAdd.length > 0) {
+    const prodTitle = (asset.productions as unknown as { title: string } | null)?.title || "";
+    const { error: addErr } = await supabase
+      .from("promo_asset_tags")
+      .insert(toAdd.map((pid) => ({ asset_id: assetId, person_id: pid })))
+      .select("asset_id");
+    if (addErr) return { error: addErr.message };
+    for (const pid of toAdd.filter((id) => id !== me.id)) {
+      createNotification({
+        personId: pid,
+        orgId: asset.org_id,
+        type: "promo_tag",
+        title: "You were tagged in Marquee",
+        body: `${CATEGORY_LABEL[asset.category] || "Other"}${prodTitle ? ` · ${prodTitle}` : ""}`,
+        link: "/marquee",
+      }).catch(() => {});
+    }
+  }
 
   revalidatePath("/marquee");
   return { error: null };
