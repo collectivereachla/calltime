@@ -170,11 +170,11 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
   const official = shown.filter((a) => a.isOfficial);
   const member = shown.filter((a) => !a.isOfficial);
 
-  function Card({ a }: { a: Asset }) {
+  const renderCard = (a: Asset) => {
     const canEdit = canManage || a.uploaded_by === myPersonId;
     const isEditing = editing === a.id;
     return (
-      <div className="bg-card border border-bone rounded-card overflow-hidden flex flex-col">
+      <div key={a.id} className="bg-card border border-bone rounded-card overflow-hidden flex flex-col">
         <div className="relative aspect-square bg-bone/40 flex items-center justify-center overflow-hidden">
           {a.isImage && a.previewUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -236,7 +236,7 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
         </div>
       </div>
     );
-  }
+  };
 
   const grid = "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3";
 
@@ -298,7 +298,7 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
             {official.length === 0 ? (
               <p className="text-body-sm text-muted">Nothing here{filter !== "all" ? " in this category" : ""} yet.</p>
             ) : (
-              <div className={grid}>{official.map((a) => <Card key={a.id} a={a} />)}</div>
+              <div className={grid}>{official.map(renderCard)}</div>
             )}
           </section>
 
@@ -310,7 +310,7 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
             {member.length === 0 ? (
               <p className="text-body-sm text-muted">Nothing here{filter !== "all" ? " in this category" : ""} yet.</p>
             ) : (
-              <div className={grid}>{member.map((a) => <Card key={a.id} a={a} />)}</div>
+              <div className={grid}>{member.map(renderCard)}</div>
             )}
           </section>
         </div>
