@@ -224,6 +224,7 @@ export default async function LedgerPage() {
   let invoicePaymentMethods: { method: string; label: string | null; details: string | null }[] = [];
   let invoiceW9Threshold = 600;
   let invoiceW9OnFile = false;
+  let invoiceMyAddress = "";
   let invoices: InvoiceRow[] = [];
   let invoiceDefaultPayerId: string | null = null;
   let invoiceFinancePayers: { id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; address: string | null }[] = [];
@@ -244,7 +245,7 @@ export default async function LedgerPage() {
           .or(`production_id.is.null,production_id.eq.${activePid}`)
           .eq("enabled", true)
           .order("sort_order"),
-        supabase.from("member_details").select("w9_submitted, w9_tax_year").eq("person_id", person!.id).eq("org_id", orgId).maybeSingle(),
+        supabase.from("member_details").select("w9_submitted, w9_tax_year, mailing_address").eq("person_id", person!.id).eq("org_id", orgId).maybeSingle(),
         supabase
           .from("contracts")
           .select("id, role_title, compensation, payer_id")
@@ -259,6 +260,7 @@ export default async function LedgerPage() {
     invoiceDefaultPayerId = defaultPayerId;
     invoicePaymentMethods = (pmData || []).map((m) => ({ method: m.method, label: m.label, details: m.details }));
     invoiceW9OnFile = !!md?.w9_submitted && Number(md?.w9_tax_year) >= new Date().getFullYear();
+    invoiceMyAddress = md?.mailing_address || "";
 
     if (canManage) {
       const [{ data: allPayers }, { data: allMethods }] = await Promise.all([
@@ -353,6 +355,7 @@ export default async function LedgerPage() {
           invoicePaymentMethods={invoicePaymentMethods}
           invoiceW9Threshold={invoiceW9Threshold}
           invoiceW9OnFile={invoiceW9OnFile}
+          invoiceMyAddress={invoiceMyAddress}
           invoiceProductionId={activePid || ""}
           invoiceProductionTitle={productions[0]?.title || ""}
           invoiceOrgId={orgId}

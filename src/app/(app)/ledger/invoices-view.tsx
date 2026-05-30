@@ -24,6 +24,7 @@ interface Props {
   paymentMethods: PaymentMethod[];
   w9Threshold: number;
   w9OnFile: boolean;
+  myAddress: string;
   invoices: InvoiceRow[];
   productionId: string;
   productionTitle: string;
@@ -135,10 +136,11 @@ function InvoiceCard({ inv, canManage }: { inv: InvoiceRow; canManage: boolean }
 }
 
 export function InvoicesView(props: Props) {
-  const { canManage, personId, myContract, paymentMethods, w9Threshold, w9OnFile, invoices } = props;
+  const { canManage, personId, myContract, paymentMethods, w9Threshold, w9OnFile, myAddress, invoices } = props;
   const router = useRouter();
   const [method, setMethod] = useState(paymentMethods[0]?.method || "");
   const [details, setDetails] = useState("");
+  const [address, setAddress] = useState(myAddress || "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -154,7 +156,7 @@ export function InvoicesView(props: Props) {
   async function handleSubmit() {
     if (!myContract) return;
     setSubmitting(true); setError(null);
-    const result = await submitInvoice({ contractId: myContract.id, paymentMethod: method, paymentDetails: details });
+    const result = await submitInvoice({ contractId: myContract.id, paymentMethod: method, paymentDetails: details, payeeAddress: address });
     setSubmitting(false);
     if (result?.error) { setError(result.error); return; }
     router.refresh();
@@ -205,6 +207,16 @@ export function InvoicesView(props: Props) {
           ) : (
             <>
               <div className="mb-3">
+                <label className="text-body-xs text-muted block mb-1">Your mailing address (appears on the invoice)</label>
+                <textarea
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  rows={2}
+                  placeholder="Street, City, State ZIP"
+                  className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick"
+                />
+              </div>
+              <div className="mb-3">
                 <label className="text-body-xs text-muted block mb-1">How would you like to be paid?</label>
                 {paymentMethods.length === 0 ? (
                   <p className="text-body-sm text-ash">No payment methods are set up for this production yet.</p>
@@ -233,7 +245,19 @@ export function InvoicesView(props: Props) {
 
       {invoices.length > 0 && (
         <div>
-          <p className="text-body-xs text-muted uppercase tracking-wider mb-2">{canManage ? "All invoices" : "Your invoices"}</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-body-xs text-muted uppercase tracking-wider">{canManage ? "All invoices" : "Your invoices"}</p>
+            {canManage && (
+              <a
+                href="/ledger-print"
+                target="_blank"
+                rel="noopener"
+                className="text-body-xs font-medium text-brick hover:underline"
+              >
+                Export all as PDF →
+              </a>
+            )}
+          </div>
           <div className="space-y-2">
             {invoices.map((inv) => <InvoiceCard key={inv.id} inv={inv} canManage={canManage} />)}
           </div>

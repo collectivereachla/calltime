@@ -87,6 +87,7 @@ interface Props {
   invoicePaymentMethods: { method: string; label: string | null; details: string | null }[];
   invoiceW9Threshold: number;
   invoiceW9OnFile: boolean;
+  invoiceMyAddress: string;
   invoiceProductionId: string;
   invoiceProductionTitle: string;
   invoiceOrgId: string;
@@ -155,6 +156,7 @@ export function LedgerLayout(props: Props) {
           paymentMethods={props.invoicePaymentMethods}
           w9Threshold={props.invoiceW9Threshold}
           w9OnFile={props.invoiceW9OnFile}
+          myAddress={props.invoiceMyAddress}
           invoices={props.invoices}
           productionId={props.invoiceProductionId}
           productionTitle={props.invoiceProductionTitle}

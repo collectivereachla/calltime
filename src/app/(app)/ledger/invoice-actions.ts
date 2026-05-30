@@ -8,12 +8,17 @@ export async function submitInvoice(input: {
   contractId: string;
   paymentMethod: string;
   paymentDetails: string;
+  payeeAddress: string;
 }) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "You're not signed in." };
-  const { data: me } = await supabase.from("people").select("id").eq("user_id", user.id).single();
+  const { data: me } = await supabase
+    .from("people")
+    .select("id, full_name, preferred_name, email, phone")
+    .eq("user_id", user.id)
+    .single();
   if (!me) return { error: "We couldn't find your member profile." };
 
   // Load the contract and its production (contracts have no org_id of their own).
@@ -82,6 +87,16 @@ export async function submitInvoice(input: {
     return { error: "You've already submitted an invoice for this contract." };
   }
 
+  // Invoice number: INV-{year}-{running count for this org}
+  const year = new Date().getFullYear();
+  const { count } = await supabase
+    .from("invoices")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", production.org_id);
+  const invoiceNumber = `INV-${year}-${String((count || 0) + 1).padStart(4, "0")}`;
+
+  const payeeAddress = input.payeeAddress?.trim() || null;
+
   const { data: inv, error: invErr } = await supabase
     .from("invoices")
     .insert({
@@ -95,6 +110,11 @@ export async function submitInvoice(input: {
       payment_details: input.paymentDetails?.trim() || null,
       w9_required: w9Required,
       status: "submitted",
+      invoice_number: invoiceNumber,
+      payee_name: me.preferred_name || me.full_name,
+      payee_address: payeeAddress,
+      payee_email: me.email,
+      payee_phone: me.phone,
     })
     .select("id")
     .single();
@@ -102,6 +122,17 @@ export async function submitInvoice(input: {
   if (invErr) return { error: invErr.message };
   if (!inv) {
     return { error: "The invoice didn't save. Refresh and try again, or contact your manager." };
+  }
+
+  // Remember the mailing address on the member's profile for next time.
+  if (payeeAddress) {
+    const { data: mdRow } = await supabase
+      .from("member_details").select("id").eq("person_id", me.id).eq("org_id", production.org_id).maybeSingle();
+    if (mdRow) {
+      await supabase.from("member_details").update({ mailing_address: payeeAddress }).eq("id", mdRow.id);
+    } else {
+      await supabase.from("member_details").insert({ person_id: me.id, org_id: production.org_id, mailing_address: payeeAddress });
+    }
   }
 
   const { error: lineErr } = await supabase.from("invoice_line_items").insert({
