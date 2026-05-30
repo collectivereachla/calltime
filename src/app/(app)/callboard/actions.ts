@@ -257,12 +257,42 @@ async function notifyOnConflict(eventCallId: string, reason?: string) {
 export async function removeEventCall(eventCallId: string) {
   const supabase = await createClient();
 
+  // Look up the call before deleting so we know whether they'd confirmed.
+  const { data: call } = await supabase
+    .from("event_calls")
+    .select("person_id, event_id, response_status")
+    .eq("id", eventCallId)
+    .single();
+
   const { error } = await supabase
     .from("event_calls")
     .delete()
     .eq("id", eventCallId);
 
   if (error) return { error: error.message };
+
+  // Only notify someone who had already confirmed — skip quick add/undo
+  // corrections and people who never responded.
+  if (call && call.response_status === "confirmed") {
+    const { data: event } = await supabase
+      .from("schedule_events")
+      .select("title, event_date, org_id")
+      .eq("id", call.event_id)
+      .single();
+    if (event) {
+      const dateStr = new Date(event.event_date + "T00:00:00").toLocaleDateString("en-US", {
+        weekday: "short", month: "short", day: "numeric",
+      });
+      createNotification({
+        personId: call.person_id,
+        orgId: event.org_id,
+        type: "event_call",
+        title: "You're no longer called",
+        body: `${event.title} — ${dateStr}`,
+        link: "/callboard",
+      }).catch(() => {});
+    }
+  }
 
   revalidatePath("/callboard");
   return { success: true };
