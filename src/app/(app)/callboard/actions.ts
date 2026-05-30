@@ -61,15 +61,9 @@ export async function createScheduleEvent(formData: FormData) {
     }
   }
 
-  // Send "you've been called" emails (fire-and-forget, errors logged internally)
-  if (eventId) {
-    sendEventCallEmails(eventId).catch(() => {});
-  }
-
-  // Push + in-app notifications to every called person
-  if (eventId) {
-    notifyCalledPeople(eventId, productionId, title, eventDate).catch(() => {});
-  }
+  // New events are created as drafts (schedule_events.published defaults to
+  // false), so creating one is silent — no calls or notifications go out until
+  // the week is published. Publishing is what starts the confirm cycle.
 
   // Activity log
   if (eventId) {
@@ -175,8 +169,13 @@ export async function updateEventCalls(
 
   if (error) return { error: error.message };
 
-  // Send emails to newly-called people (only those without email_sent_at)
-  sendEventCallEmails(eventId).catch(() => {});
+  // Only notify newly-called people if the event is already published. Calls
+  // added while the week is still a draft stay silent until it's published.
+  const { data: ev } = await supabase
+    .from("schedule_events").select("published").eq("id", eventId).single();
+  if (ev?.published) {
+    sendEventCallEmails(eventId).catch(() => {});
+  }
 
   revalidatePath("/callboard");
   return { success: true };
@@ -307,14 +306,14 @@ export async function addEventCall(eventId: string, personId: string) {
 
   if (error) return { error: error.message };
 
-  // Notify the person they've been added
+  // Notify the person they've been added — but only if the event is published.
   const { data: event } = await supabase
     .from("schedule_events")
-    .select("title, event_date, org_id")
+    .select("title, event_date, org_id, published")
     .eq("id", eventId)
     .single();
 
-  if (event) {
+  if (event?.published) {
     const dateStr = new Date(event.event_date + "T00:00:00").toLocaleDateString("en-US", {
       weekday: "short", month: "short", day: "numeric",
     });
@@ -358,4 +357,52 @@ async function logConflictActivity(eventCallId: string, reason?: string) {
     entityId: event.id,
     summary: `${name} flagged a conflict with ${event.title}${reason ? ": " + reason : ""}`,
   }).catch(() => {});
+}
+// Publish all draft events in a given week (Mon–Sun) for a production. This is
+// what makes calls live and starts the confirm cycle: it sends the call emails
+// and the "you've been called" notifications for the newly published events.
+export async function publishWeek(productionId: string, weekStartISO: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "You're not signed in." };
+  const { data: me } = await supabase.from("people").select("id").eq("user_id", user.id).single();
+  if (!me) return { error: "We couldn't find your member profile." };
+
+  const { data: prod } = await supabase
+    .from("productions").select("org_id").eq("id", productionId).single();
+  if (!prod) return { error: "Production not found." };
+
+  const { data: mem } = await supabase
+    .from("org_memberships").select("role").eq("person_id", me.id).eq("org_id", prod.org_id).maybeSingle();
+  if (!mem || !["owner", "production"].includes(mem.role)) {
+    return { error: "Only the production team can publish the schedule." };
+  }
+
+  const endD = new Date(weekStartISO + "T00:00:00Z");
+  endD.setUTCDate(endD.getUTCDate() + 6);
+  const weekEndISO = endD.toISOString().slice(0, 10);
+
+  const { data: drafts } = await supabase
+    .from("schedule_events")
+    .select("id, title, event_date")
+    .eq("production_id", productionId)
+    .eq("published", false)
+    .gte("event_date", weekStartISO)
+    .lte("event_date", weekEndISO);
+
+  if (!drafts || drafts.length === 0) return { error: null, published: 0 };
+
+  const { error: upErr } = await supabase
+    .from("schedule_events")
+    .update({ published: true, published_at: new Date().toISOString() })
+    .in("id", drafts.map((d) => d.id));
+  if (upErr) return { error: upErr.message };
+
+  for (const ev of drafts) {
+    sendEventCallEmails(ev.id).catch(() => {});
+    notifyCalledPeople(ev.id, productionId, ev.title, ev.event_date).catch(() => {});
+  }
+
+  revalidatePath("/callboard");
+  return { error: null, published: drafts.length };
 }

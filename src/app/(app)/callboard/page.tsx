@@ -5,6 +5,7 @@ import { EditEventButton } from "./edit-event";
 import { CallboardTabs } from "./callboard-tabs";
 import { PrintButton } from "./print-button";
 import { PersonFilter } from "./person-filter";
+import { PublishWeekButton } from "./publish-week-button";
 import { getActiveProductionId } from "@/lib/active-production";
 
 function formatTime(time: string): string {
@@ -77,6 +78,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
     location: string | null;
     notes: string | null;
     production_id: string;
+    published: boolean;
     productions: { title: string };
     event_calls: {
       id: string;
@@ -101,6 +103,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
         notes,
         production_id,
         mandatory,
+        published,
         productions(title),
         event_calls(
           id,
@@ -120,7 +123,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
 
   // Get call responses for these events
   // Get call responses via RPC (bypasses RLS chain that was blocking reads)
-  let responses: Record<string, { status: string; conflict_reason: string | null }> = {};
+  const responses: Record<string, { status: string; conflict_reason: string | null }> = {};
 
   if (membership?.org_id) {
     const { data: responseData } = await supabase.rpc("get_all_call_responses_for_org", {
@@ -227,6 +230,25 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
     eventsByDate.get(event.event_date)!.push(event);
   }
 
+  // Draft calls grouped by week (Mon), for the per-week Publish banner.
+  function weekMonday(dateISO: string) {
+    const d = new Date(dateISO + "T00:00:00Z");
+    const dow = (d.getUTCDay() + 6) % 7; // Monday = 0
+    d.setUTCDate(d.getUTCDate() - dow);
+    return d.toISOString().slice(0, 10);
+  }
+  const draftWeeks = new Map<string, number>();
+  if (canManage) {
+    for (const event of events) {
+      if (!event.published) {
+        const wk = weekMonday(event.event_date);
+        draftWeeks.set(wk, (draftWeeks.get(wk) || 0) + 1);
+      }
+    }
+  }
+  const draftWeekList = Array.from(draftWeeks.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const publishProductionId = activeProductions[0]?.id || "";
+
   // Fetch conflict responses for the Conflicts tab
   let conflicts: {
     event_id: string; event_title: string; event_type: string;
@@ -298,6 +320,29 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
               </div>
             )}
 
+      {/* Draft calls awaiting publish (leadership only) */}
+      {canManage && draftWeekList.length > 0 && publishProductionId && (
+        <div className="mb-6 bg-bone/40 border border-bone rounded-card px-5 py-4 print:hidden">
+          <h2 className="text-body-md font-medium text-ink mb-1">Draft Calls</h2>
+          <p className="text-body-xs text-muted mb-3">
+            These calls are saved but not yet sent. Publishing a week sends the calls and asks everyone to confirm.
+          </p>
+          <div className="space-y-2">
+            {draftWeekList.map(([wk, count]) => {
+              const end = new Date(wk + "T00:00:00Z");
+              end.setUTCDate(end.getUTCDate() + 6);
+              const label = `${new Date(wk + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}–${end.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`;
+              return (
+                <div key={wk} className="flex items-center justify-between gap-3">
+                  <span className="text-body-sm text-ink">Week of {label}</span>
+                  <PublishWeekButton productionId={publishProductionId} weekStart={wk} count={count} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Events by date */}
       {events.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
@@ -364,6 +409,11 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
                             <span className="text-body-xs text-muted">
                               {prod.title}
                             </span>
+                            {canManage && !event.published && (
+                              <span className="text-body-xs font-medium px-1.5 py-0.5 rounded bg-bone text-ash">
+                                Draft
+                              </span>
+                            )}
                           </div>
                           <h3 className="text-body-md font-medium text-ink">
                             {event.title}
