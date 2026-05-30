@@ -22,7 +22,29 @@ export default async function MarqueePage() {
 
   const orgId = membership.org_id;
   const canManage = membership.role === "owner" || membership.role === "production";
-  const pid = await getActiveProductionId();
+
+  // Resolve the active production. The cookie isn't always set (e.g. a single-
+  // show org has no switcher), so fall back to a production this person can see
+  // instead of showing an empty room. Mirrors the layout/Dressing Room logic.
+  const cookiePid = await getActiveProductionId();
+  const ACTIVE_STATUSES = ["pre_production", "rehearsal", "tech", "in_run"];
+  const { data: assignedRows } = await supabase
+    .from("production_assignments")
+    .select("productions!inner(id, status)")
+    .eq("person_id", person!.id)
+    .eq("active", true)
+    .in("productions.status", ACTIVE_STATUSES);
+  let candidates = (assignedRows || []).map((a) => (a.productions as unknown as { id: string }).id);
+  if (candidates.length === 0 && ["owner", "production", "admin"].includes(membership.role)) {
+    const { data } = await supabase
+      .from("productions")
+      .select("id")
+      .eq("org_id", orgId)
+      .in("status", ACTIVE_STATUSES)
+      .order("opening_date", { ascending: true, nullsFirst: false });
+    candidates = (data || []).map((p) => p.id);
+  }
+  const pid = candidates.find((id) => id === cookiePid) || candidates[0] || null;
 
   // Leadership (can approve/demote others' uploads): org owner/production/admin,
   // or a designer / SM / director / production-tier assignment on this show.
