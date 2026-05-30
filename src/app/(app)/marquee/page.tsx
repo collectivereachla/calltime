@@ -28,7 +28,7 @@ export default async function MarqueePage() {
   type Asset = {
     id: string; file_name: string; mime_type: string | null; size_bytes: number | null;
     caption: string | null; created_at: string; uploaded_by: string | null; file_path: string;
-    uploaderName: string; isImage: boolean; previewUrl: string | null;
+    uploaderName: string; isImage: boolean; previewUrl: string | null; isOfficial: boolean;
   };
   let assets: Asset[] = [];
 
@@ -38,7 +38,7 @@ export default async function MarqueePage() {
 
     const { data: rows } = await supabase
       .from("promo_assets")
-      .select("id, file_name, mime_type, size_bytes, caption, created_at, uploaded_by, file_path, people(full_name, preferred_name)")
+      .select("id, file_name, mime_type, size_bytes, caption, created_at, uploaded_by, file_path, is_official, people(full_name, preferred_name)")
       .eq("production_id", pid)
       .order("created_at", { ascending: false });
 
@@ -67,6 +67,7 @@ export default async function MarqueePage() {
         uploaderName: p ? p.preferred_name || p.full_name : "—",
         isImage,
         previewUrl: isImage ? signed.get(r.file_path) || null : null,
+        isOfficial: !!r.is_official,
       };
     });
   }

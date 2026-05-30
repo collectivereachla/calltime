@@ -8,7 +8,7 @@ import { recordPromoAsset, deletePromoAsset, getPromoDownloadUrl } from "./marqu
 interface Asset {
   id: string; file_name: string; mime_type: string | null; size_bytes: number | null;
   caption: string | null; created_at: string; uploaded_by: string | null; file_path: string;
-  uploaderName: string; isImage: boolean; previewUrl: string | null;
+  uploaderName: string; isImage: boolean; previewUrl: string | null; isOfficial: boolean;
 }
 
 interface Props {
@@ -99,10 +99,48 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, assets
     router.refresh();
   }
 
+  const official = assets.filter((a) => a.isOfficial);
+  const member = assets.filter((a) => !a.isOfficial);
+
+  function Card({ a }: { a: Asset }) {
+    const canDelete = canManage || a.uploaded_by === myPersonId;
+    return (
+      <div className="bg-card border border-bone rounded-card overflow-hidden flex flex-col">
+        <div className="aspect-square bg-bone/40 flex items-center justify-center overflow-hidden">
+          {a.isImage && a.previewUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={a.previewUrl} alt={a.caption || a.file_name} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-body-lg font-mono text-ash">{ext(a.file_name)}</span>
+          )}
+        </div>
+        <div className="p-2.5 flex flex-col gap-1 flex-1">
+          <p className="text-body-xs text-ink truncate" title={a.file_name}>{a.caption || a.file_name}</p>
+          <p className="text-[10px] text-muted">
+            {a.uploaderName}{a.size_bytes ? ` · ${formatBytes(a.size_bytes)}` : ""}
+          </p>
+          <div className="mt-auto flex items-center justify-between pt-1">
+            <button onClick={() => handleDownload(a)} className="text-[11px] font-medium text-brick hover:underline">
+              Download
+            </button>
+            {canDelete && (
+              <button onClick={() => handleDelete(a)} disabled={deleting === a.id}
+                className="text-[11px] text-ash hover:text-brick disabled:opacity-50">
+                {deleting === a.id ? "…" : "Remove"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const grid = "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3";
+
   return (
     <div>
       {/* Upload */}
-      <div className="mb-6">
+      <div className="mb-8">
         <input
           ref={fileRef}
           type="file"
@@ -133,45 +171,30 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, assets
           <p className="text-body-sm text-muted mt-1">Upload the first photo or flyer to start the collection.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {assets.map((a) => {
-            const canDelete = canManage || a.uploaded_by === myPersonId;
-            return (
-              <div key={a.id} className="bg-card border border-bone rounded-card overflow-hidden flex flex-col">
-                <div className="aspect-square bg-bone/40 flex items-center justify-center overflow-hidden">
-                  {a.isImage && a.previewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={a.previewUrl} alt={a.caption || a.file_name} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-body-lg font-mono text-ash">{ext(a.file_name)}</span>
-                  )}
-                </div>
-                <div className="p-2.5 flex flex-col gap-1 flex-1">
-                  <p className="text-body-xs text-ink truncate" title={a.file_name}>{a.caption || a.file_name}</p>
-                  <p className="text-[10px] text-muted">
-                    {a.uploaderName}{a.size_bytes ? ` · ${formatBytes(a.size_bytes)}` : ""}
-                  </p>
-                  <div className="mt-auto flex items-center justify-between pt-1">
-                    <button
-                      onClick={() => handleDownload(a)}
-                      className="text-[11px] font-medium text-brick hover:underline"
-                    >
-                      Download
-                    </button>
-                    {canDelete && (
-                      <button
-                        onClick={() => handleDelete(a)}
-                        disabled={deleting === a.id}
-                        className="text-[11px] text-ash hover:text-brick disabled:opacity-50"
-                      >
-                        {deleting === a.id ? "…" : "Remove"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div className="space-y-10">
+          <section>
+            <div className="flex items-baseline gap-2 mb-3">
+              <h2 className="text-body-lg font-medium text-ink">Approved</h2>
+              <span className="text-body-xs text-muted">production team · owners, directors, stage managers, designers</span>
+            </div>
+            {official.length === 0 ? (
+              <p className="text-body-sm text-muted">No approved materials yet.</p>
+            ) : (
+              <div className={grid}>{official.map((a) => <Card key={a.id} a={a} />)}</div>
+            )}
+          </section>
+
+          <section>
+            <div className="flex items-baseline gap-2 mb-3">
+              <h2 className="text-body-lg font-medium text-ink">Company uploads</h2>
+              <span className="text-body-xs text-muted">shared by other company members</span>
+            </div>
+            {member.length === 0 ? (
+              <p className="text-body-sm text-muted">No company uploads yet.</p>
+            ) : (
+              <div className={grid}>{member.map((a) => <Card key={a.id} a={a} />)}</div>
+            )}
+          </section>
         </div>
       )}
     </div>

@@ -23,6 +23,27 @@ export async function recordPromoAsset(input: {
     .from("productions").select("org_id").eq("id", input.productionId).single();
   if (!production) return { error: "Production not found." };
 
+  // Is this uploader production leadership? (owner/production/admin at the org,
+  // or a designer / SM / director / production-tier assignment on this show.)
+  let isOfficial = false;
+  const { data: mem } = await supabase
+    .from("org_memberships").select("role").eq("person_id", me.id).eq("org_id", production.org_id).maybeSingle();
+  if (mem && ["owner", "production", "admin"].includes(mem.role)) {
+    isOfficial = true;
+  } else {
+    const { data: pa } = await supabase
+      .from("production_assignments")
+      .select("access_tier, department")
+      .eq("person_id", me.id)
+      .eq("production_id", input.productionId)
+      .eq("active", true);
+    isOfficial = (pa || []).some(
+      (a) =>
+        ["admin", "production", "staff"].includes(a.access_tier) ||
+        ["design", "stage_management", "direction"].includes(a.department)
+    );
+  }
+
   const { data, error } = await supabase
     .from("promo_assets")
     .insert({
@@ -34,6 +55,7 @@ export async function recordPromoAsset(input: {
       mime_type: input.mimeType,
       size_bytes: input.sizeBytes,
       caption: input.caption?.trim() || null,
+      is_official: isOfficial,
     })
     .select("id");
 
