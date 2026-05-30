@@ -6,6 +6,53 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const VALID_CATEGORIES = ["flyer", "photo", "headshot", "highlight", "other"];
 
+// Production leadership = org owner/production/admin, or a designer / stage
+// manager / director / production-tier assignment on this show. Shared by the
+// auto-approve-on-upload rule and the manual promote/demote action.
+async function isProductionLeadership(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  personId: string,
+  productionId: string,
+  orgId: string
+) {
+  const { data: mem } = await supabase
+    .from("org_memberships").select("role").eq("person_id", personId).eq("org_id", orgId).maybeSingle();
+  if (mem && ["owner", "production", "admin"].includes(mem.role)) return true;
+  const { data: pa } = await supabase
+    .from("production_assignments")
+    .select("access_tier, department")
+    .eq("person_id", personId)
+    .eq("production_id", productionId)
+    .eq("active", true);
+  return (pa || []).some(
+    (a) =>
+      ["admin", "production", "staff"].includes(a.access_tier) ||
+      ["design", "stage_management", "direction"].includes(a.department)
+  );
+}
+
+// Promote a company upload into Approved (or move it back). Leadership only.
+export async function setPromoOfficial(id: string, isOfficial: boolean) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "You're not signed in." };
+  const { data: me } = await supabase.from("people").select("id").eq("user_id", user.id).single();
+  if (!me) return { error: "We couldn't find your member profile." };
+
+  const { data: asset } = await supabase
+    .from("promo_assets").select("id, production_id, org_id").eq("id", id).single();
+  if (!asset) return { error: "File not found." };
+
+  const allowed = await isProductionLeadership(supabase, me.id, asset.production_id, asset.org_id);
+  if (!allowed) return { error: "Only the production team can approve materials." };
+
+  const { error } = await supabase.from("promo_assets").update({ is_official: isOfficial }).eq("id", id).select("id");
+  if (error) return { error: error.message };
+
+  revalidatePath("/marquee");
+  return { error: null };
+}
+
 // Rename / recategorize an asset. RLS allows the uploader or owners/production.
 export async function updatePromoAsset(id: string, caption: string, category: string) {
   const supabase = await createClient();
@@ -44,26 +91,8 @@ export async function recordPromoAsset(input: {
     .from("productions").select("org_id").eq("id", input.productionId).single();
   if (!production) return { error: "Production not found." };
 
-  // Is this uploader production leadership? (owner/production/admin at the org,
-  // or a designer / SM / director / production-tier assignment on this show.)
-  let isOfficial = false;
-  const { data: mem } = await supabase
-    .from("org_memberships").select("role").eq("person_id", me.id).eq("org_id", production.org_id).maybeSingle();
-  if (mem && ["owner", "production", "admin"].includes(mem.role)) {
-    isOfficial = true;
-  } else {
-    const { data: pa } = await supabase
-      .from("production_assignments")
-      .select("access_tier, department")
-      .eq("person_id", me.id)
-      .eq("production_id", input.productionId)
-      .eq("active", true);
-    isOfficial = (pa || []).some(
-      (a) =>
-        ["admin", "production", "staff"].includes(a.access_tier) ||
-        ["design", "stage_management", "direction"].includes(a.department)
-    );
-  }
+  // Auto-approve uploads from production leadership.
+  const isOfficial = await isProductionLeadership(supabase, me.id, input.productionId, production.org_id);
 
   const { data, error } = await supabase
     .from("promo_assets")

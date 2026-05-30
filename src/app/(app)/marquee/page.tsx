@@ -24,6 +24,23 @@ export default async function MarqueePage() {
   const canManage = membership.role === "owner" || membership.role === "production";
   const pid = await getActiveProductionId();
 
+  // Leadership (can approve/demote others' uploads): org owner/production/admin,
+  // or a designer / SM / director / production-tier assignment on this show.
+  let canApprove = ["owner", "production", "admin"].includes(membership.role);
+  if (!canApprove && pid) {
+    const { data: pa } = await supabase
+      .from("production_assignments")
+      .select("access_tier, department")
+      .eq("person_id", person!.id)
+      .eq("production_id", pid)
+      .eq("active", true);
+    canApprove = (pa || []).some(
+      (a) =>
+        ["admin", "production", "staff"].includes(a.access_tier) ||
+        ["design", "stage_management", "direction"].includes(a.department)
+    );
+  }
+
   let prodTitle = "";
   type Asset = {
     id: string; file_name: string; mime_type: string | null; size_bytes: number | null;
@@ -94,6 +111,7 @@ export default async function MarqueePage() {
           orgId={orgId}
           myPersonId={person!.id}
           canManage={canManage}
+          canApprove={canApprove}
           assets={assets}
         />
       )}

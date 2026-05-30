@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { recordPromoAsset, deletePromoAsset, getPromoDownloadUrl, updatePromoAsset } from "./marquee-actions";
+import { recordPromoAsset, deletePromoAsset, getPromoDownloadUrl, updatePromoAsset, setPromoOfficial } from "./marquee-actions";
 
 interface Asset {
   id: string; file_name: string; mime_type: string | null; size_bytes: number | null;
@@ -17,6 +17,7 @@ interface Props {
   orgId: string;
   myPersonId: string;
   canManage: boolean;
+  canApprove: boolean;
   assets: Asset[];
 }
 
@@ -63,7 +64,7 @@ function getVideoDuration(file: File): Promise<number> {
   });
 }
 
-export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, assets }: Props) {
+export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApprove, assets }: Props) {
   const router = useRouter();
   const supabase = createClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -139,6 +140,13 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, assets
     router.refresh();
   }
 
+  async function handleSetOfficial(a: Asset, val: boolean) {
+    setError(null);
+    const res = await setPromoOfficial(a.id, val);
+    if (res?.error) { setError(res.error); return; }
+    router.refresh();
+  }
+
   function startEdit(a: Asset) {
     setEditing(a.id);
     setEditName(a.caption || a.file_name);
@@ -205,6 +213,11 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, assets
               <div className="mt-auto flex items-center justify-between pt-1">
                 <button onClick={() => handleDownload(a)} className="text-[11px] font-medium text-brick hover:underline">Download</button>
                 <div className="flex items-center gap-2">
+                  {canApprove && (
+                    <button onClick={() => handleSetOfficial(a, !a.isOfficial)} className="text-[11px] text-ash hover:text-ink" title={a.isOfficial ? "Move to Company uploads" : "Promote to Approved"}>
+                      {a.isOfficial ? "Unapprove" : "Approve"}
+                    </button>
+                  )}
                   {canEdit && <button onClick={() => startEdit(a)} className="text-[11px] text-ash hover:text-ink">Edit</button>}
                   {canEdit && (
                     <button onClick={() => handleDelete(a)} disabled={deleting === a.id} className="text-[11px] text-ash hover:text-brick disabled:opacity-50">
