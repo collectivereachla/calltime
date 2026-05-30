@@ -207,24 +207,29 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
             </div>
           ) : (
             <>
-              <p className="text-body-xs text-ink truncate" title={a.file_name}>{a.caption || a.file_name}</p>
+              {canEdit ? (
+                <button onClick={() => startEdit(a)} title="Click to rename"
+                  className="text-body-xs text-ink truncate text-left hover:text-brick w-full">
+                  {a.caption || a.file_name} <span className="text-muted">✎</span>
+                </button>
+              ) : (
+                <p className="text-body-xs text-ink truncate" title={a.file_name}>{a.caption || a.file_name}</p>
+              )}
               <span className="self-start text-[10px] text-muted bg-bone/60 rounded px-1.5 py-0.5">{CAT_LABEL[a.category] || "Other"}</span>
               <p className="text-[10px] text-muted">{a.uploaderName}{a.size_bytes ? ` · ${formatBytes(a.size_bytes)}` : ""}</p>
-              <div className="mt-auto flex items-center justify-between pt-1">
+              <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
                 <button onClick={() => handleDownload(a)} className="text-[11px] font-medium text-brick hover:underline">Download</button>
-                <div className="flex items-center gap-2">
-                  {canApprove && (
-                    <button onClick={() => handleSetOfficial(a, !a.isOfficial)} className="text-[11px] text-ash hover:text-ink" title={a.isOfficial ? "Move to Company uploads" : "Promote to Approved"}>
-                      {a.isOfficial ? "Unapprove" : "Approve"}
-                    </button>
-                  )}
-                  {canEdit && <button onClick={() => startEdit(a)} className="text-[11px] text-ash hover:text-ink">Edit</button>}
-                  {canEdit && (
-                    <button onClick={() => handleDelete(a)} disabled={deleting === a.id} className="text-[11px] text-ash hover:text-brick disabled:opacity-50">
-                      {deleting === a.id ? "…" : "Remove"}
-                    </button>
-                  )}
-                </div>
+                {canEdit && <button onClick={() => startEdit(a)} className="text-[11px] text-ash hover:text-ink">Rename</button>}
+                {canApprove && (
+                  <button onClick={() => handleSetOfficial(a, !a.isOfficial)} className="text-[11px] text-ash hover:text-ink" title={a.isOfficial ? "Move to Company uploads" : "Promote to Approved"}>
+                    {a.isOfficial ? "Unapprove" : "Approve"}
+                  </button>
+                )}
+                {canEdit && (
+                  <button onClick={() => handleDelete(a)} disabled={deleting === a.id} className="text-[11px] text-ash hover:text-brick disabled:opacity-50">
+                    {deleting === a.id ? "…" : "Remove"}
+                  </button>
+                )}
               </div>
             </>
           )}
