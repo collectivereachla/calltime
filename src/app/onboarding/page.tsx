@@ -158,19 +158,9 @@ export default function OnboardingPage() {
 
     if (updateError) { setError(updateError.message); setLoading(false); return; }
 
-    // Save emergency contact if provided
-    if (emergencyName || emergencyPhone) {
-      await supabase
-        .from("member_details")
-        .upsert({
-          person_id: pid,
-          org_id: "2890273c-72fa-407f-9a02-e78615cd1c54", // TODO: make dynamic once multi-org
-          birth_year: birthYear || null,
-          emergency_contact_name: emergencyName || null,
-          emergency_contact_phone: emergencyPhone || null,
-          emergency_contact_relationship: emergencyRelationship || null,
-        }, { onConflict: "person_id,org_id" });
-    }
+    // Emergency contact / birth year are written per-org once the person joins
+    // one (see handleJoinOrg) — the org isn't known yet at this step, so we no
+    // longer write them to a hardcoded organization.
 
     setProfileComplete(true);
     setLoading(false);
@@ -188,11 +178,28 @@ export default function OnboardingPage() {
     setError(null);
     setLoading(true);
 
+    const slug = orgSlug.toLowerCase().trim();
     const { error: joinError } = await supabase.rpc("join_org_as_guest", {
-      p_org_slug: orgSlug.toLowerCase().trim(),
+      p_org_slug: slug,
     });
 
     if (joinError) { setError(joinError.message); setLoading(false); return; }
+
+    // Now that we know the org, persist the emergency contact / birth year there.
+    if (personId && (emergencyName || emergencyPhone || birthYear)) {
+      const { data: org } = await supabase
+        .from("organizations").select("id").eq("slug", slug).maybeSingle();
+      if (org) {
+        await supabase.from("member_details").upsert({
+          person_id: personId,
+          org_id: org.id,
+          birth_year: birthYear || null,
+          emergency_contact_name: emergencyName || null,
+          emergency_contact_phone: emergencyPhone || null,
+          emergency_contact_relationship: emergencyRelationship || null,
+        }, { onConflict: "person_id,org_id" });
+      }
+    }
 
     router.push("/home");
     router.refresh();
