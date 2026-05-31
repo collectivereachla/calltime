@@ -297,6 +297,7 @@ export function buildWeeklyReminderEmail({
   events,
   callboardUrl,
   changes = [],
+  unresponded = 0,
 }: {
   name: string;
   orgName: string;
@@ -310,6 +311,7 @@ export function buildWeeklyReminderEmail({
   }[];
   callboardUrl: string;
   changes?: string[];
+  unresponded?: number;
 }) {
   const eventRows = events
     .map(
@@ -352,22 +354,32 @@ export function buildWeeklyReminderEmail({
     </table>`
       : `<p style="font-size: 14px; color: #7A726A; margin: 0;">No calls on your schedule for the coming week.</p>`;
 
+  const intro =
+    events.length === 0
+      ? `${name}, here's what changed this week.`
+      : unresponded > 0
+        ? `${name}, here's your week. ${unresponded} call${unresponded === 1 ? "" : "s"} still ${unresponded === 1 ? "needs" : "need"} your response.`
+        : `${name}, you're set for the week — you've responded to every call below.`;
+
+  const buttonLabel = unresponded > 0 ? "Confirm on Callboard" : "View your week on the Callboard";
+
+  const footer =
+    unresponded > 0
+      ? "This is your weekly reminder from Calltime. If you have a conflict, respond on the Callboard before rehearsal."
+      : "This is your weekly reminder from Calltime. Anything change? You can update any response on the Callboard.";
+
   const content = `
     <p style="font-size: 15px; color: #1A1A1B; margin: 0 0 20px 0;">
-      ${name}, here's your week.
+      ${intro}
     </p>
 
     ${changesBlock}
 
     ${tableBlock}
 
-    ${ctaButton("Confirm on Callboard", callboardUrl)}`;
+    ${ctaButton(buttonLabel, callboardUrl)}`;
 
-  return emailWrapper(
-    orgName,
-    content,
-    "This is your weekly reminder from Calltime. If you have a conflict, respond on the Callboard before rehearsal."
-  );
+  return emailWrapper(orgName, content, footer);
 }
 
 // ---------------------------------------------------------------------------

@@ -133,6 +133,7 @@ export async function GET(request: Request) {
       events: person.events,
       callboardUrl: `${appUrl}/callboard`,
       changes,
+      unresponded: person.unresponded,
     });
 
     const parts: string[] = [];
