@@ -167,6 +167,7 @@ export function SpineViewer({
   const [editLineContent, setEditLineContent] = useState("");
   const [editLineCharacter, setEditLineCharacter] = useState("");
   const [editLineType, setEditLineType] = useState("");
+  const [editLineTags, setEditLineTags] = useState<string[]>([]);
   const contentRef = useRef<HTMLDivElement>(null);
   const annotationInputRef = useRef<HTMLTextAreaElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -300,19 +301,34 @@ export function SpineViewer({
     setEditLineContent(line.content);
     setEditLineCharacter(line.character || "");
     setEditLineType(line.line_type);
+    setEditLineTags(line.tagged_characters || []);
+  }
+
+  function toggleEditLineTag(char: string) {
+    setEditLineTags((prev) =>
+      prev.includes(char) ? prev.filter((c) => c !== char) : [...prev, char]
+    );
   }
 
   async function saveEditLine() {
     if (!editingLineId) return;
     setSaving(true);
-    const updates: { content?: string; character?: string | null; line_type?: string } = {
+    const updates: {
+      content?: string;
+      character?: string | null;
+      line_type?: string;
+      tagged_characters?: string[];
+    } = {
       content: editLineContent,
       line_type: editLineType,
     };
     if (editLineType === "dialogue") {
+      // Dialogue carries a single speaker; tags are a stage-direction concept.
       updates.character = editLineCharacter || null;
+      updates.tagged_characters = [];
     } else {
       updates.character = null;
+      updates.tagged_characters = editLineTags;
     }
     const result = await updateScriptLine(editingLineId, updates);
     setSaving(false);
@@ -728,6 +744,31 @@ export function SpineViewer({
                       rows={Math.max(2, Math.ceil(editLineContent.length / 60))}
                       autoFocus
                     />
+                    {editLineType !== "dialogue" && allCharacters.length > 0 && (
+                      <div>
+                        <p className="text-body-xs text-muted mb-1">Tag characters in this direction:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {allCharacters.map((c) => {
+                            const color = getCharacterColor(c);
+                            const selected = editLineTags.includes(c);
+                            return (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => toggleEditLineTag(c)}
+                                className={`px-1.5 py-0.5 text-[10px] font-mono uppercase rounded transition-colors font-semibold ${
+                                  selected
+                                    ? `${color.bg} ${color.text} ring-1 ring-current`
+                                    : "bg-bone/50 text-ash hover:bg-bone"
+                                }`}
+                              >
+                                {c}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <select
                         value={editLineType}
@@ -1065,7 +1106,11 @@ function renderLine(line: ScriptLine, isMyCharacter: (name: string) => boolean) 
     case "continued":
       return <p className="text-body-xs text-muted italic pl-4">{line.content}</p>;
     case "setting":
-      return <p className="text-body-sm text-ash italic mt-4 mb-2">{line.content}</p>;
+      return <p className="text-body-sm text-ash italic mt-4 mb-2">
+        {line.tagged_characters && line.tagged_characters.length > 0
+          ? renderAnnotationContent(line.content, line.tagged_characters)
+          : line.content}
+      </p>;
     case "song_title":
     case "song":
       return <p className="text-body-md font-medium text-ink mt-6 mb-1 italic">{line.content}</p>;

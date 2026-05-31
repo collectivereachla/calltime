@@ -286,7 +286,12 @@ export async function updateVersionNotes(scriptId: string, notes: string) {
 
 export async function updateScriptLine(
   lineId: string,
-  updates: { content?: string; character?: string | null; line_type?: string }
+  updates: {
+    content?: string;
+    character?: string | null;
+    line_type?: string;
+    tagged_characters?: string[];
+  }
 ) {
   const supabase = await createClient();
 
