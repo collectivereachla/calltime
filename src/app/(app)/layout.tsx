@@ -70,32 +70,38 @@ export default async function AppLayout({
 
   const displayName = person.preferred_name || person.full_name;
 
-  // Fetch user's productions for the switcher
-  const orgId = (memberships[0].organizations as unknown as { id: string }).id;
-  let productions: { id: string; title: string; status: string }[] = [];
+  // Productions for the switcher, ACROSS every org. Leadership (owner/production)
+  // sees all active shows in each org they lead; everyone sees every active show
+  // they're personally assigned to, in any org. Deduped — never collapsed to one org.
+  const ACTIVE_STATUSES = ["pre_production", "rehearsal", "tech", "in_run"];
+  const leadershipOrgIds = memberships
+    .filter((m) => m.role === "owner" || m.role === "production")
+    .map((m) => (m.organizations as unknown as { id: string }).id);
 
-  if (isAdminOrOwner) {
-    // Owners/admins see all active productions in the org
+  const prodMap = new Map<string, { id: string; title: string; status: string }>();
+
+  if (leadershipOrgIds.length > 0) {
     const { data } = await supabase
       .from("productions")
       .select("id, title, status")
-      .eq("org_id", orgId)
-      .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
+      .in("org_id", leadershipOrgIds)
+      .in("status", ACTIVE_STATUSES)
       .order("opening_date", { ascending: true, nullsFirst: false });
-    productions = data || [];
-  } else {
-    // Members only see productions they're assigned to
-    const { data } = await supabase
-      .from("production_assignments")
-      .select("productions!inner(id, title, status)")
-      .eq("person_id", person.id)
-      .eq("active", true)
-      .in("productions.status", ["pre_production", "rehearsal", "tech", "in_run"]);
-
-    productions = (data || []).map(
-      (a) => a.productions as unknown as { id: string; title: string; status: string }
-    );
+    for (const pr of data || []) prodMap.set(pr.id, pr);
   }
+
+  const { data: assignedProds } = await supabase
+    .from("production_assignments")
+    .select("productions!inner(id, title, status)")
+    .eq("person_id", person.id)
+    .eq("active", true)
+    .in("productions.status", ACTIVE_STATUSES);
+  for (const a of assignedProds || []) {
+    const pr = a.productions as unknown as { id: string; title: string; status: string } | null;
+    if (pr) prodMap.set(pr.id, pr);
+  }
+
+  const productions = Array.from(prodMap.values());
 
   // Determine active production from cookie, defaulting to first
   let activeProductionId = await getActiveProductionId();
@@ -141,10 +147,14 @@ export default async function AppLayout({
   }
 
   if (isOwner) {
+    const ownerOrgIds = memberships
+      .filter((m) => m.role === "owner")
+      .map((m) => (m.organizations as unknown as { id: string }).id);
     const { count: csCount } = await supabase
       .from("contracts")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "signed");
+      .select("id, productions!inner(org_id)", { count: "exact", head: true })
+      .eq("status", "signed")
+      .in("productions.org_id", ownerOrgIds);
     pendingCountersignCount = csCount || 0;
   }
 
