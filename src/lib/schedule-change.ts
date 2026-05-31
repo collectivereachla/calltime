@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotification } from "@/lib/notifications";
 import { sendEmail } from "@/lib/email";
+import { buildEventIcs, icsAttachment } from "@/lib/ics";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://checkcalltime.art";
 const WINDOW_MS = 48 * 60 * 60 * 1000;
@@ -87,6 +88,12 @@ export async function notifyScheduleChange(opts: {
   newLocation?: string | null;
   personIds: string[];
   eventCallIds?: string[]; // for re-opening confirmations on a move
+  // Optional fields that enable an emailed .ics invite to accompany the change.
+  productionTitle?: string | null;
+  orgName?: string | null;
+  eventType?: string | null;
+  newEnd?: string | null;
+  icsSequence?: number | null;
 }) {
   if (!opts.published || opts.personIds.length === 0) return;
 
@@ -150,6 +157,14 @@ export async function notifyScheduleChange(opts: {
   const supabase = await createClient();
 
   if (sendMail) {
+    // Build the matching calendar invite once (REQUEST for a move, CANCEL for a
+    // cancellation) when we have enough event detail. Stable UID + bumped
+    // sequence makes calendars update the existing entry in place.
+    const canIcs = !!(opts.eventId && opts.productionTitle && opts.orgName);
+    const icsMethod = opts.kind === "canceled" ? "CANCEL" : "REQUEST";
+    const icsDate = opts.kind === "canceled" ? opts.oldDate : opts.newDate;
+    const icsStart = opts.kind === "canceled" ? opts.oldStart : opts.newStart;
+
     const { data: ppl } = await supabase
       .from("people")
       .select("id, full_name, preferred_name, email")
@@ -161,7 +176,27 @@ export async function notifyScheduleChange(opts: {
         `<p>Hi ${name},</p>` +
         `<p>${body}.</p>` +
         `<p><a href="${APP_URL}/callboard">Open the callboard</a> to review and confirm.</p>`;
-      sendEmail({ to: p.email, subject: emailSubject, html }).catch(() => {});
+      const attachments = canIcs
+        ? [
+            icsAttachment(
+              buildEventIcs({
+                eventId: opts.eventId!,
+                title: opts.title,
+                productionTitle: opts.productionTitle!,
+                orgName: opts.orgName!,
+                eventType: opts.eventType,
+                date: icsDate,
+                startTime: icsStart,
+                endTime: opts.kind === "canceled" ? null : opts.newEnd ?? null,
+                location: opts.newLocation,
+                sequence: opts.icsSequence ?? 1,
+                method: icsMethod,
+                attendeeEmail: p.email,
+              })
+            ),
+          ]
+        : undefined;
+      sendEmail({ to: p.email, subject: emailSubject, html, attachments }).catch(() => {});
     }
   }
 

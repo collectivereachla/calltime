@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 interface CalendarEvent {
+  event_id: string;
+  ics_sequence: number;
   event_title: string;
   event_type: string;
   event_date: string;
@@ -11,6 +13,10 @@ interface CalendarEvent {
   notes: string | null;
   production_title: string;
   org_name: string;
+}
+
+function icsStamp(): string {
+  return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
 function formatICSDate(date: string, time: string | null): string {
@@ -64,7 +70,7 @@ export async function GET(
   ];
 
   for (const event of calEvents) {
-    const uid = `${event.event_date}-${event.event_title.replace(/\s/g, "")}-${event.production_title.replace(/\s/g, "")}@checkcalltime.art`;
+    const uid = `${event.event_id}@checkcalltime.art`;
     const summary = `${event.event_title} — ${event.production_title}`;
     const description = [
       event.production_title,
@@ -77,6 +83,8 @@ export async function GET(
 
     lines.push("BEGIN:VEVENT");
     lines.push(`UID:${escapeICS(uid)}`);
+    lines.push(`DTSTAMP:${icsStamp()}`);
+    lines.push(`SEQUENCE:${event.ics_sequence ?? 0}`);
     lines.push(`SUMMARY:${escapeICS(summary)}`);
 
     if (event.start_time) {

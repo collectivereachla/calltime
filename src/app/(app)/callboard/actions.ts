@@ -131,7 +131,7 @@ export async function updateScheduleEvent(formData: FormData) {
   // Snapshot the event + its calls before the update so we can detect what changed.
   const { data: before } = await supabase
     .from("schedule_events")
-    .select("event_date, start_time, end_time, location, title, published, org_id, production_id, event_calls(id, person_id)")
+    .select("event_date, start_time, end_time, location, title, event_type, published, org_id, production_id, ics_sequence, productions(title), organizations(name), event_calls(id, person_id)")
     .eq("id", eventId)
     .single();
 
@@ -165,6 +165,14 @@ export async function updateScheduleEvent(formData: FormData) {
 
     if (moved || detailChanged) {
       const calls = (before.event_calls as unknown as { id: string; person_id: string }[]) || [];
+      // Bump the calendar sequence on a real move so emailed invites update in place.
+      let newSeq = (before.ics_sequence as number) ?? 0;
+      if (moved) {
+        newSeq = newSeq + 1;
+        await supabase.from("schedule_events").update({ ics_sequence: newSeq }).eq("id", eventId);
+      }
+      const prod = before.productions as unknown as { title: string } | null;
+      const org = before.organizations as unknown as { name: string } | null;
       const { notifyScheduleChange } = await import("@/lib/schedule-change");
       notifyScheduleChange({
         orgId: before.org_id,
@@ -180,6 +188,11 @@ export async function updateScheduleEvent(formData: FormData) {
         newLocation,
         personIds: calls.map((c) => c.person_id),
         eventCallIds: calls.map((c) => c.id),
+        productionTitle: prod?.title ?? null,
+        orgName: org?.name ?? null,
+        eventType: (formData.get("event_type") as string) || before.event_type,
+        newEnd,
+        icsSequence: newSeq,
       }).catch(() => {});
     }
   }
@@ -194,7 +207,7 @@ export async function deleteScheduleEvent(eventId: string) {
   // Snapshot before deletion so we can notify confirmed/called people.
   const { data: before } = await supabase
     .from("schedule_events")
-    .select("event_date, start_time, title, published, org_id, production_id, event_calls(person_id)")
+    .select("event_date, start_time, title, event_type, published, org_id, production_id, ics_sequence, productions(title), organizations(name), event_calls(person_id)")
     .eq("id", eventId)
     .single();
 
@@ -207,6 +220,8 @@ export async function deleteScheduleEvent(eventId: string) {
   if (before?.published) {
     const calls = (before.event_calls as unknown as { person_id: string }[]) || [];
     if (calls.length > 0) {
+      const prod = before.productions as unknown as { title: string } | null;
+      const org = before.organizations as unknown as { name: string } | null;
       const { notifyScheduleChange } = await import("@/lib/schedule-change");
       notifyScheduleChange({
         orgId: before.org_id,
@@ -220,6 +235,10 @@ export async function deleteScheduleEvent(eventId: string) {
         newDate: before.event_date,
         newStart: before.start_time,
         personIds: calls.map((c) => c.person_id),
+        productionTitle: prod?.title ?? null,
+        orgName: org?.name ?? null,
+        eventType: before.event_type,
+        icsSequence: ((before.ics_sequence as number) ?? 0) + 1,
       }).catch(() => {});
     }
   }

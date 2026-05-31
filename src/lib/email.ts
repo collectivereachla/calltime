@@ -18,10 +18,12 @@ export async function sendEmail({
   to,
   subject,
   html,
+  attachments,
 }: {
   to: string;
   subject: string;
   html: string;
+  attachments?: { filename: string; content: string; contentType?: string }[];
 }) {
   try {
     const { data, error } = await getResend().emails.send({
@@ -29,6 +31,7 @@ export async function sendEmail({
       to,
       subject,
       html,
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
     });
 
     if (error) {

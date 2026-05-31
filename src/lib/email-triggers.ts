@@ -4,6 +4,7 @@ import {
   buildEventCallEmail,
   buildWelcomeEmail,
 } from "@/lib/email";
+import { buildEventIcs, icsAttachment } from "@/lib/ics";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL || "https://checkcalltime.art";
@@ -26,7 +27,7 @@ export async function sendEventCallEmails(eventId: string) {
         email_sent_at,
         people!inner ( id, full_name, preferred_name, email ),
         schedule_events!inner (
-          title, event_type, event_date, start_time, end_time, location,
+          id, ics_sequence, title, event_type, event_date, start_time, end_time, location,
           productions!inner ( title ),
           organizations!inner ( name )
         )
@@ -52,6 +53,8 @@ export async function sendEventCallEmails(eventId: string) {
         email: string | null;
       };
       const event = call.schedule_events as unknown as {
+        id: string;
+        ics_sequence: number;
         title: string;
         event_type: string;
         event_date: string;
@@ -77,10 +80,26 @@ export async function sendEventCallEmails(eventId: string) {
         callboardUrl: `${APP_URL}/callboard`,
       });
 
+      const ics = buildEventIcs({
+        eventId: event.id,
+        title: event.title,
+        productionTitle: event.productions.title,
+        orgName: event.organizations.name,
+        eventType: event.event_type,
+        date: event.event_date,
+        startTime: event.start_time,
+        endTime: event.end_time,
+        location: event.location,
+        sequence: event.ics_sequence ?? 0,
+        method: "REQUEST",
+        attendeeEmail: person.email,
+      });
+
       const result = await sendEmail({
         to: person.email,
         subject: `Call: ${event.title} — ${new Date(event.event_date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`,
         html,
+        attachments: [icsAttachment(ics)],
       });
 
       if (result.success) {
