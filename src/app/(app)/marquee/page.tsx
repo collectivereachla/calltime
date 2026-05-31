@@ -103,7 +103,7 @@ export default async function MarqueePage({
 
     const { data: rows } = await supabase
       .from("promo_assets")
-      .select("id, file_name, mime_type, size_bytes, caption, created_at, uploaded_by, file_path, is_official, category, duration_seconds, people(full_name, preferred_name)")
+      .select("id, file_name, mime_type, size_bytes, caption, created_at, uploaded_by, file_path, is_official, category, duration_seconds, people!promo_assets_uploaded_by_fkey(full_name, preferred_name)")
       .eq("production_id", pid)
       .order("created_at", { ascending: false });
 
