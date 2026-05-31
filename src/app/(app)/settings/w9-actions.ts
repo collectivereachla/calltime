@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { resolveActingOrgId } from "@/lib/membership";
 
 // Upload (or replace) the member's own signed W-9 into the private bucket and
 // record status + year. We never store the SSN itself — only the file and a
@@ -13,9 +14,10 @@ export async function submitW9(base64Pdf: string, taxYear: number) {
   if (!user) return { error: "You're not signed in." };
   const { data: person } = await supabase.from("people").select("id").eq("user_id", user.id).single();
   if (!person) return { error: "We couldn't find your member profile." };
-  const { data: membership } = await supabase
-    .from("org_memberships").select("org_id").eq("person_id", person.id).limit(1).single();
-  if (!membership) return { error: "No organization found." };
+  // W-9 is per-org. Tie it to the org of the show the member is working in
+  // (or their sole org if unambiguous), never an arbitrary membership.
+  const orgId = await resolveActingOrgId(person.id);
+  if (!orgId) return { error: "Open the production this W-9 is for, then try again." };
 
   if (!base64Pdf) return { error: "No file received." };
   const year = Number(taxYear);
@@ -26,7 +28,7 @@ export async function submitW9(base64Pdf: string, taxYear: number) {
   if (buffer.byteLength < 500) return { error: "That file looks empty." };
   if (buffer.byteLength > 10 * 1024 * 1024) return { error: "File is too large (max 10 MB)." };
 
-  const path = `${membership.org_id}/${user.id}/w9-${year}.pdf`;
+  const path = `${orgId}/${user.id}/w9-${year}.pdf`;
   const { error: upErr } = await supabase.storage
     .from("w9-documents")
     .upload(path, buffer, { upsert: true, contentType: "application/pdf" });
@@ -34,7 +36,7 @@ export async function submitW9(base64Pdf: string, taxYear: number) {
 
   // Update existing member_details row, or insert one.
   const { data: existing } = await supabase
-    .from("member_details").select("id").eq("person_id", person.id).eq("org_id", membership.org_id).maybeSingle();
+    .from("member_details").select("id").eq("person_id", person.id).eq("org_id", orgId).maybeSingle();
 
   const patch = {
     w9_submitted: true,
@@ -49,7 +51,7 @@ export async function submitW9(base64Pdf: string, taxYear: number) {
   } else {
     const { error } = await supabase
       .from("member_details")
-      .insert({ person_id: person.id, org_id: membership.org_id, ...patch })
+      .insert({ person_id: person.id, org_id: orgId, ...patch })
       .select("id");
     if (error) return { error: error.message };
   }

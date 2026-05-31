@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getRoleInOrg, isOwnerRole, isLeadershipRole, resolveActingOrgId } from "@/lib/membership";
 import { LedgerLayout } from "./ledger-layout";
 import { getActiveProductionId } from "@/lib/active-production";
 import { parseCompensationAmount } from "./invoice-utils";
@@ -14,29 +15,25 @@ export default async function LedgerPage() {
     .eq("user_id", user!.id)
     .single();
 
-  const { data: membership } = await supabase
-    .from("org_memberships")
-    .select("org_id, role, organizations(id, name)")
-    .eq("person_id", person!.id)
-    .limit(1)
-    .single();
+  // Resolve the org from the show being worked in — never an arbitrary membership.
+  const activeProductionId = await getActiveProductionId();
+  const orgId = await resolveActingOrgId(person!.id);
 
-  if (!membership) {
+  if (!orgId) {
     return (
       <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10">
-        <p className="text-body-md text-ash">No organization found.</p>
+        <p className="text-body-md text-ash">Open a production to view its ledger.</p>
       </div>
     );
   }
 
-  const canManage = membership.role === "owner" || membership.role === "production";
-  const canSeeContent = membership.role === "owner";
-  const orgId = (membership.organizations as unknown as { id: string }).id;
+  const role = await getRoleInOrg(person!.id, orgId);
+  const canManage = isLeadershipRole(role);
+  const canSeeContent = isOwnerRole(role);
 
-  const orgName = (membership.organizations as unknown as { id: string; name: string }).name;
-
-  // Get active production from cookie
-  const activeProductionId = await getActiveProductionId();
+  const { data: orgRow } = await supabase
+    .from("organizations").select("name").eq("id", orgId).maybeSingle();
+  const orgName = orgRow?.name ?? "";
   let productions: { id: string; title: string; first_rehearsal: string | null; opening_date: string | null; closing_date: string | null }[] = [];
 
   if (activeProductionId) {

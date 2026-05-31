@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getRoleInOrg, isLeadershipRole, orgIdForProduction } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 import { BlockingMap } from "./blocking-map";
 
@@ -7,10 +8,6 @@ export default async function BlockingPage() {
   const { data: { user } } = await supabase.auth.getUser();
   const { data: person } = await supabase
     .from("people").select("id").eq("user_id", user!.id).single();
-  const { data: membership } = await supabase
-    .from("org_memberships").select("role").eq("person_id", person!.id).limit(1).single();
-  const canManage = membership?.role === "owner" || membership?.role === "production";
-
   const activeProductionId = await getActiveProductionId();
   if (!activeProductionId) {
     return (
@@ -19,6 +16,10 @@ export default async function BlockingPage() {
       </div>
     );
   }
+
+  const orgId = await orgIdForProduction(activeProductionId);
+  const role = orgId ? await getRoleInOrg(person!.id, orgId) : null;
+  const canManage = isLeadershipRole(role);
 
   const { data: production } = await supabase
     .from("productions").select("id, title").eq("id", activeProductionId).single();

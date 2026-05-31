@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getRoleInOrg, isLeadershipRole, orgIdForProduction } from "@/lib/membership";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArchiveEditor } from "./archive-editor";
@@ -10,9 +11,9 @@ export default async function ArchiveDetailPage({ params }: { params: Promise<{ 
   const { data: { user } } = await supabase.auth.getUser();
   const { data: person } = await supabase
     .from("people").select("id").eq("user_id", user!.id).single();
-  const { data: membership } = await supabase
-    .from("org_memberships").select("role").eq("person_id", person!.id).limit(1).single();
-  const canManage = membership?.role === "owner" || membership?.role === "production";
+  const orgId = await orgIdForProduction(id);
+  const role = orgId ? await getRoleInOrg(person!.id, orgId) : null;
+  const canManage = isLeadershipRole(role);
 
   const { data: production } = await supabase
     .from("productions")

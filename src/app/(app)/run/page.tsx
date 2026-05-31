@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getRoleInOrg, isLeadershipRole, orgIdForProduction } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 import { RunLayout } from "./run-layout";
 
@@ -10,13 +11,6 @@ export default async function RunPage() {
     .from("people").select("id, full_name, preferred_name")
     .eq("user_id", user!.id).single();
 
-  const { data: membership } = await supabase
-    .from("org_memberships")
-    .select("org_id, role")
-    .eq("person_id", person!.id)
-    .limit(1).single();
-
-  const canManage = membership?.role === "owner" || membership?.role === "production";
   const activeProductionId = await getActiveProductionId();
 
   if (!activeProductionId) {
@@ -27,6 +21,10 @@ export default async function RunPage() {
       </div>
     );
   }
+
+  const orgId = await orgIdForProduction(activeProductionId);
+  const role = orgId ? await getRoleInOrg(person!.id, orgId) : null;
+  const canManage = isLeadershipRole(role);
 
   const { data: production } = await supabase
     .from("productions")
@@ -66,9 +64,9 @@ export default async function RunPage() {
   );
 
   let todayResponses: Record<string, { status: string; conflict_reason: string | null }> = {};
-  if (todayCallIds.length > 0 && membership?.org_id) {
+  if (todayCallIds.length > 0 && orgId) {
     const { data: respData } = await supabase.rpc("get_all_call_responses_for_org", {
-      p_org_id: membership.org_id,
+      p_org_id: orgId,
     });
     if (respData) {
       for (const r of respData as { event_call_id: string; status: string; conflict_reason: string | null }[]) {

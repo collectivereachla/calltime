@@ -1,25 +1,31 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getRoleInOrg, isOwnerRole, orgIdForProduction, orgIdForRow } from "@/lib/membership";
 
-async function checkOwner() {
+// Authorize the current user as an OWNER of the org that owns `orgId`. Returns
+// the client and a typed ok flag. orgId is derived from the entity being
+// touched, never from an arbitrary membership.
+async function checkOwner(orgId: string | null) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { supabase, ok: false as const, error: "Not authenticated" };
+  if (!orgId) return { supabase, ok: false as const, error: "Couldn't resolve the organization for this item." };
   const { data: person } = await supabase
     .from("people").select("id").eq("user_id", user.id).single();
-  const { data: membership } = await supabase
-    .from("org_memberships").select("role").eq("person_id", person!.id).limit(1).single();
-  if (membership?.role !== "owner") return { supabase, ok: false as const, error: "Only owners can manage revenue" };
+  if (!person) return { supabase, ok: false as const, error: "No person record" };
+  const role = await getRoleInOrg(person.id, orgId);
+  if (!isOwnerRole(role)) return { supabase, ok: false as const, error: "Only owners can manage revenue" };
   return { supabase, ok: true as const, error: null };
 }
 
 export async function addRevenueItem(formData: FormData) {
-  const { supabase, ok, error } = await checkOwner();
+  const productionId = formData.get("production_id") as string;
+  const { supabase, ok, error } = await checkOwner(await orgIdForProduction(productionId));
   if (!ok) return { error };
 
   const { error: dbErr } = await supabase.from("revenue_items").insert({
-    production_id: formData.get("production_id") as string,
+    production_id: productionId,
     source_name: (formData.get("source_name") as string) || "New item",
     category: (formData.get("category") as string) || "other",
     amount: formData.get("amount") ? parseFloat(formData.get("amount") as string) : null,
@@ -34,10 +40,10 @@ export async function addRevenueItem(formData: FormData) {
 }
 
 export async function updateRevenueItem(formData: FormData) {
-  const { supabase, ok, error } = await checkOwner();
+  const id = formData.get("id") as string;
+  const { supabase, ok, error } = await checkOwner(await orgIdForRow("revenue_items", id));
   if (!ok) return { error };
 
-  const id = formData.get("id") as string;
   const updates: Record<string, unknown> = {};
 
   for (const [key, value] of formData.entries()) {
@@ -59,7 +65,7 @@ export async function updateRevenueItem(formData: FormData) {
 }
 
 export async function deleteRevenueItem(id: string) {
-  const { supabase, ok, error } = await checkOwner();
+  const { supabase, ok, error } = await checkOwner(await orgIdForRow("revenue_items", id));
   if (!ok) return { error };
 
   const { error: dbErr } = await supabase.from("revenue_items").delete().eq("id", id);

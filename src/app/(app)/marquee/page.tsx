@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getRoleInOrg, isLeadershipRole, resolveActingOrgId } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 import { MarqueeRoom } from "./marquee-room";
 import { ProductionPicker } from "./production-picker";
@@ -14,10 +15,9 @@ export default async function MarqueePage({
   const { data: person } = await supabase
     .from("people").select("id, full_name, preferred_name").eq("user_id", user!.id).single();
 
-  const { data: membership } = await supabase
-    .from("org_memberships").select("org_id, role").eq("person_id", person!.id).limit(1).single();
+  const orgId = await resolveActingOrgId(person!.id);
 
-  if (!membership) {
+  if (!orgId) {
     return (
       <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10">
         <p className="text-body-md text-ash">No organization found.</p>
@@ -25,15 +25,15 @@ export default async function MarqueePage({
     );
   }
 
-  const orgId = membership.org_id;
-  const canManage = membership.role === "owner" || membership.role === "production";
+  const role = await getRoleInOrg(person!.id, orgId);
+  const canManage = isLeadershipRole(role);
 
   // The productions this person can see, in the same set/order the rest of the
   // app uses (so Marquee matches the production they're working in everywhere
   // else). Marquees stay per-production; we never auto-jump between them.
   const ACTIVE_STATUSES = ["pre_production", "rehearsal", "tech", "in_run"];
   let myProductions: { id: string; title: string }[] = [];
-  if (["owner", "production", "admin"].includes(membership.role)) {
+  if (isLeadershipRole(role)) {
     const { data } = await supabase
       .from("productions")
       .select("id, title")
@@ -71,7 +71,7 @@ export default async function MarqueePage({
 
   // Leadership (can approve/demote others' uploads): org owner/production/admin,
   // or a designer / SM / director / production-tier assignment on this show.
-  let canApprove = ["owner", "production", "admin"].includes(membership.role);
+  let canApprove = isLeadershipRole(role);
   if (!canApprove && pid) {
     const { data: pa } = await supabase
       .from("production_assignments")

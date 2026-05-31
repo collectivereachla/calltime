@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getRoleInOrg, isOwnerRole, resolveActingOrgId } from "@/lib/membership";
 import Link from "next/link";
 
 export default async function ArchivePage() {
@@ -7,10 +8,9 @@ export default async function ArchivePage() {
   const { data: { user } } = await supabase.auth.getUser();
   const { data: person } = await supabase
     .from("people").select("id").eq("user_id", user!.id).single();
-  const { data: membership } = await supabase
-    .from("org_memberships").select("org_id, role").eq("person_id", person!.id).limit(1).single();
+  const orgId = await resolveActingOrgId(person!.id);
 
-  if (!membership) {
+  if (!orgId) {
     return (
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
         <h1 className="font-display text-display-md mb-2">Archive</h1>
@@ -19,12 +19,13 @@ export default async function ArchivePage() {
     );
   }
 
-  const isOwner = membership.role === "owner";
+  const role = await getRoleInOrg(person!.id, orgId);
+  const isOwner = isOwnerRole(role);
 
   const { data: productions } = await supabase
     .from("productions")
     .select("id, title, playwright, venue, status, first_rehearsal, opening_date, closing_date, description, photos")
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .order("opening_date", { ascending: false });
 
   // Get cast counts per production

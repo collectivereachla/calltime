@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { resolveActingOrgId } from "@/lib/membership";
 import { redirect } from "next/navigation";
 import { SettingsForm } from "./settings-form";
 import { AdminTools } from "./admin-tools";
@@ -67,16 +68,15 @@ export default async function SettingsPage() {
     .order("start_date", { ascending: true });
 
   // W-9 status (member's own, in their org)
-  const { data: myMembership } = await supabase
-    .from("org_memberships").select("org_id").eq("person_id", person.id).limit(1).single();
+  const w9OrgId = await resolveActingOrgId(person.id);
   let w9TaxYear: number | null = null;
   let w9SubmittedAt: string | null = null;
-  if (myMembership) {
+  if (w9OrgId) {
     const { data: w9row } = await supabase
       .from("member_details")
       .select("w9_tax_year, w9_submitted_at")
       .eq("person_id", person.id)
-      .eq("org_id", myMembership.org_id)
+      .eq("org_id", w9OrgId)
       .maybeSingle();
     w9TaxYear = w9row?.w9_tax_year ?? null;
     w9SubmittedAt = w9row?.w9_submitted_at ?? null;
