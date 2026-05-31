@@ -126,8 +126,17 @@ async function notifyCalledPeople(
 export async function updateScheduleEvent(formData: FormData) {
   const supabase = await createClient();
 
+  const eventId = formData.get("event_id") as string;
+
+  // Snapshot the event + its calls before the update so we can detect what changed.
+  const { data: before } = await supabase
+    .from("schedule_events")
+    .select("event_date, start_time, end_time, location, title, published, org_id, event_calls(id, person_id)")
+    .eq("id", eventId)
+    .single();
+
   const { error } = await supabase.rpc("update_schedule_event", {
-    p_event_id: formData.get("event_id") as string,
+    p_event_id: eventId,
     p_event_type: formData.get("event_type") as string,
     p_title: formData.get("title") as string,
     p_event_date: formData.get("event_date") as string,
@@ -139,6 +148,40 @@ export async function updateScheduleEvent(formData: FormData) {
 
   if (error) return { error: error.message };
 
+  // Notify called people if this was a published event and something material changed.
+  if (before?.published) {
+    const newDate = formData.get("event_date") as string;
+    const newStart = (formData.get("start_time") as string) || null;
+    const newEnd = (formData.get("end_time") as string) || null;
+    const newLocation = (formData.get("location") as string) || null;
+    const newTitle = formData.get("title") as string;
+
+    const moved =
+      before.event_date !== newDate ||
+      (before.start_time || null) !== newStart ||
+      (before.end_time || null) !== newEnd;
+    const detailChanged =
+      (before.location || null) !== newLocation || before.title !== newTitle;
+
+    if (moved || detailChanged) {
+      const calls = (before.event_calls as unknown as { id: string; person_id: string }[]) || [];
+      const { notifyScheduleChange } = await import("@/lib/schedule-change");
+      notifyScheduleChange({
+        orgId: before.org_id,
+        title: newTitle || before.title,
+        published: true,
+        kind: moved ? "moved" : "updated",
+        oldDate: before.event_date,
+        oldStart: before.start_time,
+        newDate,
+        newStart,
+        newLocation,
+        personIds: calls.map((c) => c.person_id),
+        eventCallIds: calls.map((c) => c.id),
+      }).catch(() => {});
+    }
+  }
+
   revalidatePath("/callboard");
   return { success: true };
 }
@@ -146,11 +189,36 @@ export async function updateScheduleEvent(formData: FormData) {
 export async function deleteScheduleEvent(eventId: string) {
   const supabase = await createClient();
 
+  // Snapshot before deletion so we can notify confirmed/called people.
+  const { data: before } = await supabase
+    .from("schedule_events")
+    .select("event_date, start_time, title, published, org_id, event_calls(person_id)")
+    .eq("id", eventId)
+    .single();
+
   const { error } = await supabase.rpc("delete_schedule_event", {
     p_event_id: eventId,
   });
 
   if (error) return { error: error.message };
+
+  if (before?.published) {
+    const calls = (before.event_calls as unknown as { person_id: string }[]) || [];
+    if (calls.length > 0) {
+      const { notifyScheduleChange } = await import("@/lib/schedule-change");
+      notifyScheduleChange({
+        orgId: before.org_id,
+        title: before.title,
+        published: true,
+        kind: "canceled",
+        oldDate: before.event_date,
+        oldStart: before.start_time,
+        newDate: before.event_date,
+        newStart: before.start_time,
+        personIds: calls.map((c) => c.person_id),
+      }).catch(() => {});
+    }
+  }
 
   revalidatePath("/callboard");
   return { success: true };
