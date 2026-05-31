@@ -204,8 +204,15 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
 
   const counts: Record<string, number> = {};
   for (const a of assets) counts[a.category] = (counts[a.category] || 0) + 1;
+  const videoCount = assets.filter((a) => a.isVideo).length;
 
-  const shown = (filter === "all" ? assets : assets.filter((a) => a.category === filter))
+  const shown = (
+    filter === "all"
+      ? assets
+      : filter === "video"
+        ? assets.filter((a) => a.isVideo)
+        : assets.filter((a) => a.category === filter)
+  )
     .slice()
     .sort((a, b) => (CAT_ORDER[a.category] ?? 9) - (CAT_ORDER[b.category] ?? 9));
   const official = shown.filter((a) => a.isOfficial);
@@ -338,6 +345,12 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
             className={`px-2.5 py-1 rounded-full text-body-xs ${filter === "all" ? "bg-ink text-paper" : "bg-bone/50 text-ash hover:text-ink"}`}>
             All ({assets.length})
           </button>
+          {videoCount > 0 && (
+            <button onClick={() => setFilter("video")}
+              className={`px-2.5 py-1 rounded-full text-body-xs ${filter === "video" ? "bg-ink text-paper" : "bg-bone/50 text-ash hover:text-ink"}`}>
+              Videos ({videoCount})
+            </button>
+          )}
           {CATEGORIES.filter((c) => counts[c.key]).map((c) => (
             <button key={c.key} onClick={() => setFilter(c.key)}
               className={`px-2.5 py-1 rounded-full text-body-xs ${filter === c.key ? "bg-ink text-paper" : "bg-bone/50 text-ash hover:text-ink"}`}>
