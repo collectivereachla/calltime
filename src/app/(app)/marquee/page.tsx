@@ -23,28 +23,34 @@ export default async function MarqueePage() {
   const orgId = membership.org_id;
   const canManage = membership.role === "owner" || membership.role === "production";
 
-  // Resolve the active production. The cookie isn't always set (e.g. a single-
-  // show org has no switcher), so fall back to a production this person can see
-  // instead of showing an empty room. Mirrors the layout/Dressing Room logic.
+  // Resolve the active production. The cookie isn't always set (e.g. a person
+  // who never used the switcher), and a person can be on several active shows,
+  // so fall back deterministically to the soonest-opening one they can see —
+  // never an arbitrary pick that lands on an empty room.
   const cookiePid = await getActiveProductionId();
   const ACTIVE_STATUSES = ["pre_production", "rehearsal", "tech", "in_run"];
   const { data: assignedRows } = await supabase
     .from("production_assignments")
-    .select("productions!inner(id, status)")
+    .select("productions!inner(id, status, opening_date)")
     .eq("person_id", person!.id)
     .eq("active", true)
     .in("productions.status", ACTIVE_STATUSES);
-  let candidates = (assignedRows || []).map((a) => (a.productions as unknown as { id: string }).id);
-  if (candidates.length === 0 && ["owner", "production", "admin"].includes(membership.role)) {
+  let cands = (assignedRows || []).map(
+    (a) => a.productions as unknown as { id: string; opening_date: string | null }
+  );
+  if (cands.length === 0 && ["owner", "production", "admin"].includes(membership.role)) {
     const { data } = await supabase
       .from("productions")
-      .select("id")
+      .select("id, opening_date")
       .eq("org_id", orgId)
-      .in("status", ACTIVE_STATUSES)
-      .order("opening_date", { ascending: true, nullsFirst: false });
-    candidates = (data || []).map((p) => p.id);
+      .in("status", ACTIVE_STATUSES);
+    cands = (data || []).map((p) => ({ id: p.id, opening_date: p.opening_date }));
   }
-  const pid = candidates.find((id) => id === cookiePid) || candidates[0] || null;
+  const seenIds = new Set<string>();
+  cands = cands.filter((c) => (seenIds.has(c.id) ? false : (seenIds.add(c.id), true)));
+  cands.sort((a, b) => (a.opening_date || "9999").localeCompare(b.opening_date || "9999"));
+  const candidateIds = cands.map((c) => c.id);
+  const pid = candidateIds.find((id) => id === cookiePid) || candidateIds[0] || null;
 
   // Leadership (can approve/demote others' uploads): org owner/production/admin,
   // or a designer / SM / director / production-tier assignment on this show.
