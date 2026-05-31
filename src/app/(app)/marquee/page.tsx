@@ -1,8 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { getActiveProductionId } from "@/lib/active-production";
 import { MarqueeRoom } from "./marquee-room";
+import { ProductionPicker } from "./production-picker";
 
-export default async function MarqueePage() {
+export default async function MarqueePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ p?: string }>;
+}) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -23,34 +28,46 @@ export default async function MarqueePage() {
   const orgId = membership.org_id;
   const canManage = membership.role === "owner" || membership.role === "production";
 
-  // Resolve the active production. The cookie isn't always set (e.g. a person
-  // who never used the switcher), and a person can be on several active shows,
-  // so fall back deterministically to the soonest-opening one they can see —
-  // never an arbitrary pick that lands on an empty room.
-  const cookiePid = await getActiveProductionId();
+  // The productions this person can see, in the same set/order the rest of the
+  // app uses (so Marquee matches the production they're working in everywhere
+  // else). Marquees stay per-production; we never auto-jump between them.
   const ACTIVE_STATUSES = ["pre_production", "rehearsal", "tech", "in_run"];
-  const { data: assignedRows } = await supabase
-    .from("production_assignments")
-    .select("productions!inner(id, status, opening_date)")
-    .eq("person_id", person!.id)
-    .eq("active", true)
-    .in("productions.status", ACTIVE_STATUSES);
-  let cands = (assignedRows || []).map(
-    (a) => a.productions as unknown as { id: string; opening_date: string | null }
-  );
-  if (cands.length === 0 && ["owner", "production", "admin"].includes(membership.role)) {
+  let myProductions: { id: string; title: string }[] = [];
+  if (["owner", "production", "admin"].includes(membership.role)) {
     const { data } = await supabase
       .from("productions")
-      .select("id, opening_date")
+      .select("id, title")
       .eq("org_id", orgId)
-      .in("status", ACTIVE_STATUSES);
-    cands = (data || []).map((p) => ({ id: p.id, opening_date: p.opening_date }));
+      .in("status", ACTIVE_STATUSES)
+      .order("opening_date", { ascending: true, nullsFirst: false });
+    myProductions = data || [];
+  } else {
+    const { data } = await supabase
+      .from("production_assignments")
+      .select("productions!inner(id, title, status, opening_date)")
+      .eq("person_id", person!.id)
+      .eq("active", true)
+      .in("productions.status", ACTIVE_STATUSES);
+    const seen = new Set<string>();
+    myProductions = (data || [])
+      .map((a) => a.productions as unknown as { id: string; title: string; opening_date: string | null })
+      .filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)))
+      .sort((a, b) => (a.opening_date || "9999").localeCompare(b.opening_date || "9999"))
+      .map((p) => ({ id: p.id, title: p.title }));
   }
-  const seenIds = new Set<string>();
-  cands = cands.filter((c) => (seenIds.has(c.id) ? false : (seenIds.add(c.id), true)));
-  cands.sort((a, b) => (a.opening_date || "9999").localeCompare(b.opening_date || "9999"));
-  const candidateIds = cands.map((c) => c.id);
-  const pid = candidateIds.find((id) => id === cookiePid) || candidateIds[0] || null;
+
+  // Which production's Marquee to show: an explicit in-room pick (?p=) wins, then
+  // the production already active app-wide, then the person's first production.
+  // No automatic switching to a different show.
+  const isValid = (id?: string | null) => !!id && myProductions.some((p) => p.id === id);
+  const sp = (await searchParams) || {};
+  const requested = typeof sp.p === "string" ? sp.p : null;
+  const cookiePid = await getActiveProductionId();
+  const pid =
+    (isValid(requested) ? requested : null) ||
+    (isValid(cookiePid) ? cookiePid : null) ||
+    myProductions[0]?.id ||
+    null;
 
   // Leadership (can approve/demote others' uploads): org owner/production/admin,
   // or a designer / SM / director / production-tier assignment on this show.
@@ -160,9 +177,15 @@ export default async function MarqueePage() {
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <h1 className="font-display text-display-lg text-ink mb-1">Marquee</h1>
-      <p className="text-body-sm text-ash mb-6">
+      <p className="text-body-sm text-ash mb-4">
         Shared promo photos and flyers{prodTitle ? ` for ${prodTitle}` : ""}. Everyone can upload and download the originals.
       </p>
+
+      {myProductions.length > 1 && pid && (
+        <div className="mb-6">
+          <ProductionPicker productions={myProductions} selected={pid} />
+        </div>
+      )}
 
       {!pid ? (
         <p className="text-body-md text-ash">Select a production to see its promo materials.</p>
