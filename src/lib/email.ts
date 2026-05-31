@@ -293,6 +293,7 @@ export function buildWeeklyReminderEmail({
   orgName,
   events,
   callboardUrl,
+  changes = [],
 }: {
   name: string;
   orgName: string;
@@ -305,6 +306,7 @@ export function buildWeeklyReminderEmail({
     productionTitle: string;
   }[];
   callboardUrl: string;
+  changes?: string[];
 }) {
   const eventRows = events
     .map(
@@ -318,11 +320,20 @@ export function buildWeeklyReminderEmail({
     )
     .join("");
 
-  const content = `
-    <p style="font-size: 15px; color: #1A1A1B; margin: 0 0 20px 0;">
-      ${name}, here's your week.
-    </p>
+  const changesBlock =
+    changes.length > 0
+      ? `
+    <div style="background: #FBF3E4; border: 1px solid #E8E1D2; border-radius: 8px; padding: 12px 16px; margin: 0 0 20px 0;">
+      <p style="font-size: 11px; color: #7A726A; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 8px 0;">What changed</p>
+      <ul style="margin: 0; padding-left: 18px;">
+        ${changes.map((c) => `<li style="font-size: 14px; color: #1A1A1B; margin: 0 0 4px 0;">${c}</li>`).join("")}
+      </ul>
+    </div>`
+      : "";
 
+  const tableBlock =
+    events.length > 0
+      ? `
     <table style="width: 100%; border-collapse: collapse; background: #FFFFFF; border: 1px solid #E8E1D2; border-radius: 8px;">
       <thead>
         <tr>
@@ -335,7 +346,17 @@ export function buildWeeklyReminderEmail({
       <tbody>
         ${eventRows}
       </tbody>
-    </table>
+    </table>`
+      : `<p style="font-size: 14px; color: #7A726A; margin: 0;">No calls on your schedule for the coming week.</p>`;
+
+  const content = `
+    <p style="font-size: 15px; color: #1A1A1B; margin: 0 0 20px 0;">
+      ${name}, here's your week.
+    </p>
+
+    ${changesBlock}
+
+    ${tableBlock}
 
     ${ctaButton("Confirm on Callboard", callboardUrl)}`;
 

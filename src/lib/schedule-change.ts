@@ -1,9 +1,40 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotification } from "@/lib/notifications";
 import { sendEmail } from "@/lib/email";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://checkcalltime.art";
 const WINDOW_MS = 48 * 60 * 60 * 1000;
+
+// Append rows to the schedule change log (powers the weekly "what changed"
+// digest). Written via the service-role client so it works from any actor.
+export async function logScheduleChanges(rows: {
+  orgId: string;
+  productionId?: string | null;
+  personId: string;
+  eventId?: string | null;
+  changeType: "called" | "uncalled" | "moved" | "canceled" | "updated";
+  summary: string;
+  eventDate?: string | null;
+}[]) {
+  if (rows.length === 0) return;
+  try {
+    const admin = createAdminClient();
+    await admin.from("schedule_change_log").insert(
+      rows.map((r) => ({
+        org_id: r.orgId,
+        production_id: r.productionId ?? null,
+        person_id: r.personId,
+        event_id: r.eventId ?? null,
+        change_type: r.changeType,
+        summary: r.summary,
+        event_date: r.eventDate ?? null,
+      }))
+    );
+  } catch {
+    /* fire-and-forget */
+  }
+}
 
 // Wall-clock comparison in the org's timezone (Central). Both "now" and the
 // event time are reduced to Central wall-clock ms, so the offset cancels out
@@ -44,6 +75,8 @@ export type ScheduleChangeKind = "moved" | "canceled" | "updated";
  */
 export async function notifyScheduleChange(opts: {
   orgId: string;
+  productionId?: string | null;
+  eventId?: string | null;
   title: string;
   published: boolean;
   kind: ScheduleChangeKind;
@@ -57,11 +90,30 @@ export async function notifyScheduleChange(opts: {
 }) {
   if (!opts.published || opts.personIds.length === 0) return;
 
+  const newWhen = `${fmtDate(opts.newDate)}${opts.newStart ? ` at ${fmtTime(opts.newStart)}` : ""}`;
+
+  // Log the change for the weekly digest regardless of proximity, so far-out
+  // changes (which get no real-time ping) still show up in Sunday's "what changed".
+  let logSummary: string;
+  if (opts.kind === "canceled") logSummary = `${opts.title} on ${fmtDate(opts.oldDate)} was canceled`;
+  else if (opts.kind === "moved") logSummary = `${opts.title} moved to ${newWhen}`;
+  else logSummary = `${opts.title} (${fmtDate(opts.newDate)}) details updated`;
+
+  await logScheduleChanges(
+    opts.personIds.map((pid) => ({
+      orgId: opts.orgId,
+      productionId: opts.productionId ?? null,
+      personId: pid,
+      eventId: opts.kind === "canceled" ? null : opts.eventId ?? null,
+      changeType: opts.kind,
+      summary: logSummary,
+      eventDate: opts.kind === "canceled" ? opts.oldDate : opts.newDate,
+    }))
+  );
+
   const near =
     withinWindow(opts.oldDate, opts.oldStart) || withinWindow(opts.newDate, opts.newStart);
   if (!near) return; // outside 48h — the weekly digest will carry it
-
-  const newWhen = `${fmtDate(opts.newDate)}${opts.newStart ? ` at ${fmtTime(opts.newStart)}` : ""}`;
 
   let title: string;
   let body: string;

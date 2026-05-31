@@ -131,7 +131,7 @@ export async function updateScheduleEvent(formData: FormData) {
   // Snapshot the event + its calls before the update so we can detect what changed.
   const { data: before } = await supabase
     .from("schedule_events")
-    .select("event_date, start_time, end_time, location, title, published, org_id, event_calls(id, person_id)")
+    .select("event_date, start_time, end_time, location, title, published, org_id, production_id, event_calls(id, person_id)")
     .eq("id", eventId)
     .single();
 
@@ -168,6 +168,8 @@ export async function updateScheduleEvent(formData: FormData) {
       const { notifyScheduleChange } = await import("@/lib/schedule-change");
       notifyScheduleChange({
         orgId: before.org_id,
+        productionId: before.production_id,
+        eventId,
         title: newTitle || before.title,
         published: true,
         kind: moved ? "moved" : "updated",
@@ -192,7 +194,7 @@ export async function deleteScheduleEvent(eventId: string) {
   // Snapshot before deletion so we can notify confirmed/called people.
   const { data: before } = await supabase
     .from("schedule_events")
-    .select("event_date, start_time, title, published, org_id, event_calls(person_id)")
+    .select("event_date, start_time, title, published, org_id, production_id, event_calls(person_id)")
     .eq("id", eventId)
     .single();
 
@@ -208,6 +210,8 @@ export async function deleteScheduleEvent(eventId: string) {
       const { notifyScheduleChange } = await import("@/lib/schedule-change");
       notifyScheduleChange({
         orgId: before.org_id,
+        productionId: before.production_id,
+        eventId,
         title: before.title,
         published: true,
         kind: "canceled",
@@ -324,39 +328,47 @@ async function notifyOnConflict(eventCallId: string, reason?: string) {
 export async function removeEventCall(eventCallId: string) {
   const supabase = await createClient();
 
-  // Look up the call before deleting so we know whether they'd confirmed.
   const { data: call } = await supabase
-    .from("event_calls")
-    .select("person_id, event_id, response_status")
-    .eq("id", eventCallId)
-    .single();
+    .from("event_calls").select("person_id, event_id").eq("id", eventCallId).single();
 
-  const { error } = await supabase
-    .from("event_calls")
-    .delete()
-    .eq("id", eventCallId);
+  // Latest response lives in call_responses (event_calls has no status column).
+  let confirmed = false;
+  if (call) {
+    const { data: resp } = await supabase
+      .from("call_responses").select("status").eq("event_call_id", eventCallId)
+      .order("responded_at", { ascending: false }).limit(1).maybeSingle();
+    confirmed = resp?.status === "confirmed";
+  }
 
+  type EvShape = { title: string; event_date: string; org_id: string; production_id: string; published: boolean };
+  let event: EvShape | null = null;
+  if (call) {
+    const { data: ev } = await supabase
+      .from("schedule_events")
+      .select("title, event_date, org_id, production_id, published")
+      .eq("id", call.event_id).single();
+    event = (ev as unknown as EvShape) || null;
+  }
+
+  const { error } = await supabase.from("event_calls").delete().eq("id", eventCallId);
   if (error) return { error: error.message };
 
-  // Only notify someone who had already confirmed — skip quick add/undo
-  // corrections and people who never responded.
-  if (call && call.response_status === "confirmed") {
-    const { data: event } = await supabase
-      .from("schedule_events")
-      .select("title, event_date, org_id")
-      .eq("id", call.event_id)
-      .single();
-    if (event) {
-      const dateStr = new Date(event.event_date + "T00:00:00").toLocaleDateString("en-US", {
-        weekday: "short", month: "short", day: "numeric",
-      });
+  if (call && event?.published) {
+    const dateStr = new Date(event.event_date + "T00:00:00").toLocaleDateString("en-US", {
+      weekday: "short", month: "short", day: "numeric",
+    });
+    // Log for the weekly digest.
+    const { logScheduleChanges } = await import("@/lib/schedule-change");
+    logScheduleChanges([{
+      orgId: event.org_id, productionId: event.production_id, personId: call.person_id,
+      eventId: call.event_id, changeType: "uncalled",
+      summary: `Removed from ${event.title} on ${dateStr}`, eventDate: event.event_date,
+    }]).catch(() => {});
+    // Real-time ping only if they'd already confirmed.
+    if (confirmed) {
       createNotification({
-        personId: call.person_id,
-        orgId: event.org_id,
-        type: "event_call",
-        title: "You're no longer called",
-        body: `${event.title} — ${dateStr}`,
-        link: "/callboard",
+        personId: call.person_id, orgId: event.org_id, type: "event_call",
+        title: "You're no longer called", body: `${event.title} — ${dateStr}`, link: "/callboard",
       }).catch(() => {});
     }
   }
@@ -377,7 +389,7 @@ export async function addEventCall(eventId: string, personId: string) {
   // Notify the person they've been added — but only if the event is published.
   const { data: event } = await supabase
     .from("schedule_events")
-    .select("title, event_date, org_id, published")
+    .select("title, event_date, org_id, production_id, published")
     .eq("id", eventId)
     .single();
 
@@ -393,6 +405,12 @@ export async function addEventCall(eventId: string, personId: string) {
       body: `${event.title} — ${dateStr}`,
       link: "/callboard",
     }).catch(() => {});
+    const { logScheduleChanges } = await import("@/lib/schedule-change");
+    logScheduleChanges([{
+      orgId: event.org_id, productionId: event.production_id, personId,
+      eventId, changeType: "called",
+      summary: `Added to ${event.title} on ${dateStr}`, eventDate: event.event_date,
+    }]).catch(() => {});
   }
 
   revalidatePath("/callboard");
