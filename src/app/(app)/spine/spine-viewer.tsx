@@ -67,6 +67,36 @@ function renderAnnotationContent(content: string, taggedCharacters: string[]): R
   });
 }
 
+// Tagged characters whose name does NOT literally appear in the text. The inline
+// highlighter above only colors names that occur in the sentence, so a tag like
+// AUNT EMMA on "Laughing." would otherwise be invisible. These get explicit chips.
+function tagsNotInText(content: string, tags?: string[]): string[] {
+  if (!tags || tags.length === 0) return [];
+  return tags.filter((t) => {
+    const esc = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return !new RegExp(esc, "i").test(content);
+  });
+}
+
+function TagChips({ chars }: { chars: string[] }) {
+  if (chars.length === 0) return null;
+  return (
+    <span className="ml-2 inline-flex flex-wrap gap-1 align-middle not-italic">
+      {chars.map((c) => {
+        const color = getCharacterColor(c);
+        return (
+          <span
+            key={c}
+            className={`${color.bg} ${color.text} px-1 py-0 rounded font-mono text-[11px] font-semibold uppercase`}
+          >
+            {c}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 interface ScriptLine {
   id: string;
   line_number: number;
@@ -1102,6 +1132,7 @@ function renderLine(line: ScriptLine, isMyCharacter: (name: string) => boolean) 
         {line.tagged_characters && line.tagged_characters.length > 0
           ? renderAnnotationContent(line.content, line.tagged_characters)
           : line.content}
+        <TagChips chars={tagsNotInText(line.content, line.tagged_characters)} />
       </p>;
     case "continued":
       return <p className="text-body-xs text-muted italic pl-4">{line.content}</p>;
@@ -1110,6 +1141,7 @@ function renderLine(line: ScriptLine, isMyCharacter: (name: string) => boolean) 
         {line.tagged_characters && line.tagged_characters.length > 0
           ? renderAnnotationContent(line.content, line.tagged_characters)
           : line.content}
+        <TagChips chars={tagsNotInText(line.content, line.tagged_characters)} />
       </p>;
     case "song_title":
     case "song":

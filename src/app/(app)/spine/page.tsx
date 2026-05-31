@@ -168,13 +168,33 @@ export default async function SpinePage({
     annotations = data || [];
   }
 
-  const allCharacters = Array.from(
-    new Set(
-      lines
-        .map((l) => l.character)
-        .filter((c): c is string => c !== null && c !== "ALL" && c !== "BOTH" && !c.includes(" / "))
-    )
-  ).sort();
+  // Character universe for tagging/filtering: not just who has spoken dialogue,
+  // but everyone in the cast and anyone already tagged on a line. Otherwise a
+  // character with no lines yet (mid-import) can't be tagged and existing tags
+  // on stage directions have no chip to show. Normalize to upper-case (the
+  // script's convention) and dedupe case-insensitively.
+  const charKeys = new Map<string, string>();
+  const addChar = (raw: string | null | undefined) => {
+    if (!raw) return;
+    const c = raw.trim();
+    if (!c || c === "ALL" || c === "BOTH" || c.includes(" / ")) return;
+    const key = c.toUpperCase();
+    if (!charKeys.has(key)) charKeys.set(key, key);
+  };
+  for (const l of lines) {
+    addChar(l.character);
+    for (const t of ((l as { tagged_characters?: string[] }).tagged_characters) || []) addChar(t);
+  }
+  if (productionIds.length > 0) {
+    const { data: castRoles } = await supabase
+      .from("production_assignments")
+      .select("role_title")
+      .in("production_id", productionIds)
+      .eq("department", "cast")
+      .eq("active", true);
+    for (const r of castRoles || []) addChar(r.role_title);
+  }
+  const allCharacters = Array.from(charKeys.values()).sort();
 
   let myCharacters: string[] = [];
   if (activeScript && productionIds.length > 0) {
