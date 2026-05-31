@@ -7,6 +7,7 @@ interface ActivityEntry {
   summary: string;
   created_at: string;
   actor_name: string | null;
+  production_id: string | null;
 }
 
 function timeAgo(iso: string): string {
@@ -42,81 +43,96 @@ type RawEntry = {
   summary: string;
   created_at: string;
   actor_person_id: string | null;
+  production_id: string | null;
   people: { preferred_name: string | null; full_name: string } | null;
 };
 
 const ACTIVITY_SELECT =
-  "id, action, entity_type, entity_id, summary, created_at, actor_person_id, people:actor_person_id(preferred_name, full_name)";
+  "id, action, entity_type, entity_id, summary, created_at, actor_person_id, production_id, people:actor_person_id(preferred_name, full_name)";
+
+export interface WhatChangedProduction {
+  id: string;
+  title: string;
+  canManage: boolean;
+}
 
 export async function WhatChanged({
-  productionId,
+  productions,
   personId,
-  viewerCanManage,
 }: {
-  productionId: string;
+  productions: WhatChangedProduction[];
   personId: string;
-  viewerCanManage: boolean;
 }) {
   const supabase = await createClient();
 
-  let rawEntries: RawEntry[] = [];
+  if (productions.length === 0) return null;
 
-  if (viewerCanManage) {
-    // Production leadership sees the full activity feed.
+  const allIds = productions.map((p) => p.id);
+  const manageIds = productions.filter((p) => p.canManage).map((p) => p.id);
+  const personalOnlyIds = productions.filter((p) => !p.canManage).map((p) => p.id);
+  const titleById = new Map(productions.map((p) => [p.id, p.title]));
+  const showTag = productions.length > 1; // only worth tagging the show when there's more than one
+
+  // The viewer's own owned entities, used to scope what cast-level members see.
+  const [contractsRes, lineNotesRes, costumesRes] = await Promise.all([
+    supabase.from("contracts").select("id").eq("person_id", personId),
+    supabase.from("line_notes").select("id").eq("person_id", personId),
+    supabase.from("costume_assignments").select("item_id").eq("person_id", personId),
+  ]);
+  const contractIds = new Set((contractsRes.data || []).map((r: { id: string }) => r.id));
+  const lineNoteIds = new Set((lineNotesRes.data || []).map((r: { id: string }) => r.id));
+  const costumeIds = new Set((costumesRes.data || []).map((r: { item_id: string }) => r.item_id));
+
+  const byId = new Map<string, RawEntry>();
+
+  // Productions the viewer leads: the full activity feed.
+  if (manageIds.length > 0) {
     const { data } = await supabase
       .from("activity_log")
       .select(ACTIVITY_SELECT)
-      .eq("production_id", productionId)
+      .in("production_id", manageIds)
       .order("created_at", { ascending: false })
-      .limit(20);
-    rawEntries = (data || []) as unknown as RawEntry[];
-  } else {
-    // Everyone else sees only what pertains to them: things they did, plus
-    // changes to their own contract, line notes addressed to them, and their
-    // own costume assignments. Other people's contracts, conflicts, and notes
-    // never appear.
-    const [contractsRes, lineNotesRes, costumesRes, activityRes] = await Promise.all([
-      supabase.from("contracts").select("id").eq("person_id", personId),
-      supabase.from("line_notes").select("id").eq("person_id", personId),
-      supabase.from("costume_assignments").select("item_id").eq("person_id", personId),
-      supabase
-        .from("activity_log")
-        .select(ACTIVITY_SELECT)
-        .eq("production_id", productionId)
-        .order("created_at", { ascending: false })
-        .limit(200),
-    ]);
-
-    const contractIds = new Set((contractsRes.data || []).map((r: { id: string }) => r.id));
-    const lineNoteIds = new Set((lineNotesRes.data || []).map((r: { id: string }) => r.id));
-    const costumeIds = new Set((costumesRes.data || []).map((r: { item_id: string }) => r.item_id));
-
-    rawEntries = ((activityRes.data || []) as unknown as RawEntry[])
-      .filter((e) => {
-        if (e.actor_person_id === personId) return true;
-        if (e.entity_id == null) return false;
-        if (e.entity_type === "contract") return contractIds.has(e.entity_id);
-        if (e.entity_type === "line_note") return lineNoteIds.has(e.entity_id);
-        if (e.entity_type === "costume_inventory") return costumeIds.has(e.entity_id);
-        return false;
-      })
-      .slice(0, 20);
+      .limit(50);
+    for (const e of (data || []) as unknown as RawEntry[]) byId.set(e.id, e);
   }
 
-  const feed: ActivityEntry[] = rawEntries.map((e) => ({
-    id: e.id,
-    action: e.action,
-    entity_type: e.entity_type,
-    summary: e.summary,
-    created_at: e.created_at,
-    actor_name: e.people?.preferred_name || e.people?.full_name || null,
-  }));
+  // Productions where the viewer is cast/crew: only what pertains to them.
+  if (personalOnlyIds.length > 0) {
+    const { data } = await supabase
+      .from("activity_log")
+      .select(ACTIVITY_SELECT)
+      .in("production_id", personalOnlyIds)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    for (const e of (data || []) as unknown as RawEntry[]) {
+      const keep =
+        e.actor_person_id === personId ||
+        (e.entity_id != null &&
+          ((e.entity_type === "contract" && contractIds.has(e.entity_id)) ||
+            (e.entity_type === "line_note" && lineNoteIds.has(e.entity_id)) ||
+            (e.entity_type === "costume_inventory" && costumeIds.has(e.entity_id))));
+      if (keep) byId.set(e.id, e);
+    }
+  }
+
+  const feed: ActivityEntry[] = Array.from(byId.values())
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 20)
+    .map((e) => ({
+      id: e.id,
+      action: e.action,
+      entity_type: e.entity_type,
+      summary: e.summary,
+      created_at: e.created_at,
+      actor_name: e.people?.preferred_name || e.people?.full_name || null,
+      production_id: e.production_id,
+    }));
 
   if (feed.length === 0) {
     return (
       <div className="bg-card border border-bone rounded-card p-5">
         <h3 className="font-display text-display-sm mb-2">What changed</h3>
-        <p className="text-body-sm text-muted">No activity yet. Events, contracts, and notes will appear here as the production moves.</p>
+        <p className="text-body-sm text-muted">No activity yet. Events, contracts, and notes will appear here as your productions move.</p>
       </div>
     );
   }
@@ -150,17 +166,26 @@ export async function WhatChanged({
           <div key={group.label}>
             <p className="text-body-xs text-muted uppercase tracking-wider mb-2">{group.label}</p>
             <div className="space-y-2">
-              {group.items.map((entry) => (
-                <div key={entry.id} className="flex items-start gap-3">
-                  <span className="text-base mt-0.5 shrink-0 w-5 text-center">
-                    {ACTION_ICONS[entry.action] || "•"}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-body-sm text-ink leading-snug">{entry.summary}</p>
-                    <p className="text-body-xs text-muted mt-0.5">{timeAgo(entry.created_at)}</p>
+              {group.items.map((entry) => {
+                const title = entry.production_id ? titleById.get(entry.production_id) : null;
+                return (
+                  <div key={entry.id} className="flex items-start gap-3">
+                    <span className="text-base mt-0.5 shrink-0 w-5 text-center">
+                      {ACTION_ICONS[entry.action] || "•"}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-body-sm text-ink leading-snug">{entry.summary}</p>
+                      <p className="text-body-xs text-muted mt-0.5">
+                        {showTag && title && (
+                          <span className="text-brick">{title}</span>
+                        )}
+                        {showTag && title && " · "}
+                        {timeAgo(entry.created_at)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}

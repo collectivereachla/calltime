@@ -1,9 +1,63 @@
 import { createClient } from "@/lib/supabase/server";
-import Link from "next/link";
 import { CalendarLink } from "@/components/calendar-link";
-import { WhatChanged } from "@/components/what-changed";
+import { WhatChanged, type WhatChangedProduction } from "@/components/what-changed";
+import { ShowLink } from "@/components/show-link";
 import { ProductionHealth } from "./production-health";
 import { WelcomeChecklist } from "./welcome-checklist";
+
+type UpcomingCall = {
+  event_id: string;
+  event_call_id: string;
+  event_title: string;
+  event_type: string;
+  event_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  location: string | null;
+  mandatory: boolean;
+  production_id: string;
+  production_title: string;
+  org_id: string;
+  org_name: string;
+  response_status: string | null;
+};
+
+function fmtDate(date: string): string {
+  return new Date(date + "T00:00:00").toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function fmtTime(t: string | null): string {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
+}
+
+function StatusBadge({ status }: { status: string | null }) {
+  if (!status) {
+    return (
+      <span className="text-body-xs font-medium px-2 py-1 rounded-full bg-brick/10 text-brick">
+        Respond
+      </span>
+    );
+  }
+  const map: Record<string, { cls: string; label: string }> = {
+    confirmed: { cls: "bg-confirmed/10 text-confirmed", label: "Confirmed ✓" },
+    tentative: { cls: "bg-tentative/10 text-tentative", label: "Tentative ?" },
+    conflict: { cls: "bg-conflict/10 text-conflict", label: "Conflict ✕" },
+  };
+  const s = map[status] || { cls: "bg-brick/10 text-brick", label: status };
+  return (
+    <span className={`text-body-xs font-medium px-2 py-1 rounded-full ${s.cls}`}>
+      {s.label}
+    </span>
+  );
+}
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -19,7 +73,7 @@ export default async function HomePage() {
     .eq("user_id", user!.id)
     .single();
 
-  // Get all production assignments for this person
+  // Every active production assignment for this person, across every org.
   const { data: assignments } = await supabase
     .from("production_assignments")
     .select(`
@@ -48,7 +102,6 @@ export default async function HomePage() {
 
   const displayName = person?.preferred_name || person?.full_name || "there";
 
-  // Deduplicate by production — aggregate role titles for multi-role people
   type ProdInfo = {
     id: string; title: string; status: string;
     playwright: string | null; venue: string | null;
@@ -56,22 +109,44 @@ export default async function HomePage() {
     closing_date: string | null; organizations: { id: string; name: string };
   };
 
+  // Memberships are a SET (a person may belong to many orgs). Never collapse to one.
+  const { data: memberships } = await supabase
+    .from("org_memberships")
+    .select("role, org_id")
+    .eq("person_id", person!.id);
+
+  const ownerOrgIds = new Set(
+    (memberships || [])
+      .filter((m) => m.role === "owner" || m.role === "production")
+      .map((m) => m.org_id)
+  );
+  const canCreate = ownerOrgIds.size > 0;
+
+  // Deduplicate by production — aggregate role titles for multi-role people —
+  // and compute, PER production, whether this viewer leads it (org owner/production,
+  // or an SM / production-staff assignment on that very show).
   const prodMap = new Map<string, {
-    assignment_id: string;
     role_titles: string[];
+    canManage: boolean;
     productions: ProdInfo;
   }>();
 
   for (const a of assignments || []) {
-    const prod = a.productions as unknown as ProdInfo;
+    const prod = a.productions as unknown as ProdInfo | null;
+    if (!prod) continue; // null-guard: RLS can hide the joined row
     if (prod.status === "archived" || prod.status === "closed") continue;
+    const leadsThisShow =
+      ownerOrgIds.has(prod.organizations?.id) ||
+      a.department === "stage_management" ||
+      ["admin", "production", "staff"].includes(a.access_tier);
     const existing = prodMap.get(prod.id);
     if (existing) {
       existing.role_titles.push(a.role_title);
+      existing.canManage = existing.canManage || leadsThisShow;
     } else {
       prodMap.set(prod.id, {
-        assignment_id: a.id,
         role_titles: [a.role_title],
+        canManage: leadsThisShow,
         productions: prod,
       });
     }
@@ -80,64 +155,46 @@ export default async function HomePage() {
   const activeProductions = Array.from(prodMap.values())
     .sort((a, b) => (a.productions.opening_date || "").localeCompare(b.productions.opening_date || ""));
 
-  // Check if user can create productions
-  const { data: memberships } = await supabase
-    .from("org_memberships")
-    .select("role")
-    .eq("person_id", person!.id);
+  const orgCount = new Set(activeProductions.map((p) => p.productions.organizations?.id)).size;
 
-  const canCreate = memberships?.some(
-    (m) => m.role === "owner" || m.role === "production"
-  );
+  const whatChangedProductions: WhatChangedProduction[] = activeProductions.map((p) => ({
+    id: p.productions.id,
+    title: p.productions.title,
+    canManage: p.canManage,
+  }));
 
-  // Who sees the full production activity feed vs. only their own entries.
-  // Full feed: owners/production/admins, plus stage managers and production
-  // staff assigned to the production whose feed is shown.
-  const feedProductionId = activeProductions[0]?.productions.id;
-  const isLeadership =
-    (memberships?.some(
-      (m) => m.role === "owner" || m.role === "production" || m.role === "admin"
-    ) ||
-      (assignments || []).some((a) => {
-        const prod = a.productions as unknown as { id: string };
-        return (
-          a.active &&
-          prod?.id === feedProductionId &&
-          (a.department === "stage_management" ||
-            ["admin", "production", "staff"].includes(a.access_tier))
-        );
-      })) || false;
-
-  // Get next upcoming call for this person
-  const { data: nextCallData } = await supabase.rpc("get_next_call", {
+  // All upcoming published calls for this person, across every show and org.
+  const { data: upcomingData } = await supabase.rpc("get_upcoming_calls", {
     p_person_id: person!.id,
   });
-  // Pending contracts for this person
+  const upcoming = (upcomingData as unknown as UpcomingCall[]) || [];
+
+  // Hero = the soonest call (any status). Needs-response = unanswered (minus hero).
+  // Coming up = everything already responded to (minus hero). Disjoint by design.
+  const hero = upcoming[0] || null;
+  const rest = hero ? upcoming.slice(1) : upcoming;
+  const needsResponse = rest.filter((c) => c.response_status == null);
+  const comingUp = rest.filter((c) => c.response_status != null).slice(0, 8);
+
+  // Pending contracts for this person (already person-scoped, all shows).
   const { data: pendingContracts } = await supabase
     .from("contracts")
     .select("id, role_title, compensation, contract_templates(title)")
     .eq("person_id", person!.id)
     .eq("status", "pending");
 
-  const nextCall = (nextCallData as unknown as {
-    event_id: string; event_call_id: string; event_title: string;
-    event_type: string; event_date: string; start_time: string | null;
-    end_time: string | null; location: string | null; notes: string | null;
-    production_title: string; response_status: string | null;
-  }[])?.[0] || null;
+  const showOrgOnCalls = orgCount > 1;
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
       {/* Page header */}
       <div className="flex items-start justify-between mb-10">
         <div>
-          <h1 className="font-display text-display-md text-ink">
-            {displayName}
-          </h1>
+          <h1 className="font-display text-display-md text-ink">{displayName}</h1>
           <p className="text-body-md text-ash mt-1">
             {activeProductions.length === 0
               ? "No active productions."
-              : `${activeProductions.length} active production${activeProductions.length === 1 ? "" : "s"}`}
+              : `${activeProductions.length} active production${activeProductions.length === 1 ? "" : "s"}${orgCount > 1 ? ` across ${orgCount} companies` : ""}`}
           </p>
         </div>
         {canCreate && (
@@ -155,66 +212,80 @@ export default async function HomePage() {
         <WelcomeChecklist personId={person!.id} productionId={activeProductions[0].productions.id} />
       )}
 
-      {/* Next call — always visible */}
-      {nextCall && (
+      {/* Next call — the single soonest, any status */}
+      {hero && (
         <div className="mb-8">
           <p className="text-body-xs text-muted uppercase tracking-wider mb-2">Next call</p>
-          <a href="/callboard" className="block bg-card border border-brick/20 rounded-card px-5 py-4 hover:shadow-card-hover transition-shadow">
+          <ShowLink
+            productionId={hero.production_id}
+            href="/callboard"
+            className="block bg-card border border-brick/20 rounded-card px-5 py-4 hover:shadow-card-hover transition-shadow"
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-body-xs font-medium px-1.5 py-0.5 rounded bg-brick/10 text-brick">
-                    {nextCall.event_type.replace(/_/g, " ")}
+                    {hero.event_type.replace(/_/g, " ")}
                   </span>
-                  <span className="text-body-xs text-muted">{nextCall.production_title}</span>
+                  <span className="text-body-xs text-muted">
+                    {hero.production_title}
+                    {showOrgOnCalls && ` · ${hero.org_name}`}
+                  </span>
                 </div>
-                <h3 className="text-body-md font-medium text-ink">{nextCall.event_title}</h3>
+                <h3 className="text-body-md font-medium text-ink">{hero.event_title}</h3>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="font-mono text-data-sm text-ink">
-                    {new Date(nextCall.event_date + "T00:00:00").toLocaleDateString("en-US", {
-                      weekday: "short", month: "short", day: "numeric",
-                    })}
-                    {nextCall.start_time && (() => {
-                      const [h, m] = nextCall.start_time!.split(":").map(Number);
-                      const period = h >= 12 ? "PM" : "AM";
-                      const hour = h % 12 || 12;
-                      return ` · ${hour}:${m.toString().padStart(2, "0")} ${period}`;
-                    })()}
+                    {fmtDate(hero.event_date)}
+                    {hero.start_time && ` · ${fmtTime(hero.start_time)}`}
                   </span>
-                  {nextCall.location && (
-                    <span className="text-body-xs text-ash">{nextCall.location}</span>
+                  {hero.location && (
+                    <span className="text-body-xs text-ash">{hero.location}</span>
                   )}
                 </div>
               </div>
               <div className="shrink-0">
-                {nextCall.response_status ? (
-                  <span className={`text-body-xs font-medium px-2 py-1 rounded-full ${
-                    nextCall.response_status === "confirmed" ? "bg-confirmed/10 text-confirmed" :
-                    nextCall.response_status === "tentative" ? "bg-tentative/10 text-tentative" :
-                    "bg-conflict/10 text-conflict"
-                  }`}>
-                    {nextCall.response_status === "confirmed" ? "Confirmed ✓" :
-                     nextCall.response_status === "tentative" ? "Tentative ?" : "Conflict ✕"}
-                  </span>
-                ) : (
-                  <span className="text-body-xs font-medium px-2 py-1 rounded-full bg-brick/10 text-brick">
-                    Respond
-                  </span>
-                )}
+                <StatusBadge status={hero.response_status} />
               </div>
             </div>
-          </a>
+          </ShowLink>
         </div>
       )}
 
-      {/* What changed */}
-      {activeProductions.length > 0 && (
+      {/* Needs your response — unanswered calls across all shows */}
+      {needsResponse.length > 0 && (
         <div className="mb-8">
-          <WhatChanged
-            productionId={activeProductions[0].productions.id}
-            personId={person!.id}
-            viewerCanManage={isLeadership}
-          />
+          <p className="text-body-xs text-muted uppercase tracking-wider mb-2">
+            Needs your response · {needsResponse.length}
+          </p>
+          <div className="space-y-2">
+            {needsResponse.map((c) => (
+              <ShowLink
+                key={c.event_call_id}
+                productionId={c.production_id}
+                href="/callboard"
+                className="block bg-card border border-brick/20 rounded-card px-5 py-3 hover:shadow-card-hover transition-shadow"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-body-sm font-medium text-ink truncate">{c.event_title}</h3>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="font-mono text-body-xs text-ash">
+                        {fmtDate(c.event_date)}
+                        {c.start_time && ` · ${fmtTime(c.start_time)}`}
+                      </span>
+                      <span className="text-body-xs text-muted truncate">
+                        {c.production_title}
+                        {showOrgOnCalls && ` · ${c.org_name}`}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-body-xs font-medium px-2 py-1 rounded-full bg-brick/10 text-brick shrink-0">
+                    Respond
+                  </span>
+                </div>
+              </ShowLink>
+            ))}
+          </div>
         </div>
       )}
 
@@ -250,6 +321,49 @@ export default async function HomePage() {
         </div>
       )}
 
+      {/* Coming up — calls already responded to, your road ahead */}
+      {comingUp.length > 0 && (
+        <div className="mb-8">
+          <p className="text-body-xs text-muted uppercase tracking-wider mb-2">Coming up</p>
+          <div className="space-y-2">
+            {comingUp.map((c) => (
+              <ShowLink
+                key={c.event_call_id}
+                productionId={c.production_id}
+                href="/callboard"
+                className="block bg-card border border-bone rounded-card px-5 py-3 hover:shadow-card-hover transition-shadow"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-body-sm font-medium text-ink truncate">{c.event_title}</h3>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="font-mono text-body-xs text-ash">
+                        {fmtDate(c.event_date)}
+                        {c.start_time && ` · ${fmtTime(c.start_time)}`}
+                      </span>
+                      <span className="text-body-xs text-muted truncate">
+                        {c.production_title}
+                        {showOrgOnCalls && ` · ${c.org_name}`}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    <StatusBadge status={c.response_status} />
+                  </div>
+                </div>
+              </ShowLink>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* What changed — across every show, leadership evaluated per show */}
+      {activeProductions.length > 0 && (
+        <div className="mb-8">
+          <WhatChanged productions={whatChangedProductions} personId={person!.id} />
+        </div>
+      )}
+
       {/* Productions */}
       {activeProductions.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
@@ -263,27 +377,23 @@ export default async function HomePage() {
         </div>
       ) : (
         <div className="space-y-3">
+          <p className="text-body-xs text-muted uppercase tracking-wider mb-1">Your shows</p>
           {activeProductions.map((entry) => {
             const prod = entry.productions;
             return (
-              <Link
+              <ShowLink
+                productionId={prod.id}
                 href={`/productions/${prod.id}`}
                 key={prod.id}
                 className="block bg-card border border-bone rounded-card px-6 py-5 hover:shadow-card-hover transition-shadow"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <h2 className="font-display text-display-sm text-ink">
-                      {prod.title}
-                    </h2>
+                    <h2 className="font-display text-display-sm text-ink">{prod.title}</h2>
                     {prod.playwright && (
-                      <p className="text-body-sm text-ash mt-0.5">
-                        by {prod.playwright}
-                      </p>
+                      <p className="text-body-sm text-ash mt-0.5">by {prod.playwright}</p>
                     )}
-                    <p className="text-body-sm text-ash mt-1">
-                      {prod.organizations.name}
-                    </p>
+                    <p className="text-body-sm text-ash mt-1">{prod.organizations?.name}</p>
                   </div>
                   <div className="text-right shrink-0">
                     <span className="inline-block text-body-xs font-medium px-2 py-0.5 rounded-full bg-brick/10 text-brick">
@@ -319,7 +429,7 @@ export default async function HomePage() {
                     )}
                   </div>
                 )}
-              </Link>
+              </ShowLink>
             );
           })}
         </div>
