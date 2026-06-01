@@ -29,6 +29,13 @@ export async function addAnnotation(formData: FormData) {
     : [];
   const isPinned = formData.get("is_pinned") === "true";
 
+  // Optional cue anchor: which word/phrase in the line this blocking note fires on.
+  const cueStartRaw = formData.get("cue_start") as string | null;
+  const cueEndRaw = formData.get("cue_end") as string | null;
+  const cueText = (formData.get("cue_text") as string | null) || null;
+  const cueStart = cueStartRaw !== null && cueStartRaw !== "" ? parseInt(cueStartRaw, 10) : null;
+  const cueEnd = cueEndRaw !== null && cueEndRaw !== "" ? parseInt(cueEndRaw, 10) : null;
+
   if (!scriptLineId || !content?.trim()) {
     return { error: "Line and note content required" };
   }
@@ -42,6 +49,9 @@ export async function addAnnotation(formData: FormData) {
     visibility,
     tagged_characters: taggedCharacters,
     is_pinned: isPinned,
+    cue_start: Number.isFinite(cueStart as number) ? cueStart : null,
+    cue_end: Number.isFinite(cueEnd as number) ? cueEnd : null,
+    cue_text: cueText,
   });
 
   if (error) return { error: error.message };

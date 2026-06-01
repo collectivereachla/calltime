@@ -27,6 +27,9 @@ interface Annotation {
   visibility: string;
   note_type: string;
   is_pinned: boolean;
+  cue_start: number | null;
+  cue_end: number | null;
+  cue_text: string | null;
   created_at: string;
   updated_at: string;
 }

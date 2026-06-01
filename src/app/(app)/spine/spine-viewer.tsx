@@ -77,6 +77,17 @@ function charactersInText(content: string, names: string[]): string[] {
   });
 }
 
+// Split a line into word tokens with their character offsets, for the cue picker.
+function wordTokens(content: string): { text: string; start: number; end: number }[] {
+  const tokens: { text: string; start: number; end: number }[] = [];
+  const re = /\S+/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content)) !== null) {
+    tokens.push({ text: m[0], start: m.index, end: m.index + m[0].length });
+  }
+  return tokens;
+}
+
 // Tagged characters whose name does NOT appear in the text. The highlighter only
 // colors names that occur in the sentence, so a character who's involved but not
 // named (AUNT EMMA on "Laughing.") would otherwise be invisible. These get chips.
@@ -135,6 +146,9 @@ interface Annotation {
   visibility: string;
   note_type: string;
   is_pinned: boolean;
+  cue_start: number | null;
+  cue_end: number | null;
+  cue_text: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -198,6 +212,7 @@ export function SpineViewer({
   const [annotationText, setAnnotationText] = useState("");
   const [annotationTags, setAnnotationTags] = useState<string[]>([]);
   const [annotationIsPersonal, setAnnotationIsPersonal] = useState(false);
+  const [annotationCue, setAnnotationCue] = useState<{ start: number; end: number; text: string } | null>(null);
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [saving, setSaving] = useState(false);
@@ -262,6 +277,38 @@ export function SpineViewer({
     }
     return map;
   }, [annotations, noteView, characterFilter, myCharacters, personId]);
+
+  // The blocking score: number every production (non-personal) note in reading
+  // order — by line, then by cue position within the line, then by age. The
+  // number is the note's identity in the score and is stable regardless of which
+  // view filter is active, so the count never shifts under the director.
+  const { noteNumbers, cuePointsByLine } = useMemo(() => {
+    const lineOrder = new Map<string, number>();
+    lines.forEach((l) => lineOrder.set(l.id, l.line_number));
+
+    const scored = annotations
+      .filter((a) => a.visibility !== "personal")
+      .sort((a, b) => {
+        const la = lineOrder.get(a.script_line_id) ?? 1e9;
+        const lb = lineOrder.get(b.script_line_id) ?? 1e9;
+        if (la !== lb) return la - lb;
+        const ca = a.cue_start ?? 1e9; // whole-line notes sort after cued ones
+        const cb = b.cue_start ?? 1e9;
+        if (ca !== cb) return ca - cb;
+        return (a.created_at || "").localeCompare(b.created_at || "");
+      });
+
+    const numbers = new Map<string, number>();
+    scored.forEach((a, i) => numbers.set(a.id, i + 1));
+
+    const cues = new Map<string, { pos: number; number: number; id: string }[]>();
+    for (const a of scored) {
+      if (a.cue_start == null) continue;
+      if (!cues.has(a.script_line_id)) cues.set(a.script_line_id, []);
+      cues.get(a.script_line_id)!.push({ pos: a.cue_start, number: numbers.get(a.id)!, id: a.id });
+    }
+    return { noteNumbers: numbers, cuePointsByLine: cues };
+  }, [annotations, lines]);
 
   // Scroll to top on scene change
   useEffect(() => {
@@ -334,6 +381,7 @@ export function SpineViewer({
     setAnnotationText("");
     setAnnotationTags([]);
     setAnnotationIsPersonal(isPersonal);
+    setAnnotationCue(null);
   }
 
   function startEditLine(line: ScriptLine) {
@@ -402,12 +450,18 @@ export function SpineViewer({
     fd.set("note_type", annotationIsPersonal ? "personal" : "blocking");
     fd.set("visibility", annotationIsPersonal ? "personal" : "production");
     fd.set("tagged_characters", annotationTags.join(","));
+    if (annotationCue) {
+      fd.set("cue_start", String(annotationCue.start));
+      fd.set("cue_end", String(annotationCue.end));
+      fd.set("cue_text", annotationCue.text);
+    }
     const result = await addAnnotation(fd);
     setSaving(false);
     if (result.error) alert(result.error);
     else {
       setAnnotationText("");
       setAnnotatingLineId(null);
+      setAnnotationCue(null);
       router.refresh();
     }
   }
@@ -883,7 +937,7 @@ export function SpineViewer({
                   )}
 
                   <div className="flex-1 min-w-0">
-                    {renderLine(line, isMyCharacter, allCharacters)}
+                    {renderLine(line, isMyCharacter, allCharacters, cuePointsByLine.get(line.id) || [])}
                   </div>
                 </div>
                 )}
@@ -915,6 +969,14 @@ export function SpineViewer({
 
                       {/* Content with inline character highlighting + actions */}
                       <div className="flex items-start gap-2">
+                        {noteNumbers.get(a.id) && (
+                          <span
+                            className="shrink-0 mt-0.5 inline-flex items-center justify-center min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-brick text-paper text-[10px] font-bold font-mono leading-none not-italic"
+                            title={a.cue_text ? `Cue: ${a.cue_text}` : "Blocking note"}
+                          >
+                            {noteNumbers.get(a.id)}
+                          </span>
+                        )}
                         {isEditing ? (
                           <div className="flex-1">
                             <textarea
@@ -982,6 +1044,37 @@ export function SpineViewer({
                         className="w-full px-2 py-1.5 bg-transparent border-b border-bone text-body-sm text-ink placeholder:text-muted focus:border-brick focus:outline-none resize-none"
                         rows={2}
                       />
+
+                      {/* Cue picker (staff blocking notes) — tap the word this note fires on */}
+                      {canManage && !annotationIsPersonal && line.content.trim() && (
+                        <div className="mt-2">
+                          <p className="text-body-xs text-muted mb-1">
+                            Cue {annotationCue
+                              ? <>— fires on <span className="text-brick font-semibold">“{annotationCue.text}”</span>{" "}
+                                  <button type="button" onClick={() => setAnnotationCue(null)} className="text-muted hover:text-ink underline">clear</button></>
+                              : <>(optional) — tap the word it happens on, or leave for whole line</>}
+                          </p>
+                          <div className="flex flex-wrap gap-x-1 gap-y-0.5 leading-relaxed">
+                            {wordTokens(line.content).map((tok, i) => {
+                              const selected = annotationCue?.start === tok.start && annotationCue?.end === tok.end;
+                              return (
+                                <button
+                                  key={`${tok.start}-${i}`}
+                                  type="button"
+                                  onClick={() => setAnnotationCue(
+                                    selected ? null : { start: tok.start, end: tok.end, text: tok.text }
+                                  )}
+                                  className={`px-0.5 rounded text-body-sm transition-colors ${
+                                    selected ? "bg-brick text-paper font-semibold" : "text-ash hover:bg-brick/10"
+                                  }`}
+                                >
+                                  {tok.text}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Character tags (staff only) */}
                       {canManage && !annotationIsPersonal && (
@@ -1109,7 +1202,7 @@ export function SpineViewer({
                             {line.character}
                           </p>
                         )}
-                        {renderLine(line, isMyCharacter, allCharacters)}
+                        {renderLine(line, isMyCharacter, allCharacters, cuePointsByLine.get(line.id) || [])}
                         {noteView !== "none" && lineAnnotations.map((a) => (
                           <div
                             key={a.id}
@@ -1137,10 +1230,46 @@ export function SpineViewer({
   );
 }
 
+type CuePoint = { pos: number; number: number; id: string };
+
+// A small superscript cue number, footnote-style, sitting at the cue word.
+function CueMarker({ n }: { n: number }) {
+  return (
+    <sup className="text-brick font-bold text-[10px] mx-0.5 align-super select-none not-italic">
+      {n}
+    </sup>
+  );
+}
+
+// Render a line's content with character names highlighted AND numbered cue
+// markers spliced in at their offsets. Cues are placed at word boundaries, so a
+// marker never splits a highlighted name.
+function renderLineContent(content: string, highlightNames: string[], cues: CuePoint[]): ReactNode {
+  if (!cues || cues.length === 0) {
+    return renderAnnotationContent(content, highlightNames);
+  }
+  const sorted = [...cues].sort((a, b) => a.pos - b.pos);
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
+  sorted.forEach((cp, i) => {
+    const pos = Math.max(0, Math.min(content.length, cp.pos));
+    if (pos > cursor) {
+      nodes.push(<span key={`t${i}`}>{renderAnnotationContent(content.slice(cursor, pos), highlightNames)}</span>);
+    }
+    nodes.push(<CueMarker key={`m${cp.id}`} n={cp.number} />);
+    cursor = pos;
+  });
+  if (cursor < content.length) {
+    nodes.push(<span key="tail">{renderAnnotationContent(content.slice(cursor), highlightNames)}</span>);
+  }
+  return nodes;
+}
+
 function renderLine(
   line: ScriptLine,
   isMyCharacter: (name: string) => boolean,
   allCharacters: string[],
+  cues: CuePoint[] = [],
 ) {
   switch (line.line_type) {
     case "character_name":
@@ -1148,24 +1277,24 @@ function renderLine(
       return null;
     case "stage_direction":
       return <p className="text-body-sm text-ash italic pl-4">
-        {renderAnnotationContent(line.content, allCharacters)}
+        {renderLineContent(line.content, allCharacters, cues)}
         <TagChips chars={tagsNotInText(line.content, line.tagged_characters)} />
       </p>;
     case "continued":
-      return <p className="text-body-xs text-muted italic pl-4">{line.content}</p>;
+      return <p className="text-body-xs text-muted italic pl-4">{renderLineContent(line.content, [], cues)}</p>;
     case "setting":
       return <p className="text-body-sm text-ash italic mt-4 mb-2">
-        {renderAnnotationContent(line.content, allCharacters)}
+        {renderLineContent(line.content, allCharacters, cues)}
         <TagChips chars={tagsNotInText(line.content, line.tagged_characters)} />
       </p>;
     case "song_title":
     case "song":
-      return <p className="text-body-md font-medium text-ink mt-6 mb-1 italic">{line.content}</p>;
+      return <p className="text-body-md font-medium text-ink mt-6 mb-1 italic">{renderLineContent(line.content, [], cues)}</p>;
     case "song_direction":
       return <p className="text-body-xs text-muted uppercase tracking-wider mt-3 mb-1">{line.content}</p>;
     case "lyric":
-      return <p className="text-body-sm text-ash italic pl-6">{line.content}</p>;
+      return <p className="text-body-sm text-ash italic pl-6">{renderLineContent(line.content, [], cues)}</p>;
     default:
-      return <p className="text-body-md text-ink leading-relaxed">{line.content}</p>;
+      return <p className="text-body-md text-ink leading-relaxed">{renderLineContent(line.content, [], cues)}</p>;
   }
 }
