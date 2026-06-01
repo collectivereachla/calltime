@@ -38,25 +38,26 @@ function getCharacterColor(name: string) {
   return CHARACTER_COLORS[hashCharacter(name)];
 }
 
-// Render annotation content with tagged character names highlighted inline
-function renderAnnotationContent(content: string, taggedCharacters: string[]): ReactNode {
-  if (!taggedCharacters || taggedCharacters.length === 0) {
+// Highlight any of the given character names where they appear in the text.
+// Used both for annotations (match against that note's tagged characters) and
+// for stage directions/settings (match against the show's whole character list,
+// so typing a real character's name always turns it into that character's token).
+// Word boundaries keep "TOM" from matching inside "tomorrow".
+function renderAnnotationContent(content: string, names: string[]): ReactNode {
+  if (!names || names.length === 0) {
     return content;
   }
 
-  // Sort tags longest-first so "QUEEN MOTHER" matches before "QUEEN"
-  const sorted = [...taggedCharacters].sort((a, b) => b.length - a.length);
-  // Build regex that matches any tagged character name (case-insensitive)
+  // Sort longest-first so "QUEEN MOTHER" matches before "QUEEN"
+  const sorted = [...names].sort((a, b) => b.length - a.length);
   const escaped = sorted.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
+  const pattern = new RegExp(`\\b(${escaped.join("|")})\\b`, "gi");
 
   const parts = content.split(pattern);
   return parts.map((part, i) => {
-    const matchedTag = sorted.find(
-      (t) => t.toUpperCase() === part.toUpperCase()
-    );
-    if (matchedTag) {
-      const color = getCharacterColor(matchedTag);
+    const matched = sorted.find((t) => t.toUpperCase() === part.toUpperCase());
+    if (matched) {
+      const color = getCharacterColor(matched);
       return (
         <span key={i} className={`${color.bg} ${color.text} px-1 py-0 rounded font-mono text-[11px] font-semibold uppercase`}>
           {part}
@@ -67,14 +68,23 @@ function renderAnnotationContent(content: string, taggedCharacters: string[]): R
   });
 }
 
-// Tagged characters whose name does NOT literally appear in the text. The inline
-// highlighter above only colors names that occur in the sentence, so a tag like
-// AUNT EMMA on "Laughing." would otherwise be invisible. These get explicit chips.
+// Which of the given character names appear (whole-word) in the text.
+function charactersInText(content: string, names: string[]): string[] {
+  if (!names || names.length === 0) return [];
+  return names.filter((n) => {
+    const esc = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${esc}\\b`, "i").test(content);
+  });
+}
+
+// Tagged characters whose name does NOT appear in the text. The highlighter only
+// colors names that occur in the sentence, so a character who's involved but not
+// named (AUNT EMMA on "Laughing.") would otherwise be invisible. These get chips.
 function tagsNotInText(content: string, tags?: string[]): string[] {
   if (!tags || tags.length === 0) return [];
   return tags.filter((t) => {
     const esc = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return !new RegExp(esc, "i").test(content);
+    return !new RegExp(`\\b${esc}\\b`, "i").test(content);
   });
 }
 
@@ -358,7 +368,12 @@ export function SpineViewer({
       updates.tagged_characters = [];
     } else {
       updates.character = null;
-      updates.tagged_characters = editLineTags;
+      // Tag = explicitly chosen chips PLUS any known character named in the text,
+      // so typing a character's name into a direction always records (and colors) them.
+      const named = charactersInText(editLineContent, allCharacters);
+      updates.tagged_characters = Array.from(
+        new Set([...editLineTags, ...named.map((n) => n.toUpperCase())])
+      );
     }
     const result = await updateScriptLine(editingLineId, updates);
     setSaving(false);
@@ -868,7 +883,7 @@ export function SpineViewer({
                   )}
 
                   <div className="flex-1 min-w-0">
-                    {renderLine(line, isMyCharacter)}
+                    {renderLine(line, isMyCharacter, allCharacters)}
                   </div>
                 </div>
                 )}
@@ -1094,7 +1109,7 @@ export function SpineViewer({
                             {line.character}
                           </p>
                         )}
-                        {renderLine(line, isMyCharacter)}
+                        {renderLine(line, isMyCharacter, allCharacters)}
                         {noteView !== "none" && lineAnnotations.map((a) => (
                           <div
                             key={a.id}
@@ -1122,25 +1137,25 @@ export function SpineViewer({
   );
 }
 
-function renderLine(line: ScriptLine, isMyCharacter: (name: string) => boolean) {
+function renderLine(
+  line: ScriptLine,
+  isMyCharacter: (name: string) => boolean,
+  allCharacters: string[],
+) {
   switch (line.line_type) {
     case "character_name":
       // Handled by auto-detection above — skip rendering
       return null;
     case "stage_direction":
       return <p className="text-body-sm text-ash italic pl-4">
-        {line.tagged_characters && line.tagged_characters.length > 0
-          ? renderAnnotationContent(line.content, line.tagged_characters)
-          : line.content}
+        {renderAnnotationContent(line.content, allCharacters)}
         <TagChips chars={tagsNotInText(line.content, line.tagged_characters)} />
       </p>;
     case "continued":
       return <p className="text-body-xs text-muted italic pl-4">{line.content}</p>;
     case "setting":
       return <p className="text-body-sm text-ash italic mt-4 mb-2">
-        {line.tagged_characters && line.tagged_characters.length > 0
-          ? renderAnnotationContent(line.content, line.tagged_characters)
-          : line.content}
+        {renderAnnotationContent(line.content, allCharacters)}
         <TagChips chars={tagsNotInText(line.content, line.tagged_characters)} />
       </p>;
     case "song_title":

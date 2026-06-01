@@ -176,10 +176,16 @@ export default async function SpinePage({
   const charKeys = new Map<string, string>();
   const addChar = (raw: string | null | undefined) => {
     if (!raw) return;
-    const c = raw.trim();
-    if (!c || c === "ALL" || c === "BOTH" || c.includes(" / ")) return;
-    const key = c.toUpperCase();
-    if (!charKeys.has(key)) charKeys.set(key, key);
+    // Cast roles are often combined ("John / Daddy", "Peaches / Imani") — split
+    // into the individual character names so each one is taggable on its own.
+    for (const piece of raw.split(" / ")) {
+      const c = piece.trim();
+      if (!c || c === "ALL" || c === "BOTH") continue;
+      // Skip ensemble/utility labels like "Featured Dancer (Belle)".
+      if (c.includes("(")) continue;
+      const key = c.toUpperCase();
+      if (!charKeys.has(key)) charKeys.set(key, key);
+    }
   };
   for (const l of lines) {
     addChar(l.character);
