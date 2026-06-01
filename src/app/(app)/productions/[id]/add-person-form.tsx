@@ -12,6 +12,8 @@ const departments = [
   { value: "crew", label: "Crew" },
   { value: "music", label: "Music" },
   { value: "production", label: "Production" },
+  { value: "marketing", label: "Marketing" },
+  { value: "video", label: "Video" },
 ];
 
 const accessTiers = [
