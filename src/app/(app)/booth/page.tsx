@@ -6,6 +6,7 @@ import { makeLightingConfig, makeSoundConfig } from "./design-configs";
 import { BoothTabs } from "./booth-tabs";
 import { PropsInventoryTab } from "./props-inventory-tab";
 import { MicPlot } from "./mic-plot";
+import { VideoRoom } from "./video-room";
 import { getActiveProductionId } from "@/lib/active-production";
 
 export default async function BoothPage() {
@@ -21,12 +22,16 @@ export default async function BoothPage() {
     .eq("user_id", user!.id)
     .single();
 
-  const { data: membership } = await supabase
+  // A person has memberships (plural). Resolve the set, then derive the
+  // active org from the selected show below — never assume a single "home" org.
+  const { data: memberships } = await supabase
     .from("org_memberships")
     .select("org_id, role, organizations(id, name, inventory_house_owner)")
-    .eq("person_id", person!.id)
-    .limit(1)
-    .single();
+    .eq("person_id", person!.id);
+
+  // Provisional membership for org-scoped fallbacks; the real org is derived
+  // from the active production once it's resolved.
+  const membership = (memberships || [])[0];
 
   if (!membership) {
     return (
@@ -36,39 +41,52 @@ export default async function BoothPage() {
     );
   }
 
-  const isOwnerOrProd = membership.role === "owner" || membership.role === "production";
-  const isAdmin = membership.role === "admin";
+  const orgIds = (memberships || [])
+    .map((m) => (m.organizations as unknown as { id: string } | null)?.id)
+    .filter((id): id is string => !!id);
+  const roleByOrg = new Map<string, string>();
+  for (const m of memberships || []) {
+    const oid = (m.organizations as unknown as { id: string } | null)?.id;
+    if (oid) roleByOrg.set(oid, m.role);
+  }
 
-  // Get active production from cookie
+  // Get active production from cookie. Validate against EVERY org the person
+  // can see, then derive the org from the selected show (never the reverse).
   const activeProductionId = await getActiveProductionId();
 
-  let activeProduction: { id: string; title: string; status: string } | null = null;
+  let activeProduction: { id: string; title: string; status: string; org_id: string } | null = null;
   if (activeProductionId) {
     const { data } = await supabase
       .from("productions")
-      .select("id, title, status")
+      .select("id, title, status, org_id")
       .eq("id", activeProductionId)
-      .eq("org_id", (membership.organizations as unknown as { id: string }).id)
+      .in("org_id", orgIds)
       .single();
     activeProduction = data;
   }
 
   if (!activeProduction) {
-    // Fallback to first active production
+    // Fallback to the soonest-opening active production across all orgs.
     const { data: prods } = await supabase
       .from("productions")
-      .select("id, title, status")
-      .eq("org_id", (membership.organizations as unknown as { id: string }).id)
+      .select("id, title, status, org_id")
+      .in("org_id", orgIds)
       .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
       .order("opening_date", { ascending: true })
       .limit(1);
     activeProduction = prods?.[0] || null;
   }
 
+  // Org and role derive from the SELECTED show, not a presumed home org.
+  const activeOrgId = activeProduction?.org_id || null;
+  const activeRole = activeOrgId ? roleByOrg.get(activeOrgId) || membership.role : membership.role;
+  const isOwnerOrProd = activeRole === "owner" || activeRole === "production";
+  const isAdmin = activeRole === "admin";
+
   // Determine access. The Booth is the design/production team's room; cast
   // members must not see other people's costumes, assignments, or measurements.
   // Check EVERY active assignment (not just one) so a person who is both cast
-  // and design still gets in.
+  // and design (or video) still gets in.
   let canManage = isOwnerOrProd;
   let canAccessBooth = isOwnerOrProd || isAdmin;
   if (activeProduction && (!canManage || !canAccessBooth)) {
@@ -82,7 +100,8 @@ export default async function BoothPage() {
     const hasDesignOrStaff = (assignments || []).some(
       (a) =>
         ["admin", "production", "staff"].includes(a.access_tier) ||
-        a.department === "design"
+        a.department === "design" ||
+        a.department === "video"
     );
     if (hasDesignOrStaff) {
       canManage = true;
@@ -179,8 +198,11 @@ export default async function BoothPage() {
     .select("*")
     .eq("production_id", activeProduction.id);
 
-  // Get costume inventory for this org
-  const orgId = (membership.organizations as unknown as { id: string }).id;
+  // Get costume inventory for this org — scoped to the SELECTED show's org.
+  const orgId = activeProduction.org_id;
+  const activeOrg = (memberships || [])
+    .map((m) => m.organizations as unknown as { id: string; name: string; inventory_house_owner: string | null } | null)
+    .find((o) => o?.id === orgId) || null;
   const { data: inventoryData } = await supabase
     .from("costume_inventory")
     .select("*")
@@ -393,8 +415,8 @@ export default async function BoothPage() {
   }
   const costumeDesignerOwner = findDesignerPerson("costume");
   const houseOwner =
-    (membership.organizations as unknown as { inventory_house_owner: string | null; name: string }).inventory_house_owner
-    || (membership.organizations as unknown as { name: string }).name
+    activeOrg?.inventory_house_owner
+    || activeOrg?.name
     || "House stock";
 
   const lightDesigner = findDesigner("light");
@@ -412,6 +434,37 @@ export default async function BoothPage() {
       location: full?.location || null,
     };
   });
+
+  // ---- Video room data ----
+  const { data: videoCrewData } = await supabase
+    .from("production_assignments")
+    .select("person_id, role_title, people(id, full_name, preferred_name, email, phone)")
+    .eq("production_id", activeProduction.id)
+    .eq("department", "video")
+    .eq("active", true)
+    .order("role_title", { ascending: true });
+
+  const videoCrew = (videoCrewData || []).filter((a) => a.people != null).map((a) => {
+    const p = a.people as unknown as { id: string; full_name: string; preferred_name: string | null; email: string | null; phone: string | null };
+    return {
+      person_id: p.id,
+      name: p.preferred_name || p.full_name,
+      role_title: a.role_title,
+      email: p.email,
+      phone: p.phone,
+    };
+  });
+
+  const [videoShotsRes, videoDelivRes, videoReleasesRes, videoRefsRes] = await Promise.all([
+    supabase.from("video_shots").select("*").eq("production_id", activeProduction.id),
+    supabase.from("video_deliverables").select("*").eq("production_id", activeProduction.id),
+    supabase.from("video_releases").select("*").eq("production_id", activeProduction.id).order("created_at", { ascending: true }),
+    supabase.from("design_references")
+      .select("id, title, description, image_url, category, created_at")
+      .eq("production_id", activeProduction.id)
+      .eq("department", "video")
+      .order("created_at", { ascending: false }),
+  ]);
 
   return (
     <div className="max-w-full mx-auto px-4 md:px-8 py-6 md:py-10">
@@ -432,6 +485,7 @@ export default async function BoothPage() {
           { key: "set", label: "Set", designer: setDesigner.name },
           { key: "lights", label: "Lights", designer: lightDesigner.name },
           { key: "sound", label: "Sound", designer: soundDesigner.name },
+          { key: "video", label: "Video" },
         ]}
         contents={{
           costume: (
@@ -510,6 +564,19 @@ export default async function BoothPage() {
                 canManage={canManage}
               />
             </div>
+          ),
+          video: (
+            <VideoRoom
+              productionId={activeProduction.id}
+              scenes={scenes.map((s) => ({ id: s.id, act: s.act, scene_number: s.scene_number, title: s.title }))}
+              crew={videoCrew}
+              orgPeople={orgPeople}
+              shots={(videoShotsRes.data || []) as any}
+              deliverables={(videoDelivRes.data || []) as any}
+              releases={(videoReleasesRes.data || []) as any}
+              references={(videoRefsRes.data || []) as any}
+              canManage={canManage}
+            />
           ),
         }}
       />
