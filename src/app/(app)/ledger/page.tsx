@@ -329,6 +329,9 @@ export default async function LedgerPage() {
         </div>
         {canSeeContent && (
           <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <a href="/ledger/organization" className="px-3 py-1.5 text-body-xs font-medium rounded-card bg-brick text-paper hover:bg-brick/90 whitespace-nowrap">
+              Organization budget
+            </a>
             <a href="/export/production" className="px-3 py-1.5 text-body-xs font-medium rounded-card bg-ink text-paper hover:bg-ink/90 whitespace-nowrap">
               Export this production
             </a>

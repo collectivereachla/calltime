@@ -190,12 +190,14 @@ export function ExportDocument({
   subheading,
   generatedAt,
   orgMembers,
+  orgTotals,
   productions,
 }: {
   heading: string;
   subheading: string;
   generatedAt: string;
   orgMembers?: ExportCompanyMember[];
+  orgTotals?: { budget: number; actual: number; revenue: number; received: number };
   productions: ProductionExport[];
 }) {
   return (
@@ -206,6 +208,30 @@ export function ExportDocument({
         <h1 className="text-4xl font-bold tracking-tight mt-1">{heading}</h1>
         <p className="text-sm text-gray-500 mt-2">Generated {generatedAt} · Calltime</p>
       </div>
+
+      {orgTotals && (
+        <div className="mt-6 border border-gray-300 rounded">
+          <div className="bg-gray-100 px-4 py-2 text-xs uppercase tracking-widest text-gray-600">
+            Organization budget — all active productions
+          </div>
+          <table className="w-full text-sm">
+            <tbody>
+              <tr className="border-b border-gray-200">
+                <td className="px-4 py-2 text-gray-600">Budgeted</td>
+                <td className="px-4 py-2 text-right font-mono">{money(orgTotals.budget)}</td>
+                <td className="px-4 py-2 text-gray-600">Revenue (projected)</td>
+                <td className="px-4 py-2 text-right font-mono">{money(orgTotals.revenue)}</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2 text-gray-600">Spent</td>
+                <td className="px-4 py-2 text-right font-mono">{money(orgTotals.actual)}</td>
+                <td className="px-4 py-2 text-gray-600">Received</td>
+                <td className="px-4 py-2 text-right font-mono">{money(orgTotals.received)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {orgMembers && (
         <>

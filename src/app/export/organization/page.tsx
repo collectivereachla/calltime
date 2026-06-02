@@ -30,6 +30,16 @@ export default async function OrganizationExportPage() {
   const productionsRaw = await Promise.all(pids.map((id) => fetchProductionExport(id)));
   const productions = productionsRaw.filter((p): p is ProductionExport => p != null);
 
+  const orgTotals = productions.reduce(
+    (acc, p) => ({
+      budget: acc.budget + p.totals.budget,
+      actual: acc.actual + p.totals.actual,
+      revenue: acc.revenue + p.totals.revenue,
+      received: acc.received + p.totals.received,
+    }),
+    { budget: 0, actual: 0, revenue: 0, received: 0 }
+  );
+
   const generatedAt = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
   return (
@@ -49,6 +59,7 @@ export default async function OrganizationExportPage() {
         subheading="Organization Export"
         generatedAt={generatedAt}
         orgMembers={members}
+        orgTotals={orgTotals}
         productions={productions}
       />
     </div>
