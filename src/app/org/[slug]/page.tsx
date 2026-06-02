@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { PublicHeader } from "@/components/public-header";
@@ -32,6 +33,42 @@ export default async function OrgPage({
   const upcoming = (productions || []).filter((p) => !p.accepting_applications && p.status !== "closed");
   const past = (productions || []).filter((p) => p.status === "closed");
 
+  // Public gallery: only APPROVED (is_official) image assets, only on PUBLIC
+  // productions. Read via the admin client (controlled, read-only) and serve
+  // signed URLs — the promo-assets bucket is private, so unapproved or
+  // private-show material is never exposed. Consent/approval is the gate.
+  const publicProdIds = (productions || []).map((p) => p.id);
+  let gallery: { id: string; url: string; caption: string | null; production_title: string | null }[] = [];
+  if (publicProdIds.length > 0) {
+    const admin = createAdminClient();
+    const { data: assets } = await admin
+      .from("promo_assets")
+      .select("id, file_path, caption, mime_type, production_id, is_official")
+      .in("production_id", publicProdIds)
+      .eq("is_official", true)
+      .order("created_at", { ascending: false })
+      .limit(24);
+    const images = (assets || []).filter((a) => (a.mime_type || "").startsWith("image/"));
+    if (images.length > 0) {
+      const titleByProd = new Map(publicProdIds.map((id) => {
+        const pr = (productions || []).find((p) => p.id === id);
+        return [id, pr?.title || null] as const;
+      }));
+      const { data: signed } = await admin.storage
+        .from("promo-assets")
+        .createSignedUrls(images.map((a) => a.file_path), 3600);
+      const urlByPath = new Map((signed || []).map((s) => [s.path, s.signedUrl] as const));
+      gallery = images
+        .map((a) => ({
+          id: a.id,
+          url: urlByPath.get(a.file_path) || "",
+          caption: a.caption,
+          production_title: titleByProd.get(a.production_id) || null,
+        }))
+        .filter((g) => g.url);
+    }
+  }
+
   function formatDate(d: string | null) {
     if (!d) return null;
     return new Date(d + "T00:00:00").toLocaleDateString("en-US", {
@@ -46,6 +83,14 @@ export default async function OrgPage({
       <PublicHeader back={{ href: "/directory", label: "All companies" }} />
 
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-8 md:py-12">
+        {/* Cover image */}
+        {org.cover_image_url && (
+          <div className="rounded-card overflow-hidden mb-6 aspect-[3/1] bg-bone/30">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={org.cover_image_url} alt="" className="w-full h-full object-cover" />
+          </div>
+        )}
+
         {/* Org header */}
         <div className="flex items-start gap-5 mb-8">
           {org.logo_url ? (
@@ -134,6 +179,32 @@ export default async function OrgPage({
                     </Link>
                   </div>
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Gallery — approved work, the company's visual proof */}
+        {gallery.length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-body-xs text-muted uppercase tracking-wider mb-4">Gallery</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {gallery.map((g) => (
+                <figure key={g.id} className="group relative overflow-hidden rounded-card bg-bone/30 aspect-[4/3]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={g.url}
+                    alt={g.caption || g.production_title || ""}
+                    loading="lazy"
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  {(g.caption || g.production_title) && (
+                    <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/70 to-transparent px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {g.caption && <span className="block text-body-xs text-paper">{g.caption}</span>}
+                      {g.production_title && <span className="block text-body-xs text-paper/70 font-display italic">{g.production_title}</span>}
+                    </figcaption>
+                  )}
+                </figure>
               ))}
             </div>
           </div>
