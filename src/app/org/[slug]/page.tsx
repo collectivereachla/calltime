@@ -21,6 +21,56 @@ export default async function OrgPage({
 
   if (!org) notFound();
 
+  // Is the viewer a logged-in member of THIS org? Members see the company
+  // roster (the org's profile of its people); strangers see only the public
+  // face. RLS on org_memberships already enforces member-only visibility, so
+  // an anonymous viewer's roster query simply returns nothing.
+  const { data: { user } } = await supabase.auth.getUser();
+  let viewerRole: string | null = null;
+  let roster: {
+    id: string; name: string; full_name: string; pronouns: string | null;
+    headshot_url: string | null; role: string;
+  }[] = [];
+  if (user) {
+    const { data: viewer } = await supabase
+      .from("people").select("id").eq("user_id", user.id).single();
+    if (viewer) {
+      const { data: mine } = await supabase
+        .from("org_memberships")
+        .select("role")
+        .eq("org_id", org.id)
+        .eq("person_id", viewer.id)
+        .maybeSingle();
+      viewerRole = mine?.role ?? null;
+    }
+    if (viewerRole) {
+      const { data: rawRoster } = await supabase
+        .from("org_memberships")
+        .select("role, people(id, full_name, preferred_name, pronouns, headshot_url)")
+        .eq("org_id", org.id);
+      roster = (rawRoster || [])
+        .map((m) => {
+          const p = m.people as unknown as {
+            id: string; full_name: string; preferred_name: string | null;
+            pronouns: string | null; headshot_url: string | null;
+          } | null;
+          if (!p) return null;
+          return {
+            id: p.id, name: p.preferred_name || p.full_name, full_name: p.full_name,
+            pronouns: p.pronouns, headshot_url: p.headshot_url, role: m.role,
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null)
+        .sort((a, b) => {
+          const order: Record<string, number> = { owner: 0, production: 1, member: 2, guest: 3 };
+          const d = (order[a.role] ?? 2) - (order[b.role] ?? 2);
+          return d !== 0 ? d : a.name.localeCompare(b.name);
+        });
+    }
+  }
+  const isMember = !!viewerRole;
+  const canManage = viewerRole === "owner" || viewerRole === "production";
+
   // Fetch public productions for this org
   const { data: productions } = await supabase
     .from("productions")
@@ -206,6 +256,51 @@ export default async function OrgPage({
                   )}
                 </figure>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Company — members only. The org's profile of its people. */}
+        {isMember && roster.length > 0 && (
+          <div className="mb-12">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-body-xs text-muted uppercase tracking-wider">
+                Company · {roster.length} member{roster.length === 1 ? "" : "s"}
+              </h2>
+              {canManage && (
+                <Link href="/company" className="text-body-xs text-brick hover:underline">
+                  Manage in Calltime →
+                </Link>
+              )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {roster.map((m) => {
+                const initials = m.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+                return (
+                  <Link
+                    key={m.id}
+                    href={`/company/${m.id}`}
+                    className="bg-card border border-bone rounded-card p-3 hover:shadow-card-hover transition-shadow flex flex-col items-center text-center"
+                  >
+                    {m.headshot_url ? (
+                      <img src={m.headshot_url} alt="" className="w-14 h-14 rounded-full object-cover mb-2" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-full bg-brick/10 text-brick flex items-center justify-center text-body-sm font-medium mb-2">
+                        {initials}
+                      </div>
+                    )}
+                    <span className="text-body-sm font-medium text-ink leading-tight">{m.name}</span>
+                    {m.pronouns && <span className="text-body-xs text-muted">{m.pronouns}</span>}
+                    {(m.role === "owner" || m.role === "production") && (
+                      <span className={`text-body-xs px-1.5 py-0.5 rounded mt-1 ${
+                        m.role === "owner" ? "bg-brick/10 text-brick" : "bg-confirmed/10 text-confirmed"
+                      }`}>
+                        {m.role}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}
