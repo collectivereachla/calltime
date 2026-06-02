@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { EditMemberButton } from "./edit-member";
+import { CompanyScopeToggle } from "./company-scope-toggle";
+import { getActiveProductionId } from "@/lib/active-production";
 import Link from "next/link";
 
 export default async function CompanyPage() {
@@ -15,14 +17,14 @@ export default async function CompanyPage() {
     .eq("user_id", user!.id)
     .single();
 
-  const { data: membership } = await supabase
+  // A person has memberships (plural). Resolve the set; derive the active org
+  // from the selected show, never a presumed single home org.
+  const { data: memberships } = await supabase
     .from("org_memberships")
     .select("org_id, role, organizations(id, name)")
-    .eq("person_id", person!.id)
-    .limit(1)
-    .single();
+    .eq("person_id", person!.id);
 
-  if (!membership) {
+  if (!memberships || memberships.length === 0) {
     return (
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
         <p className="text-body-md text-ash">No organization found.</p>
@@ -30,8 +32,47 @@ export default async function CompanyPage() {
     );
   }
 
-  const org = membership.organizations as unknown as { id: string; name: string };
-  const canManage = membership.role === "owner" || membership.role === "production";
+  const orgIds = memberships
+    .map((m) => (m.organizations as unknown as { id: string } | null)?.id)
+    .filter((id): id is string => !!id);
+  const roleByOrg = new Map<string, string>();
+  for (const m of memberships) {
+    const oid = (m.organizations as unknown as { id: string } | null)?.id;
+    if (oid) roleByOrg.set(oid, m.role);
+  }
+
+  // Active production from cookie, validated across every org the person can see.
+  const activeProductionId = await getActiveProductionId();
+  let activeProduction: { id: string; title: string; org_id: string } | null = null;
+  if (activeProductionId) {
+    const { data } = await supabase
+      .from("productions")
+      .select("id, title, org_id")
+      .eq("id", activeProductionId)
+      .in("org_id", orgIds)
+      .single();
+    activeProduction = data;
+  }
+  if (!activeProduction) {
+    const { data: prods } = await supabase
+      .from("productions")
+      .select("id, title, org_id")
+      .in("org_id", orgIds)
+      .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
+      .order("opening_date", { ascending: true })
+      .limit(1);
+    activeProduction = prods?.[0] || null;
+  }
+
+  // Company is scoped to the SELECTED show's org. Falls back to the first
+  // membership's org only when no show is resolvable.
+  const orgId = activeProduction?.org_id || orgIds[0];
+  const orgRecord = memberships
+    .map((m) => m.organizations as unknown as { id: string; name: string } | null)
+    .find((o) => o?.id === orgId) || null;
+  const org = { id: orgId, name: orgRecord?.name || "Company" };
+  const myRole = roleByOrg.get(orgId) || "member";
+  const canManage = myRole === "owner" || myRole === "production";
 
   // Get all members with their org role
   const { data: rawMembers } = await supabase
@@ -119,6 +160,15 @@ export default async function CompanyPage() {
     .neq("status", "archived")
     .order("opening_date", { ascending: true });
 
+  // Person-ids assigned to the active production (for the production-scoped view).
+  const activeAssigneeIds = new Set<string>();
+  if (activeProduction) {
+    const activeProd = (productions || []).find((pr) => pr.id === activeProduction!.id);
+    for (const a of ((activeProd?.production_assignments as unknown as { person_id: string; active: boolean }[]) || [])) {
+      if (a.active) activeAssigneeIds.add(a.person_id);
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="flex items-start justify-between mb-8">
@@ -130,7 +180,7 @@ export default async function CompanyPage() {
         </div>
         {canManage && (
           <span className="text-body-xs text-muted bg-bone/50 px-2 py-0.5 rounded">
-            {membership.role}
+            {myRole}
           </span>
         )}
       </div>
@@ -178,6 +228,13 @@ export default async function CompanyPage() {
           <p className="text-body-md text-ash">No members yet.</p>
         </div>
       ) : (
+        <CompanyScopeToggle
+          orgName={org.name}
+          productionTitle={activeProduction?.title || null}
+          onShowCount={activeAssigneeIds.size}
+          totalCount={members.filter((m) => m.people != null).length}
+          defaultScope={activeProduction ? "production" : "all"}
+        >
         <div className="bg-card border border-bone rounded-card divide-y divide-bone">
           {[...members].filter((m) => m.people != null).sort((a, b) => {
             // Sort: owner first, then production, then by SM status, then alphabetical
@@ -254,7 +311,7 @@ export default async function CompanyPage() {
             const initials = (p.preferred_name || p.full_name).split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
             return (
-              <div key={member.id} className="px-4 md:px-6 py-4">
+              <div key={member.id} data-on-show={activeAssigneeIds.has(p.id) ? "true" : "false"} className="px-4 md:px-6 py-4">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 md:gap-4">
                   <div className="flex gap-3 min-w-0">
                     {p.headshot_url ? (
@@ -344,6 +401,7 @@ export default async function CompanyPage() {
             );
           })}
         </div>
+        </CompanyScopeToggle>
       )}
     </div>
   );
