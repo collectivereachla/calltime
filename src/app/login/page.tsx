@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function LoginInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -13,6 +13,12 @@ export default function LoginPage() {
   const [resetMode, setResetMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Honor ?next= (e.g. from the Apply flow) over the default /home.
+  const nextParamRaw = searchParams.get("next");
+  const nextPath = nextParamRaw && nextParamRaw.startsWith("/") && !nextParamRaw.startsWith("//")
+    ? nextParamRaw
+    : "/home";
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -31,7 +37,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/home");
+    router.push(nextPath);
     router.refresh();
   }
 
@@ -58,6 +64,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
+        {nextParamRaw && (
+          <Link href={nextParamRaw} className="block text-center text-body-sm text-ash hover:text-brick mb-4 transition-colors">
+            ← Back
+          </Link>
+        )}
         {/* Wordmark */}
         <h1 className="font-display text-display-lg text-center mb-12">
           Calltime<span className="text-brick">.</span>
@@ -170,7 +181,7 @@ export default function LoginPage() {
 
             <p className="text-center text-body-sm text-ash mt-8">
               No account?{" "}
-              <Link href="/signup" className="text-ink underline underline-offset-2 hover:text-brick transition-colors">
+              <Link href={nextParamRaw ? `/signup?next=${encodeURIComponent(nextParamRaw)}` : "/signup"} className="text-ink underline underline-offset-2 hover:text-brick transition-colors">
                 Create one
               </Link>
             </p>
@@ -178,5 +189,13 @@ export default function LoginPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <LoginInner />
+    </Suspense>
   );
 }

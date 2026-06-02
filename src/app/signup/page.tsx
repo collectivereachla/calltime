@@ -1,20 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
-export default function SignupPage() {
+function SignupInner() {
   const [step, setStep] = useState<"account" | "profile">("account");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Honor ?next= so an auditioner who clicks Apply -> Sign up lands back on the
+  // application, not the directory. Internal paths only (no open redirects).
+  const nextParamRaw = searchParams.get("next");
+  const nextPath = nextParamRaw && nextParamRaw.startsWith("/") && !nextParamRaw.startsWith("//")
+    ? nextParamRaw
+    : "/directory";
 
   // Account fields
   const [email, setEmail] = useState("");
@@ -113,7 +120,7 @@ export default function SignupPage() {
       return;
     }
 
-    router.push("/directory");
+    router.push(nextPath);
     router.refresh();
   }
 
@@ -126,6 +133,11 @@ export default function SignupPage() {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="w-full max-w-sm">
+          {nextParamRaw && (
+            <Link href={nextParamRaw} className="block text-center text-body-sm text-ash hover:text-brick mb-4 transition-colors">
+              ← Back
+            </Link>
+          )}
           <h1 className="font-display text-display-lg text-center mb-2">
             Calltime<span className="text-brick">.</span>
           </h1>
@@ -180,7 +192,7 @@ export default function SignupPage() {
 
           <p className="text-center text-body-sm text-ash mt-8">
             Already have an account?{" "}
-            <Link href="/login" className="text-ink underline underline-offset-2 hover:text-brick transition-colors">
+            <Link href={nextParamRaw ? `/login?next=${encodeURIComponent(nextParamRaw)}` : "/login"} className="text-ink underline underline-offset-2 hover:text-brick transition-colors">
               Sign in
             </Link>
           </p>
@@ -329,5 +341,13 @@ export default function SignupPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <SignupInner />
+    </Suspense>
   );
 }
