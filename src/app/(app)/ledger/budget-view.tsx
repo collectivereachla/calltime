@@ -5,6 +5,7 @@ import { addBudgetItem, updateBudgetItem, deleteBudgetItem } from "./budget-acti
 import { addRevenueItem, updateRevenueItem, deleteRevenueItem } from "./revenue-actions";
 import { updateContract, deleteContract, addStaffMember } from "./ledger-actions";
 import { useRouter } from "next/navigation";
+import { EXPENSE_CATS, REVENUE_CATS, STAFF_TYPES, TALENT_TYPES, CAT_LABELS, fmt, parseAmount } from "@/lib/budget-pl";
 
 interface BudgetItem {
   id: string;
@@ -47,24 +48,6 @@ interface Props {
   productionId: string;
 }
 
-function parseAmount(comp: string | null): number {
-  if (!comp) return 0;
-  const match = comp.match(/\$(\d[\d,]*)/);
-  if (!match) return 0;
-  return parseFloat(match[1].replace(/,/g, "")) || 0;
-}
-
-const fmt = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const EXPENSE_CATS = ["venue", "equipment", "transportation", "other"];
-const REVENUE_CATS = ["sponsor", "ticket_sales", "grant", "donation", "other"];
-const STAFF_TYPES = new Set(["crew", "director", "stage_manager", "props_asm", "lighting_design", "sound_design", "sound_engineer", "set_design", "original_music"]);
-const TALENT_TYPES = new Set(["actor", "band"]);
-
-const CAT_LABELS: Record<string, string> = {
-  venue: "Venue", equipment: "Equipment", transportation: "Transportation", other: "Other",
-  sponsor: "Sponsors", ticket_sales: "Ticket Sales", grant: "Grants", donation: "Donations",
-};
 const CAT_COLORS: Record<string, string> = {
   venue: "bg-indigo-100 text-indigo-700", equipment: "bg-sky-100 text-sky-700",
   transportation: "bg-purple-100 text-purple-700", other: "bg-rose-100 text-rose-700",
@@ -206,6 +189,13 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
 
   return (
     <div className="space-y-8 max-w-4xl">
+      {canSeeContent && (
+        <div className="flex justify-end -mb-4">
+          <a href="/export/budget" className="text-body-xs font-medium px-3 py-1.5 rounded-card border border-bone text-ash hover:text-ink hover:border-ash">
+            Print this report
+          </a>
+        </div>
+      )}
       {/* P&L Summary */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
