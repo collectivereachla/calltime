@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { getRoleInOrg, isOwnerRole, resolveActingOrgId } from "@/lib/membership";
 import { fetchProductionExport, fetchOrgMembers, fetchActiveProductionIds, type ProductionExport } from "../lib";
 import { ExportDocument } from "../export-document";
-import { PrintButton } from "../print-button";
 
 export const dynamic = "force-dynamic";
 
@@ -43,25 +42,15 @@ export default async function OrganizationExportPage() {
   const generatedAt = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
   return (
-    <div className="min-h-screen bg-white text-black">
-      <div className="print:hidden sticky top-0 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">{org?.name || "Organization"} — full export</p>
-          <p className="text-xs text-gray-500">Company directory plus every active production&apos;s contracts, invoices, budget, and revenue. Use your browser&apos;s print dialog to save as a PDF.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <a href="/ledger" className="print:hidden text-sm text-gray-500 hover:text-black">Back</a>
-          <PrintButton />
-        </div>
-      </div>
-      <ExportDocument
-        heading={org?.name || "Organization"}
-        subheading="Organization Export"
-        generatedAt={generatedAt}
-        orgMembers={members}
-        orgTotals={orgTotals}
-        productions={productions}
-      />
-    </div>
+    <ExportDocument
+      heading={org?.name || "Organization"}
+      subheading="Organization Export"
+      description="Company directory plus every active production's contracts, invoices, budget, and revenue. Toggle the sections you want, then Save as PDF."
+      backHref="/ledger"
+      generatedAt={generatedAt}
+      orgMembers={members}
+      orgTotals={orgTotals}
+      productions={productions}
+    />
   );
 }
