@@ -156,8 +156,8 @@ export default function ApplyPage() {
           </div>
           <h1 className="font-display text-display-md mb-2">Applied</h1>
           <p className="text-body-md text-ash mb-6">
-            Your application for <span className="text-ink font-medium">{production?.title}</span> has been submitted.
-            You&apos;ll be notified when {orgName} responds.
+            Your application for <span className="text-ink font-medium">{production?.title}</span>{" "}
+            has been submitted. You&apos;ll be notified when {orgName} responds.
           </p>
           <div className="space-y-3">
             <Link
