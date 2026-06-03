@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { GreenroomChat } from "./greenroom-chat";
+import { resolveActingOrgId, getRoleInOrg, isLeadershipRole } from "@/lib/membership";
 
 export default async function GreenroomPage() {
   const supabase = await createClient();
@@ -14,24 +15,27 @@ export default async function GreenroomPage() {
     .eq("user_id", user!.id)
     .single();
 
-  const { data: membership } = await supabase
-    .from("org_memberships")
-    .select("org_id, role, organizations(name)")
-    .eq("person_id", person!.id)
-    .limit(1)
-    .single();
+  // Resolve the org from the SELECTED show (active production), never an
+  // arbitrary membership. A person works across orgs; the old
+  // limit(1).single() silently picked one (BTE) and leaked its greenroom into
+  // every other org's context.
+  const orgId = await resolveActingOrgId(person!.id);
 
-  if (!membership) {
+  if (!orgId) {
     return (
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
-        <p className="text-body-md text-ash">No organization found.</p>
+        <p className="text-body-md text-ash">Select a production to open its greenroom.</p>
       </div>
     );
   }
 
-  const orgId = membership.org_id;
-  const orgName = (membership.organizations as unknown as { name: string }).name;
-  const canManage = membership.role === "owner" || membership.role === "production";
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", orgId)
+    .single();
+  const orgName = org?.name ?? "";
+  const canManage = isLeadershipRole(await getRoleInOrg(person!.id, orgId));
 
   // Fetch initial messages (most recent 50)
   const { data: initialMessages } = await supabase

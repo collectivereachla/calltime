@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ApplicationReview } from "./application-review";
+import { getActiveProductionId } from "@/lib/active-production";
+import { orgIdForProduction, getRoleInOrg, isLeadershipRole } from "@/lib/membership";
 
 export default async function ApplicationsPage() {
   const supabase = await createClient();
@@ -16,20 +18,21 @@ export default async function ApplicationsPage() {
 
   if (!person) redirect("/onboarding");
 
-  // Check user is an owner or admin
-  const { data: memberships } = await supabase
-    .from("org_memberships")
-    .select("org_id, role")
-    .eq("person_id", person.id)
-    .in("role", ["owner", "admin"]);
+  // Applications live per production. Scope to the SELECTED show and confirm
+  // the viewer leads the org that owns it. The old query pulled every owner/
+  // admin org's applications at once (leaking TJS into the Banquet) and checked
+  // a stale "admin" role that no longer exists (it's "production" now).
+  const activeProductionId = await getActiveProductionId();
+  if (!activeProductionId) redirect("/home");
 
-  if (!memberships || memberships.length === 0) {
+  const orgId = await orgIdForProduction(activeProductionId);
+  if (!orgId) redirect("/home");
+
+  if (!isLeadershipRole(await getRoleInOrg(person.id, orgId))) {
     redirect("/home");
   }
 
-  const orgIds = memberships.map((m) => m.org_id);
-
-  // Fetch all applications for productions in these orgs
+  // Fetch applications for THIS production only
   const { data: applications } = await supabase
     .from("applications")
     .select(`
@@ -38,13 +41,10 @@ export default async function ApplicationsPage() {
       people:person_id (id, full_name, preferred_name, email, phone, bio, headshot_url, pronouns),
       productions:production_id (id, title, org_id)
     `)
+    .eq("production_id", activeProductionId)
     .order("created_at", { ascending: false });
 
-  // Filter to only applications for this admin's orgs
-  const filtered = (applications || []).filter((app) => {
-    const prod = app.productions as unknown as { id: string; title: string; org_id: string } | null;
-    return prod && orgIds.includes(prod.org_id);
-  });
+  const filtered = applications || [];
 
   const pending = filtered.filter((a) => a.status === "submitted");
   const processed = filtered.filter((a) => a.status !== "submitted");

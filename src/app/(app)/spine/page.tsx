@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { SpineLayout } from "./spine-layout";
 import { getActiveProductionId } from "@/lib/active-production";
+import { orgIdForProduction, resolveActingOrgId, getRoleInOrg, isLeadershipRole } from "@/lib/membership";
 
 interface SearchParams {
   v?: string;
@@ -24,36 +25,36 @@ export default async function SpinePage({
     .eq("user_id", user!.id)
     .single();
 
-  const { data: membership } = await supabase
-    .from("org_memberships")
-    .select("org_id, role, organizations(id, name)")
-    .eq("person_id", person!.id)
-    .limit(1)
-    .single();
+  // Resolve the org from the SELECTED show, not an arbitrary membership. The
+  // old limit(1).single() picked one org (BTE); when a SWLA show was active it
+  // was rejected and Spine fell back to BTE's first active production (TJS).
+  const activeProductionId = await getActiveProductionId();
+  let orgId: string | null = activeProductionId
+    ? await orgIdForProduction(activeProductionId)
+    : null;
+  if (!orgId) orgId = await resolveActingOrgId(person!.id);
 
-  if (!membership) {
+  if (!orgId) {
     return (
       <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10">
-        <p className="text-body-md text-ash">No organization found.</p>
+        <p className="text-body-md text-ash">Select a production to open its script.</p>
       </div>
     );
   }
 
-  const canManage = membership.role === "owner" || membership.role === "production";
-  const orgId = (membership.organizations as unknown as { id: string }).id;
+  const canManage = isLeadershipRole(await getRoleInOrg(person!.id, orgId));
 
-  // Get active production from cookie
-  const activeProductionId = await getActiveProductionId();
+  // Which production's script: the selected one if it belongs to this org,
+  // otherwise the org's first active production.
   let productionIds: string[] = [];
 
   if (activeProductionId) {
-    // Verify this production belongs to the org
     const { data } = await supabase
       .from("productions")
       .select("id")
       .eq("id", activeProductionId)
       .eq("org_id", orgId)
-      .single();
+      .maybeSingle();
     if (data) productionIds = [data.id];
   }
 
