@@ -212,6 +212,23 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
     }
   }
 
+  // Person -> role/department for everyone assigned to the active production(s).
+  // Unlike companyMembers (leadership-only), this is needed by every viewer so a
+  // person not on a call can still see who IS called, grouped by department.
+  const assignmentByPerson = new Map<string, { role: string; department: string }>();
+  if (productionIds.length > 0) {
+    const { data: roleRows } = await supabase
+      .from("production_assignments")
+      .select("person_id, role_title, department")
+      .in("production_id", productionIds)
+      .eq("active", true);
+    for (const r of roleRows || []) {
+      if (!assignmentByPerson.has(r.person_id)) {
+        assignmentByPerson.set(r.person_id, { role: r.role_title, department: r.department || "other" });
+      }
+    }
+  }
+
   // Filter events by person if filter is active
   const displayEvents = filterPersonId
     ? events.filter((e) => {
@@ -510,6 +527,8 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
                             call_time: call.call_time,
                             response_status: resp?.status || null,
                             conflict_reason: resp?.conflict_reason || null,
+                            department: assignmentByPerson.get(p.id)?.department || "other",
+                            role: assignmentByPerson.get(p.id)?.role || null,
                           };
                         })}
                       />

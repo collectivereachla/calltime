@@ -11,7 +11,23 @@ interface CallInfo {
   call_time: string | null;
   response_status: string | null;
   conflict_reason: string | null;
+  department?: string | null;
+  role?: string | null;
 }
+
+const DEPT_ORDER = ["directing", "stage_management", "cast", "music", "design", "crew", "production", "marketing", "video", "other"];
+const DEPT_LABEL: Record<string, string> = {
+  directing: "Directing",
+  stage_management: "Stage Management",
+  cast: "Cast",
+  music: "Music",
+  design: "Design",
+  crew: "Crew",
+  production: "Production",
+  marketing: "Marketing",
+  video: "Video",
+  other: "Company",
+};
 
 function fmtTime(time: string | null): string {
   if (!time) return "";
@@ -227,6 +243,48 @@ export function EventCard({ eventId, eventCallId, currentStatus, calls, canManag
             </>
           )}
         </div>
+      )}
+
+      {/* Who's called — for people NOT on this call. Names only, grouped by
+          department, collapsed by default. No response statuses (that stays
+          between each person and leadership). */}
+      {!eventCallId && !canManage && calls.length > 0 && (
+        <details className="mt-3 pt-3 border-t border-bone print:hidden">
+          <summary className="text-body-xs text-muted cursor-pointer hover:text-ash transition-colors">
+            Who&apos;s called &middot; {calls.length} &middot; tap to view
+          </summary>
+          <div className="mt-2 space-y-2">
+            {(() => {
+              const byDept = new Map<string, string[]>();
+              for (const c of calls) {
+                const d = c.department || "other";
+                if (!byDept.has(d)) byDept.set(d, []);
+                byDept.get(d)!.push(c.person_name);
+              }
+              for (const names of byDept.values()) names.sort((a, b) => a.localeCompare(b));
+              const groups = [...byDept.entries()].sort(
+                (a, b) => DEPT_ORDER.indexOf(a[0]) - DEPT_ORDER.indexOf(b[0])
+              );
+              return groups.map(([dept, names]) => (
+                <div key={dept}>
+                  <p className="text-body-xs text-ash uppercase tracking-wider mb-1">
+                    {DEPT_LABEL[dept] || "Company"}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {names.map((n, i) => (
+                      <span
+                        key={`${dept}-${i}`}
+                        className="text-body-xs px-2 py-0.5 rounded-full border border-bone bg-paper text-ink"
+                      >
+                        {n}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        </details>
       )}
 
       {/* Call list (owner/production only) */}
