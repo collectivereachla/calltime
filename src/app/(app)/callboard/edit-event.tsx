@@ -167,7 +167,25 @@ export function EditEventButton({ event, calledPersonIds, callTimes = {}, compan
   const deptOrder = ["cast", "directing", "stage_management", "design", "crew", "music", "production"];
 
   return (
-    <div className="mt-3 pt-3 border-t border-bone">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 p-4 print:hidden"
+      onClick={() => setEditing(false)}
+    >
+      <div
+        className="bg-card border border-bone rounded-card shadow-xl w-full max-w-xl my-12 p-5 text-left"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-body-md font-medium text-ink truncate">{event.title}</h3>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="text-muted hover:text-ink text-lg leading-none ml-3"
+            title="Close"
+          >
+            &times;
+          </button>
+        </div>
       {/* Tabs */}
       <div className="flex gap-1 mb-4">
         <button
@@ -328,8 +346,11 @@ export function EditEventButton({ event, calledPersonIds, callTimes = {}, compan
       {/* Calls tab */}
       {tab === "calls" && (
         <div>
+          <p className="text-body-xs text-muted mb-3">
+            Check who&rsquo;s called. To stagger, type a time next to anyone; blank means the event start{event.start_time ? ` (${event.start_time.slice(0, 5)})` : ""}.
+          </p>
           {/* Quick actions */}
-          <div className="flex gap-2 mb-3">
+          <div className="flex gap-2 mb-3 flex-wrap">
             <button
               onClick={selectAll}
               className="px-3 py-1 text-body-xs text-ash border border-bone rounded-full hover:text-ink hover:border-ash transition-colors"
@@ -410,6 +431,7 @@ export function EditEventButton({ event, calledPersonIds, callTimes = {}, compan
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
