@@ -35,9 +35,10 @@ interface Props {
   currentPersonId: string;
   companyMembers: CompanyMember[];
   mandatory?: boolean;
+  eventStartTime?: string | null;
 }
 
-export function EventCard({ eventId, eventCallId, currentStatus, calls, canManage, currentPersonId, companyMembers, mandatory }: Props) {
+export function EventCard({ eventId, eventCallId, currentStatus, calls, canManage, currentPersonId, companyMembers, mandatory, eventStartTime }: Props) {
   const [activeStatus, setActiveStatus] = useState<string | null>(currentStatus);
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [addedCalls, setAddedCalls] = useState<CallInfo[]>([]);
@@ -310,18 +311,46 @@ export function EventCard({ eventId, eventCallId, currentStatus, calls, canManag
               </div>
             </div>
           </details>
-          {/* Print-only: always-visible call list */}
+          {/* Print-only: always-visible call list, grouped by call time */}
           <div className="hidden print:block mt-2 pt-2 border-t border-bone">
-            <div className="flex flex-wrap gap-1.5">
-              {calls.map((call) => (
-                <span
-                  key={call.id}
-                  className={`text-body-xs px-2 py-0.5 rounded-full border ${pillColor(call.person_id)}`}
-                >
-                  {call.person_name}{call.call_time ? ` · ${fmtTime(call.call_time)}` : ""}{pillIcon(call.person_id)}
-                </span>
-              ))}
-            </div>
+            {(() => {
+              // Group people by their effective call time (own time, else event start).
+              const groups = new Map<string, CallInfo[]>();
+              for (const call of calls) {
+                const t = call.call_time || eventStartTime || "";
+                if (!groups.has(t)) groups.set(t, []);
+                groups.get(t)!.push(call);
+              }
+              const sortedTimes = [...groups.keys()].sort((a, b) => {
+                if (!a) return 1; // unknown/no time sorts last
+                if (!b) return -1;
+                return a.localeCompare(b);
+              });
+              const staggered = sortedTimes.filter((t) => t).length > 1;
+              return (
+                <div className="space-y-1">
+                  {sortedTimes.map((t) => (
+                    <div key={t || "none"} className="flex gap-2">
+                      {staggered && (
+                        <span className="font-mono text-body-xs text-ink font-semibold shrink-0 w-16">
+                          {t ? `${fmtTime(t)}:` : "Call:"}
+                        </span>
+                      )}
+                      <div className="flex flex-wrap gap-1.5">
+                        {groups.get(t)!.map((call) => (
+                          <span
+                            key={call.id}
+                            className={`text-body-xs px-2 py-0.5 rounded-full border ${pillColor(call.person_id)}`}
+                          >
+                            {call.person_name}{pillIcon(call.person_id)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </>
       )}

@@ -493,6 +493,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
                         currentStatus={myResponse?.status || null}
                         currentPersonId={person!.id}
                         canManage={canManage}
+                        eventStartTime={event.start_time}
                         mandatory={(event as unknown as { mandatory: boolean }).mandatory}
                         companyMembers={companyMembers.map((m) => ({ id: m.id, name: m.name }))}
                         calls={calls.map((call) => {
