@@ -37,16 +37,22 @@ interface EventData {
 interface Props {
   event: EventData;
   calledPersonIds: string[];
+  callTimes?: Record<string, string | null>;
   companyMembers: PersonInfo[];
 }
 
-export function EditEventButton({ event, calledPersonIds, companyMembers }: Props) {
+export function EditEventButton({ event, calledPersonIds, callTimes = {}, companyMembers }: Props) {
   const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState<"details" | "calls">("details");
   const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(calledPersonIds));
+  const [times, setTimes] = useState<Record<string, string>>(() => {
+    const m: Record<string, string> = {};
+    for (const [id, t] of Object.entries(callTimes)) if (t) m[id] = t.slice(0, 5);
+    return m;
+  });
   const router = useRouter();
 
   function togglePerson(personId: string) {
@@ -101,7 +107,13 @@ export function EditEventButton({ event, calledPersonIds, companyMembers }: Prop
   async function handleSaveCalls() {
     setError(null);
     setLoading(true);
-    const result = await updateEventCalls(event.id, Array.from(selectedIds));
+    // Send a time for every selected person: their set time, or null to clear
+    // back to the event start. This keeps stored times in sync with the toggles.
+    const timesPayload = Array.from(selectedIds).map((id) => ({
+      person_id: id,
+      call_time: times[id] || null,
+    }));
+    const result = await updateEventCalls(event.id, Array.from(selectedIds), timesPayload);
     if (result?.error) {
       setError(result.error);
       setLoading(false);
@@ -362,7 +374,18 @@ export function EditEventButton({ event, calledPersonIds, companyMembers }: Prop
                       className="w-3.5 h-3.5 rounded border-bone text-brick focus:ring-brick"
                     />
                     <span className="text-body-sm text-ink flex-1">{person.name}</span>
-                    <span className="text-body-xs text-muted">{person.role}</span>
+                    {selectedIds.has(person.id) ? (
+                      <input
+                        type="time"
+                        value={times[person.id] || ""}
+                        onClick={(e) => e.preventDefault()}
+                        onChange={(e) => setTimes((prev) => ({ ...prev, [person.id]: e.target.value }))}
+                        title="Individual call time (blank = event start)"
+                        className="w-[5.5rem] px-1.5 py-0.5 bg-card border border-bone rounded font-mono text-[11px] text-ink focus:border-brick focus:outline-none"
+                      />
+                    ) : (
+                      <span className="text-body-xs text-muted">{person.role}</span>
+                    )}
                   </label>
                 ))}
               </div>

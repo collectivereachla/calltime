@@ -37,6 +37,19 @@ export async function createScheduleEvent(formData: FormData) {
       p_person_ids: personIds,
     });
     if (callError) return { error: callError.message };
+
+    // Apply any per-person call times (staggered calls). Empty = event start.
+    const callTimesRaw = formData.get("call_times") as string | null;
+    if (callTimesRaw) {
+      try {
+        const times = JSON.parse(callTimesRaw);
+        if (Array.isArray(times) && times.length > 0) {
+          await supabase.rpc("set_event_call_times", { p_event_id: eventId, p_times: times });
+        }
+      } catch {
+        // malformed times payload — ignore, calls still created at event start
+      }
+    }
   }
 
   // If mandatory, set the flag and auto-confirm all called people
@@ -249,7 +262,8 @@ export async function deleteScheduleEvent(eventId: string) {
 
 export async function updateEventCalls(
   eventId: string,
-  personIds: string[]
+  personIds: string[],
+  times?: { person_id: string; call_time: string | null }[]
 ): Promise<{ success?: boolean; error?: string }> {
   const supabase = await createClient();
 
@@ -259,6 +273,16 @@ export async function updateEventCalls(
   });
 
   if (error) return { error: error.message };
+
+  // Apply per-person call times (staggered calls). Only the listed people are
+  // touched; an empty/null call_time clears a person back to the event start.
+  if (times && times.length > 0) {
+    const { error: tErr } = await supabase.rpc("set_event_call_times", {
+      p_event_id: eventId,
+      p_times: times,
+    });
+    if (tErr) return { error: tErr.message };
+  }
 
   // Only notify newly-called people if the event is already published. Calls
   // added while the week is still a draft stay silent until it's published.

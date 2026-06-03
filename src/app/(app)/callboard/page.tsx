@@ -83,6 +83,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
     event_calls: {
       id: string;
       person_id: string;
+      call_time: string | null;
       people: { id: string; full_name: string; preferred_name: string | null };
       latest_response?: { status: string; conflict_reason: string | null } | null;
     }[];
@@ -108,6 +109,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
         event_calls(
           id,
           person_id,
+          call_time,
           people(id, full_name, preferred_name)
         )
       `
@@ -432,6 +434,12 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
                               </span>
                             )}
                           </div>
+                          {myCall?.call_time && myCall.call_time !== event.start_time && (
+                            <p className="mt-1 inline-flex items-center gap-1.5 text-body-xs font-medium text-brick">
+                              <span className="font-mono text-data-sm">{formatTime(myCall.call_time)}</span>
+                              your call time
+                            </p>
+                          )}
                           {event.notes && (
                             <p className="text-body-xs text-ash mt-2">
                               {event.notes}
@@ -458,6 +466,12 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
                                 const p = c.people as unknown as { id: string };
                                 return p.id;
                               })}
+                              callTimes={Object.fromEntries(
+                                calls.map((c) => {
+                                  const p = c.people as unknown as { id: string };
+                                  return [p.id, c.call_time];
+                                })
+                              )}
                               companyMembers={companyMembers}
                             />
                             </span>
@@ -492,6 +506,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
                             id: call.id,
                             person_id: p.id,
                             person_name: p.preferred_name || p.full_name,
+                            call_time: call.call_time,
                             response_status: resp?.status || null,
                             conflict_reason: resp?.conflict_reason || null,
                           };

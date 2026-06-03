@@ -39,6 +39,7 @@ export function NewEventForm({ productions, companyMembers }: Props) {
   const [loading, setLoading] = useState(false);
   const [callEveryone, setCallEveryone] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [times, setTimes] = useState<Record<string, string>>({});
   const router = useRouter();
 
   // Group members by department
@@ -83,6 +84,13 @@ export function NewEventForm({ productions, companyMembers }: Props) {
       for (const id of selectedIds) {
         formData.append("person_ids", id);
       }
+      // Per-person call times (staggered calls). Only the ones with a time set.
+      const callTimes = [...selectedIds]
+        .filter((id) => times[id])
+        .map((id) => ({ person_id: id, call_time: times[id] }));
+      if (callTimes.length > 0) {
+        formData.append("call_times", JSON.stringify(callTimes));
+      }
     }
 
     const result = await createScheduleEvent(formData);
@@ -95,6 +103,7 @@ export function NewEventForm({ productions, companyMembers }: Props) {
     setOpen(false);
     setCallEveryone(true);
     setSelectedIds(new Set());
+    setTimes({});
     router.refresh();
   }
 
@@ -277,6 +286,16 @@ export function NewEventForm({ productions, companyMembers }: Props) {
                         />
                         <span className="text-body-sm text-ink truncate">{m.name}</span>
                         <span className="text-body-xs text-muted truncate hidden sm:inline">{m.role}</span>
+                        {selectedIds.has(m.id) && (
+                          <input
+                            type="time"
+                            value={times[m.id] || ""}
+                            onClick={(e) => e.preventDefault()}
+                            onChange={(e) => setTimes((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                            title="Individual call time (leave blank for event start)"
+                            className="ml-auto w-[5.5rem] px-1.5 py-0.5 bg-card border border-bone rounded font-mono text-[11px] text-ink focus:border-brick focus:outline-none"
+                          />
+                        )}
                       </label>
                     ))}
                   </div>

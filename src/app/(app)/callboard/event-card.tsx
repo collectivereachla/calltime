@@ -8,8 +8,17 @@ interface CallInfo {
   id: string;
   person_id: string;
   person_name: string;
+  call_time: string | null;
   response_status: string | null;
   conflict_reason: string | null;
+}
+
+function fmtTime(time: string | null): string {
+  if (!time) return "";
+  const [h, m] = time.split(":").map(Number);
+  const period = h >= 12 ? "pm" : "am";
+  const hour = h % 12 || 12;
+  return m ? `${hour}:${String(m).padStart(2, "0")}${period}` : `${hour}${period}`;
 }
 
 interface CompanyMember {
@@ -233,7 +242,7 @@ export function EventCard({ eventId, eventCallId, currentStatus, calls, canManag
                   className={`text-body-xs px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${pillColor(call.person_id)}`}
                   title={callStatuses[call.person_id]?.reason || undefined}
                 >
-                  {call.person_name}{pillIcon(call.person_id)}
+                  {call.person_name}{call.call_time ? <span className="font-mono text-[10px] text-ash ml-0.5">· {fmtTime(call.call_time)}</span> : ""}{pillIcon(call.person_id)}
                   <button
                     onClick={async (e) => {
                       e.stopPropagation();
@@ -309,7 +318,7 @@ export function EventCard({ eventId, eventCallId, currentStatus, calls, canManag
                   key={call.id}
                   className={`text-body-xs px-2 py-0.5 rounded-full border ${pillColor(call.person_id)}`}
                 >
-                  {call.person_name}{pillIcon(call.person_id)}
+                  {call.person_name}{call.call_time ? ` · ${fmtTime(call.call_time)}` : ""}{pillIcon(call.person_id)}
                 </span>
               ))}
             </div>

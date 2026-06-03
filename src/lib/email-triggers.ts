@@ -25,6 +25,7 @@ export async function sendEventCallEmails(eventId: string) {
         id,
         person_id,
         email_sent_at,
+        call_time,
         people!inner ( id, full_name, preferred_name, email ),
         schedule_events!inner (
           id, ics_sequence, title, event_type, event_date, start_time, end_time, location,
@@ -67,13 +68,18 @@ export async function sendEventCallEmails(eventId: string) {
 
       if (!person.email) continue;
 
+      // Each person is called at their own time when one is set; otherwise the
+      // event's start time. End time stays the event's end either way.
+      const personCall = call as unknown as { call_time: string | null };
+      const callStart = personCall.call_time || event.start_time;
+
       const html = buildEventCallEmail({
         name: person.preferred_name || person.full_name.split(" ")[0],
         orgName: event.organizations.name,
         eventTitle: event.title,
         eventType: event.event_type,
         eventDate: event.event_date,
-        startTime: event.start_time,
+        startTime: callStart,
         endTime: event.end_time,
         location: event.location,
         productionTitle: event.productions.title,
@@ -87,7 +93,7 @@ export async function sendEventCallEmails(eventId: string) {
         orgName: event.organizations.name,
         eventType: event.event_type,
         date: event.event_date,
-        startTime: event.start_time,
+        startTime: callStart,
         endTime: event.end_time,
         location: event.location,
         sequence: event.ics_sequence ?? 0,
