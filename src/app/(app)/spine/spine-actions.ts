@@ -469,3 +469,35 @@ export async function applyMentionTags(
   revalidatePath("/spine");
   return { success: true, updated };
 }
+
+export async function addMentionAlias(
+  productionId: string,
+  characterToken: string,
+  alias: string
+): Promise<{ error?: string; success?: boolean }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { error } = await supabase.rpc("add_mention_alias", {
+    p_production_id: productionId,
+    p_character_token: characterToken,
+    p_alias: alias,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/spine");
+  return { success: true };
+}
+
+export async function deleteMentionAlias(
+  aliasId: string
+): Promise<{ error?: string; success?: boolean }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { error } = await supabase.rpc("delete_mention_alias", { p_alias_id: aliasId });
+  if (error) return { error: error.message };
+  revalidatePath("/spine");
+  return { success: true };
+}

@@ -66,6 +66,7 @@ interface Props {
   lineNotes: LineNote[];
   cast: { person_id: string; name: string; role_title: string }[];
   aliasesByCharacter: Record<string, string[]>;
+  aliasRows: { id: string; character_token: string; alias: string }[];
 }
 
 type Tab = "script" | "linelab" | "linenotes" | "reports" | "mentions";
@@ -170,9 +171,11 @@ export function SpineLayout(props: Props) {
       {tab === "mentions" && props.canManage && (
         <MentionsReview
           scriptId={props.scriptId}
+          productionId={props.productionId}
           lines={props.lines}
           allCharacters={props.allCharacters}
           aliasesByCharacter={props.aliasesByCharacter}
+          aliasRows={props.aliasRows}
         />
       )}
     </div>

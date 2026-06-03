@@ -221,12 +221,19 @@ export default async function SpinePage({
   // a tag stored as a canonical character OR one of its aliases counts as
   // that character, so legacy/alias tags still resolve to the right actor.
   const aliasesByCharacter: Record<string, string[]> = {};
+  const aliasRows: { id: string; character_token: string; alias: string }[] = [];
   if (productionIds.length > 0) {
-    const { data: aliasRows } = await supabase
+    const { data: rows } = await supabase
       .from("mention_aliases")
-      .select("character_token, alias")
-      .eq("production_id", productionIds[0]);
-    for (const r of aliasRows || []) {
+      .select("id, character_token, alias")
+      .eq("production_id", productionIds[0])
+      .order("character_token", { ascending: true });
+    for (const r of rows || []) {
+      aliasRows.push({
+        id: r.id as string,
+        character_token: r.character_token as string,
+        alias: r.alias as string,
+      });
       const key = (r.character_token as string).toUpperCase();
       if (!aliasesByCharacter[key]) aliasesByCharacter[key] = [];
       aliasesByCharacter[key].push(r.alias as string);
@@ -343,6 +350,7 @@ export default async function SpinePage({
           lineNotes={lineNotes}
           cast={cast}
           aliasesByCharacter={aliasesByCharacter}
+          aliasRows={aliasRows}
         />
       )}
     </div>

@@ -2,7 +2,13 @@
 
 import { useState, useMemo, ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { scanMentions, applyMentionTags, type MentionCandidate } from "./spine-actions";
+import {
+  scanMentions,
+  applyMentionTags,
+  addMentionAlias,
+  deleteMentionAlias,
+  type MentionCandidate,
+} from "./spine-actions";
 
 interface ScriptLine {
   id: string;
@@ -17,9 +23,11 @@ interface ScriptLine {
 
 interface Props {
   scriptId: string;
+  productionId: string;
   lines: ScriptLine[];
   allCharacters: string[];
   aliasesByCharacter: Record<string, string[]>;
+  aliasRows: { id: string; character_token: string; alias: string }[];
 }
 
 function sceneLabel(act: number | null, scene: number | null): string {
@@ -42,7 +50,7 @@ function highlightAlias(content: string, alias: string): ReactNode {
   );
 }
 
-export function MentionsReview({ scriptId, aliasesByCharacter }: Props) {
+export function MentionsReview({ scriptId, productionId, allCharacters, aliasRows }: Props) {
   const router = useRouter();
   const [candidates, setCandidates] = useState<MentionCandidate[] | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -51,13 +59,64 @@ export function MentionsReview({ scriptId, aliasesByCharacter }: Props) {
   // key → set of approved canonical tokens for that candidate
   const [selections, setSelections] = useState<Record<string, Set<string>>>({});
 
+  // Alias editor state
+  const [newToken, setNewToken] = useState("");
+  const [newAlias, setNewAlias] = useState("");
+  const [savingAlias, setSavingAlias] = useState(false);
+  const [aliasError, setAliasError] = useState<string | null>(null);
+
+  // Group aliases by character for display, carrying ids for deletion.
   const aliasSummary = useMemo(() => {
-    const rows: { token: string; aliases: string[] }[] = [];
-    for (const [token, aliases] of Object.entries(aliasesByCharacter)) {
-      rows.push({ token, aliases });
+    const map = new Map<string, { id: string; alias: string }[]>();
+    for (const r of aliasRows) {
+      const tok = r.character_token.toUpperCase();
+      if (!map.has(tok)) map.set(tok, []);
+      map.get(tok)!.push({ id: r.id, alias: r.alias });
     }
-    return rows.sort((a, b) => a.token.localeCompare(b.token));
-  }, [aliasesByCharacter]);
+    return Array.from(map.entries())
+      .map(([token, aliases]) => ({ token, aliases }))
+      .sort((a, b) => a.token.localeCompare(b.token));
+  }, [aliasRows]);
+
+  // An alias that maps to more than one character is ambiguous (reviewed by hand).
+  const ambiguousAliases = useMemo(() => {
+    const counts = new Map<string, Set<string>>();
+    for (const r of aliasRows) {
+      const a = r.alias.toLowerCase();
+      if (!counts.has(a)) counts.set(a, new Set());
+      counts.get(a)!.add(r.character_token.toUpperCase());
+    }
+    return new Set(Array.from(counts.entries()).filter(([, s]) => s.size > 1).map(([a]) => a));
+  }, [aliasRows]);
+
+  async function handleAddAlias() {
+    const token = newToken.trim();
+    const alias = newAlias.trim();
+    if (!token || !alias) {
+      setAliasError("Pick a character and type an alias.");
+      return;
+    }
+    setSavingAlias(true);
+    setAliasError(null);
+    const res = await addMentionAlias(productionId, token, alias);
+    setSavingAlias(false);
+    if (res.error) {
+      setAliasError(res.error);
+      return;
+    }
+    setNewAlias("");
+    setNewToken("");
+    router.refresh();
+  }
+
+  async function handleDeleteAlias(id: string) {
+    const res = await deleteMentionAlias(id);
+    if (res.error) {
+      setAliasError(res.error);
+      return;
+    }
+    router.refresh();
+  }
 
   async function runScan() {
     setScanning(true);
@@ -161,23 +220,80 @@ export function MentionsReview({ scriptId, aliasesByCharacter }: Props) {
         </p>
       </div>
 
-      {/* Alias map */}
+      {/* Alias map — editable */}
       <div className="mb-6 rounded-card border border-bone bg-bone/20 p-4">
         <h3 className="font-mono text-data-sm text-muted uppercase tracking-wider mb-2">
           Alias map
         </h3>
+        <p className="text-body-xs text-ash mb-3">
+          Names a character is called in the script beyond their cast name. An alias
+          on more than one character is ambiguous, the scan will ask you to choose per line.
+        </p>
         {aliasSummary.length === 0 ? (
-          <p className="text-body-sm text-ash">No aliases defined for this production yet.</p>
+          <p className="text-body-sm text-ash mb-3">No aliases defined yet.</p>
         ) : (
-          <ul className="space-y-1">
+          <ul className="space-y-1.5 mb-4">
             {aliasSummary.map((r) => (
-              <li key={r.token} className="text-body-sm text-ink">
-                <span className="font-mono text-data-sm font-semibold">{r.token}</span>
-                <span className="text-ash"> ← {r.aliases.join(", ")}</span>
+              <li key={r.token} className="flex items-start gap-2 text-body-sm">
+                <span className="font-mono text-data-sm font-semibold text-ink shrink-0 min-w-[8rem]">
+                  {r.token}
+                </span>
+                <span className="flex flex-wrap gap-1.5">
+                  {r.aliases.map((a) => (
+                    <span
+                      key={a.id}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-body-xs border ${
+                        ambiguousAliases.has(a.alias.toLowerCase())
+                          ? "border-brick/40 text-brick bg-brick/5"
+                          : "border-bone text-ash bg-card"
+                      }`}
+                    >
+                      {a.alias}
+                      <button
+                        onClick={() => handleDeleteAlias(a.id)}
+                        className="hover:text-ink"
+                        title="Remove alias"
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  ))}
+                </span>
               </li>
             ))}
           </ul>
         )}
+
+        {/* Add alias row */}
+        <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-bone">
+          <select
+            value={newToken}
+            onChange={(e) => setNewToken(e.target.value)}
+            className="px-2 py-1.5 bg-card border border-bone rounded text-body-sm text-ink focus:border-brick focus:outline-none"
+          >
+            <option value="">Character…</option>
+            {allCharacters.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <span className="text-ash text-body-sm">is also called</span>
+          <input
+            type="text"
+            value={newAlias}
+            onChange={(e) => setNewAlias(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAddAlias(); }}
+            placeholder="alias (e.g. JJ)"
+            className="px-2 py-1.5 bg-card border border-bone rounded text-body-sm text-ink focus:border-brick focus:outline-none w-40"
+          />
+          <button
+            onClick={handleAddAlias}
+            disabled={savingAlias}
+            className="px-3 py-1.5 bg-ink text-paper text-body-sm font-medium rounded hover:bg-ink/90 disabled:opacity-50"
+          >
+            {savingAlias ? "Adding…" : "Add"}
+          </button>
+        </div>
+        {aliasError && <p className="text-body-xs text-brick mt-2">{aliasError}</p>}
       </div>
 
       <div className="flex items-center gap-3 mb-6">
