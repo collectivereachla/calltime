@@ -126,6 +126,7 @@ export default async function SpinePage({
     line_type: string;
     character: string | null;
     content: string;
+    tagged_characters: string[] | null;
   }[] = [];
 
   if (activeScript) {
@@ -213,6 +214,23 @@ export default async function SpinePage({
       .eq("production_id", productionIds[0])
       .eq("person_id", person!.id);
     myCharacters = assignments?.map((a) => a.role_title) || [];
+  }
+
+  // Per-production mention alias map (e.g. JJ → JEREMY, Annie Will → MAMA).
+  // Powers the quiet mentions tagging pass and the "mentioned in" filter:
+  // a tag stored as a canonical character OR one of its aliases counts as
+  // that character, so legacy/alias tags still resolve to the right actor.
+  const aliasesByCharacter: Record<string, string[]> = {};
+  if (productionIds.length > 0) {
+    const { data: aliasRows } = await supabase
+      .from("mention_aliases")
+      .select("character_token, alias")
+      .eq("production_id", productionIds[0]);
+    for (const r of aliasRows || []) {
+      const key = (r.character_token as string).toUpperCase();
+      if (!aliasesByCharacter[key]) aliasesByCharacter[key] = [];
+      aliasesByCharacter[key].push(r.alias as string);
+    }
   }
 
   // Line notes for this production (capture/review/delivery live in Spine).
@@ -324,6 +342,7 @@ export default async function SpinePage({
           productionId={productionIds[0]}
           lineNotes={lineNotes}
           cast={cast}
+          aliasesByCharacter={aliasesByCharacter}
         />
       )}
     </div>

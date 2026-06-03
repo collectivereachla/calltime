@@ -91,7 +91,7 @@ function wordTokens(content: string): { text: string; start: number; end: number
 // Tagged characters whose name does NOT appear in the text. The highlighter only
 // colors names that occur in the sentence, so a character who's involved but not
 // named (AUNT EMMA on "Laughing.") would otherwise be invisible. These get chips.
-function tagsNotInText(content: string, tags?: string[]): string[] {
+function tagsNotInText(content: string, tags?: string[] | null): string[] {
   if (!tags || tags.length === 0) return [];
   return tags.filter((t) => {
     const esc = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -126,7 +126,7 @@ interface ScriptLine {
   line_type: string;
   character: string | null;
   content: string;
-  tagged_characters?: string[];
+  tagged_characters?: string[] | null;
 }
 
 interface SceneMeta {
@@ -174,6 +174,7 @@ interface Props {
   canManage: boolean;
   personId: string;
   isLocked?: boolean;
+  aliasesByCharacter?: Record<string, string[]>;
   [key: string]: unknown;
 }
 
@@ -188,6 +189,7 @@ export function SpineViewer({
   canManage,
   personId,
   isLocked = false,
+  aliasesByCharacter = {},
 }: Props) {
   // Group lines by act.scene
   const sceneKeys: string[] = [];
@@ -205,6 +207,7 @@ export function SpineViewer({
   const [showNav, setShowNav] = useState(false);
   const [noteView, setNoteView] = useState<NoteView>("all");
   const [characterFilter, setCharacterFilter] = useState<string | null>(null);
+  const [lineFilter, setLineFilter] = useState<"all" | "in" | "mentioned">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -239,6 +242,77 @@ export function SpineViewer({
   const currentLines = sceneMap.get(activeSceneKey) || [];
   const [actNum, sceneNum] = activeSceneKey.split("-").map(Number);
   const currentMeta = sceneMeta.find((s) => s.act === actNum && s.scene === sceneNum);
+
+  // Resolve the logged-in actor to a set of canonical character tokens.
+  // Doubled roles ("Isaac / Matthew") split into each character; everything
+  // upper-cased to match the script's convention.
+  const myTokens = useMemo(() => {
+    const set = new Set<string>();
+    for (const role of myCharacters) {
+      for (const piece of role.split(" / ")) {
+        const t = piece.trim().toUpperCase();
+        if (t) set.add(t);
+      }
+    }
+    return set;
+  }, [myCharacters]);
+
+  // The set of tag strings that count as "me" for the mentioned-in filter:
+  // my canonical tokens plus any alias of those tokens (so a tag stored as an
+  // alias — e.g. a legacy "MATT" — still resolves to MATTHEW's actor).
+  const myMentionTokens = useMemo(() => {
+    const set = new Set<string>(myTokens);
+    for (const tok of myTokens) {
+      for (const alias of aliasesByCharacter[tok] || []) {
+        set.add(alias.toUpperCase());
+      }
+    }
+    return set;
+  }, [myTokens, aliasesByCharacter]);
+
+  const lineIsMine = useCallback(
+    (line: ScriptLine) => {
+      if (!line.character) return false;
+      return line.character
+        .split(" / ")
+        .some((c) => myTokens.has(c.trim().toUpperCase()));
+    },
+    [myTokens]
+  );
+
+  const lineMentionsMe = useCallback(
+    (line: ScriptLine) => {
+      const tags = line.tagged_characters || [];
+      return tags.some((t) => myMentionTokens.has(t.toUpperCase()));
+    },
+    [myMentionTokens]
+  );
+
+  // When the actor focus-filter is active, gather matching lines across the
+  // whole script (mentions and your own lines naturally span scenes), grouped
+  // by scene in reading order.
+  const focusGroups = useMemo(() => {
+    if (lineFilter === "all") return [];
+    const groups: { key: string; meta: SceneMeta | undefined; lines: ScriptLine[] }[] = [];
+    for (const key of sceneKeys) {
+      const [a, s] = key.split("-").map(Number);
+      const matched = (sceneMap.get(key) || []).filter((l) => {
+        if (l.line_type === "character_name") return false;
+        return lineFilter === "in" ? lineIsMine(l) : lineMentionsMe(l);
+      });
+      if (matched.length > 0) {
+        groups.push({
+          key,
+          meta: sceneMeta.find((m) => m.act === a && m.scene === s),
+          lines: matched,
+        });
+      }
+    }
+    return groups;
+  }, [lineFilter, sceneKeys, sceneMap, sceneMeta, lineIsMine, lineMentionsMe]);
+
+  const focusCount = focusGroups.reduce((n, g) => n + g.lines.length, 0);
+  const hasIdentity = myTokens.size > 0;
 
   // Build annotation lookup with view filters applied
   const annotationsByLine = useMemo(() => {
@@ -658,6 +732,25 @@ export function SpineViewer({
               </select>
             </div>
           )}
+
+          {/* My lines focus (actors): your lines and where you're mentioned,
+              gathered across the whole script. */}
+          {hasIdentity && (
+            <div className="pt-2">
+              <h3 className="font-mono text-data-sm text-muted uppercase tracking-wider mb-2">
+                My lines
+              </h3>
+              <select
+                value={lineFilter}
+                onChange={(e) => setLineFilter(e.target.value as "all" | "in" | "mentioned")}
+                className="w-full px-2 py-1.5 bg-card border border-bone rounded text-body-sm text-ink focus:border-brick focus:outline-none"
+              >
+                <option value="all">Whole script</option>
+                <option value="in">Lines I&apos;m in</option>
+                <option value="mentioned">Lines I&apos;m mentioned in</option>
+              </select>
+            </div>
+          )}
         </div>
       </nav>
 
@@ -746,6 +839,85 @@ export function SpineViewer({
 
       {/* Script content */}
       <div ref={contentRef} className={`flex-1 min-w-0 ${printAll ? "print:hidden" : ""}`}>
+        {/* Actor focus view — your lines / where you're mentioned, across the
+            whole script. Replaces the scene-by-scene reader while active. */}
+        {lineFilter !== "all" && (
+          <div className="pb-12">
+            <div className="mb-6 pb-4 border-b border-bone flex items-center justify-between">
+              <div>
+                <span className="font-mono text-data-sm text-muted uppercase tracking-wider">
+                  {lineFilter === "in" ? "Lines I'm in" : "Lines I'm mentioned in"}
+                </span>
+                <span className="ml-2 text-body-sm text-ash">
+                  {focusCount} {focusCount === 1 ? "line" : "lines"} · {focusGroups.length}{" "}
+                  {focusGroups.length === 1 ? "scene" : "scenes"}
+                </span>
+              </div>
+              <button
+                onClick={() => setLineFilter("all")}
+                className="px-2 py-1 text-body-xs text-muted hover:text-ink transition-colors print:hidden"
+              >
+                ✕ Clear
+              </button>
+            </div>
+
+            {focusGroups.length === 0 ? (
+              <p className="text-body-sm text-ash py-10 text-center">
+                {lineFilter === "in"
+                  ? "You have no lines in this script yet."
+                  : "You aren't tagged in any lines yet. Mentions show up here once they've been reviewed and tagged."}
+              </p>
+            ) : (
+              <div className="space-y-8">
+                {focusGroups.map((g) => {
+                  const [a, s] = g.key.split("-").map(Number);
+                  return (
+                    <div key={g.key}>
+                      <button
+                        onClick={() => { setActiveSceneKey(g.key); setLineFilter("all"); }}
+                        className="group/scene mb-3 flex items-baseline gap-2 text-left"
+                      >
+                        <span className="font-mono text-data-sm text-muted uppercase tracking-wider group-hover/scene:text-brick transition-colors">
+                          {a > 0 ? `Act ${a === 1 ? "I" : "II"} · Scene ${s}` : scriptTitle}
+                        </span>
+                        {g.meta?.title && <span className="text-body-sm text-ash">— {g.meta.title}</span>}
+                        <span className="text-body-xs text-muted opacity-0 group-hover/scene:opacity-100 transition-opacity">open →</span>
+                      </button>
+                      <div className="space-y-1 pl-1">
+                        {g.lines.map((line) => {
+                          const lineAnnotations = annotationsByLine.get(line.id) || [];
+                          const showHdr =
+                            (line.line_type === "dialogue" || line.line_type === "lyric") && line.character;
+                          return (
+                            <div key={line.id}>
+                              {showHdr && (
+                                <p className={`font-mono text-data-sm uppercase tracking-wider mt-3 mb-0.5 ${
+                                  isMyCharacter(line.character!) ? "text-brick font-bold" : "text-ink font-semibold"
+                                }`}>
+                                  {line.character}
+                                </p>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                {renderLine(line, isMyCharacter, allCharacters, cuePointsByLine.get(line.id) || [])}
+                              </div>
+                              {noteView !== "none" && lineAnnotations.map((an) => (
+                                <p key={an.id} className="ml-4 mt-1 text-body-sm text-ash border-l-2 border-brick/30 pl-2">
+                                  {renderAnnotationContent(an.content, an.tagged_characters)}
+                                </p>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {lineFilter === "all" && (<>
         {/* Scene header */}
         <div className="mb-6 pb-4 border-b border-bone">
           <div className="flex items-center justify-between">
@@ -803,7 +975,7 @@ export function SpineViewer({
             // Auto-detect speaker changes for character name headers
             const prevLine = idx > 0 ? renderableLines[idx - 1] : null;
             const showCharacterHeader =
-              line.line_type === "dialogue" &&
+              (line.line_type === "dialogue" || line.line_type === "lyric") &&
               line.character &&
               (!prevLine ||
                 prevLine.character !== line.character ||
@@ -1145,6 +1317,7 @@ export function SpineViewer({
             Next →
           </button>
         </div>
+        </>)}
       </div>
 
       {/* Full-script print view — rendered when printAll, hidden on screen */}

@@ -6,6 +6,7 @@ import { LineLab } from "./line-lab";
 import { LineNotes, type LineNote } from "./line-notes";
 import { ScriptReports } from "./script-reports";
 import { VersionBar } from "./version-bar";
+import { MentionsReview } from "./mentions-review";
 
 interface ScriptLine {
   id: string;
@@ -15,6 +16,7 @@ interface ScriptLine {
   line_type: string;
   character: string | null;
   content: string;
+  tagged_characters?: string[] | null;
 }
 
 interface Annotation {
@@ -47,8 +49,6 @@ export interface ScriptVersion {
   annotation_count: number;
 }
 
-type Tab = "script" | "linelab" | "linenotes" | "reports";
-
 interface Props {
   lines: ScriptLine[];
   sceneMeta: { act: number; scene: number; title: string | null; setting: string | null }[];
@@ -65,7 +65,10 @@ interface Props {
   productionId: string;
   lineNotes: LineNote[];
   cast: { person_id: string; name: string; role_title: string }[];
+  aliasesByCharacter: Record<string, string[]>;
 }
+
+type Tab = "script" | "linelab" | "linenotes" | "reports" | "mentions";
 
 export function SpineLayout(props: Props) {
   const [tab, setTab] = useState<Tab>("script");
@@ -85,6 +88,7 @@ export function SpineLayout(props: Props) {
     { key: "script", label: "Script" },
     { key: "linelab", label: isMonologue ? "Monologue Lab" : "Line Lab" },
     { key: "linenotes", label: "Line Notes" },
+    { key: "mentions", label: "Mentions", staffOnly: true },
     { key: "reports", label: "Reports", staffOnly: true },
   ];
 
@@ -132,7 +136,7 @@ export function SpineLayout(props: Props) {
           ))}
       </div>
 
-      {tab === "script" && <SpineViewer {...props} />}
+      {tab === "script" && <SpineViewer {...props} aliasesByCharacter={props.aliasesByCharacter} />}
       {tab === "linelab" && (
         <LineLab
           lines={props.lines}
@@ -161,6 +165,14 @@ export function SpineLayout(props: Props) {
           lines={props.lines}
           annotations={props.annotations}
           allCharacters={props.allCharacters}
+        />
+      )}
+      {tab === "mentions" && props.canManage && (
+        <MentionsReview
+          scriptId={props.scriptId}
+          lines={props.lines}
+          allCharacters={props.allCharacters}
+          aliasesByCharacter={props.aliasesByCharacter}
         />
       )}
     </div>

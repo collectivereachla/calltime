@@ -337,3 +337,135 @@ export async function deleteScriptLine(lineId: string) {
   revalidatePath("/spine");
   return { success: true };
 }
+
+// ─── Mentions ────────────────────────────────────────────────────────────────
+// A "mention" is a reference to a character in spoken or sung text — by nickname
+// or full name (JJ → JEREMY, Annie Will → MAMA). The pass is REVIEWED: it surfaces
+// candidate hits (flagging ambiguous ones where an alias maps to more than one
+// character, e.g. "Mama") and only writes tags the manager approves. Tags are
+// written only to dialogue/lyric lines, which never render character chips, so
+// the tagging stays quiet and powers the "mentioned in" filter without cluttering
+// the script.
+
+export interface MentionCandidate {
+  key: string;
+  lineId: string;
+  lineNumber: number;
+  act: number | null;
+  scene: number | null;
+  lineType: string;
+  character: string | null;
+  content: string;
+  alias: string;
+  tokens: string[];
+  ambiguous: boolean;
+}
+
+export async function scanMentions(scriptId: string): Promise<{
+  error?: string;
+  candidates?: MentionCandidate[];
+  aliasCount?: number;
+}> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: scriptRow } = await supabase
+    .from("scripts")
+    .select("production_id")
+    .eq("id", scriptId)
+    .single();
+  if (!scriptRow) return { error: "Script not found" };
+  const productionId = (scriptRow as { production_id: string }).production_id;
+
+  const { data: aliasRows } = await supabase
+    .from("mention_aliases")
+    .select("character_token, alias")
+    .eq("production_id", productionId);
+
+  if (!aliasRows || aliasRows.length === 0) {
+    return { candidates: [], aliasCount: 0 };
+  }
+
+  // alias(lowercased) → { display, canonical tokens }
+  const aliasToTokens = new Map<string, { display: string; tokens: string[] }>();
+  for (const r of aliasRows) {
+    const aliasStr = r.alias as string;
+    const key = aliasStr.toLowerCase();
+    if (!aliasToTokens.has(key)) aliasToTokens.set(key, { display: aliasStr, tokens: [] });
+    const entry = aliasToTokens.get(key)!;
+    const tok = (r.character_token as string).toUpperCase();
+    if (!entry.tokens.includes(tok)) entry.tokens.push(tok);
+  }
+
+  // Only spoken/sung text — keeps the tags quiet (no chips on these line types).
+  const { data: lines } = await supabase
+    .from("script_lines")
+    .select("id, line_number, act, scene, line_type, character, content, tagged_characters")
+    .eq("script_id", scriptId)
+    .in("line_type", ["dialogue", "lyric"])
+    .order("line_number", { ascending: true });
+
+  const candidates: MentionCandidate[] = [];
+  for (const line of lines || []) {
+    const content = line.content as string;
+    const existing = ((line.tagged_characters as string[] | null) || []).map((t) => t.toUpperCase());
+    for (const [aliasLower, entry] of aliasToTokens) {
+      const esc = aliasLower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`\\b${esc}\\b`, "i");
+      if (!re.test(content)) continue;
+      const proposed = entry.tokens.filter((t) => !existing.includes(t));
+      if (proposed.length === 0) continue; // already tagged
+      candidates.push({
+        key: `${line.id}::${aliasLower}`,
+        lineId: line.id as string,
+        lineNumber: line.line_number as number,
+        act: line.act as number | null,
+        scene: line.scene as number | null,
+        lineType: line.line_type as string,
+        character: line.character as string | null,
+        content,
+        alias: entry.display,
+        tokens: proposed,
+        ambiguous: entry.tokens.length > 1,
+      });
+    }
+  }
+
+  return { candidates, aliasCount: aliasRows.length };
+}
+
+export async function applyMentionTags(
+  updates: { lineId: string; tokens: string[] }[]
+): Promise<{ error?: string; success?: boolean; updated?: number }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  // Merge approvals per line (a line can pick up several approved aliases).
+  const byLine = new Map<string, Set<string>>();
+  for (const u of updates) {
+    if (!byLine.has(u.lineId)) byLine.set(u.lineId, new Set());
+    for (const t of u.tokens) byLine.get(u.lineId)!.add(t.toUpperCase());
+  }
+
+  let updated = 0;
+  for (const [lineId, tokenSet] of byLine) {
+    if (tokenSet.size === 0) continue;
+    const { data: line } = await supabase
+      .from("script_lines")
+      .select("tagged_characters")
+      .eq("id", lineId)
+      .single();
+    const existing = ((line?.tagged_characters as string[] | null) || []).map(String);
+    const merged = Array.from(new Set([...existing, ...tokenSet]));
+    const { error } = await supabase
+      .from("script_lines")
+      .update({ tagged_characters: merged })
+      .eq("id", lineId);
+    if (!error) updated++;
+  }
+
+  revalidatePath("/spine");
+  return { success: true, updated };
+}
