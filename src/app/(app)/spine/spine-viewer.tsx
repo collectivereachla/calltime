@@ -811,6 +811,20 @@ export function SpineViewer({
                 </select>
               </div>
             )}
+            {/* Mobile "my lines" focus filter */}
+            {hasIdentity && (
+              <div className="mb-3">
+                <select
+                  value={lineFilter}
+                  onChange={(e) => { setLineFilter(e.target.value as "all" | "in" | "mentioned"); setShowNav(false); }}
+                  className="w-full px-3 py-2 bg-card border border-bone rounded text-body-sm text-ink"
+                >
+                  <option value="all">Whole script</option>
+                  <option value="in">Lines I&apos;m in</option>
+                  <option value="mentioned">Lines I&apos;m mentioned in</option>
+                </select>
+              </div>
+            )}
             {Array.from(actGroups.entries()).map(([act, keys]) => (
               <div key={act} className="mb-3">
                 {act > 0 && (
