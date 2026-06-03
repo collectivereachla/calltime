@@ -23,16 +23,6 @@ interface Reaction {
   emoji: string;
 }
 
-interface Props {
-  orgId: string;
-  orgName: string;
-  personId: string;
-  personName: string;
-  personHeadshot: string | null;
-  canManage: boolean;
-  initialMessages: Message[];
-}
-
 const REACTION_EMOJIS = ["❤️", "😂", "👍", "👏", "🔥", "😮"];
 
 function formatTime(iso: string): string {
@@ -61,16 +51,127 @@ function getInitials(name: string): string {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
-export function GreenroomChat({
-  orgId, orgName, personId, personName, personHeadshot, canManage, initialMessages,
-}: Props) {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+const MSG_SELECT =
+  "id, content, created_at, person_id, attachment_url, attachment_name, attachment_type, people(id, full_name, preferred_name, headshot_url)";
+
+function mapRow(m: Record<string, unknown>): Message {
+  const p = m.people as unknown as {
+    id: string; full_name: string; preferred_name: string | null; headshot_url: string | null;
+  } | null;
+  return {
+    id: m.id as string,
+    content: m.content as string,
+    created_at: m.created_at as string,
+    person_id: m.person_id as string,
+    author_name: p?.preferred_name || p?.full_name || "Unknown",
+    author_headshot: p?.headshot_url || null,
+    attachment_url: (m.attachment_url as string) || null,
+    attachment_name: (m.attachment_name as string) || null,
+    attachment_type: (m.attachment_type as string) || null,
+  };
+}
+
+// ---- Wrapper: tabs for the Org room and the Production room ----
+
+interface WrapperProps {
+  orgId: string;
+  orgName: string;
+  productionId: string | null;
+  productionName: string | null;
+  canSeeOrg: boolean;
+  canSeeProduction: boolean;
+  canManage: boolean;
+  personId: string;
+  personName: string;
+  personHeadshot: string | null;
+}
+
+export function GreenroomChat(props: WrapperProps) {
+  const rooms: { key: string; kind: "org" | "production"; label: string; productionId: string | null }[] = [];
+  if (props.canSeeProduction && props.productionId) {
+    rooms.push({
+      key: "prod:" + props.productionId,
+      kind: "production",
+      label: props.productionName || "Production",
+      productionId: props.productionId,
+    });
+  }
+  if (props.canSeeOrg) {
+    rooms.push({ key: "org:" + props.orgId, kind: "org", label: "Company", productionId: null });
+  }
+
+  const [activeKey, setActiveKey] = useState(rooms[0]?.key ?? "");
+  const active = rooms.find((r) => r.key === activeKey) || rooms[0];
+
+  if (!active) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
+        <p className="text-body-md text-ash">No greenroom available.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-2rem)]">
+      <div className="px-4 md:px-8 pt-3 border-b border-bone shrink-0">
+        <h1 className="font-display text-display-xs text-ink">Greenroom</h1>
+        {rooms.length > 1 ? (
+          <div className="flex gap-5 mt-1">
+            {rooms.map((r) => (
+              <button
+                key={r.key}
+                onClick={() => setActiveKey(r.key)}
+                className={`pb-2 text-body-sm border-b-2 -mb-px transition-colors ${
+                  active.key === r.key
+                    ? "border-brick text-ink font-medium"
+                    : "border-transparent text-muted hover:text-ash"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-body-xs text-muted pb-2">
+            {active.kind === "org" ? props.orgName : active.label}
+          </p>
+        )}
+      </div>
+
+      <ChatRoom
+        key={active.key}
+        roomKind={active.kind}
+        orgId={props.orgId}
+        productionId={active.productionId}
+        canManage={props.canManage}
+        personId={props.personId}
+        personName={props.personName}
+        personHeadshot={props.personHeadshot}
+      />
+    </div>
+  );
+}
+
+// ---- One room (org or production), fully isolated; remounted on room switch ----
+
+interface RoomProps {
+  roomKind: "org" | "production";
+  orgId: string;
+  productionId: string | null;
+  canManage: boolean;
+  personId: string;
+  personName: string;
+  personHeadshot: string | null;
+}
+
+function ChatRoom({ roomKind, orgId, productionId, canManage, personId, personName, personHeadshot }: RoomProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [reactions, setReactions] = useState<Map<string, Reaction[]>>(new Map());
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(initialMessages.length >= 50);
+  const [hasMore, setHasMore] = useState(false);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -84,14 +185,33 @@ export function GreenroomChat({
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  // Scope a messages query to this room.
+  const scopeQuery = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (q: any) => (productionId ? q.eq("production_id", productionId) : q.eq("org_id", orgId).is("production_id", null)),
+    [productionId, orgId]
+  );
+
+  // Initial load for this room.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await scopeQuery(supabase.from("messages").select(MSG_SELECT))
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (cancelled) return;
+      const rows = (data || []) as Record<string, unknown>[];
+      setMessages(rows.slice().reverse().map(mapRow));
+      setHasMore(rows.length >= 50);
+      requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView());
+    })();
+    return () => { cancelled = true; };
+  }, [scopeQuery, supabase]);
+
   // Auto-scroll
   useEffect(() => {
     if (autoScroll) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, autoScroll]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView();
-  }, []);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -99,7 +219,7 @@ export function GreenroomChat({
     setAutoScroll(el.scrollHeight - el.scrollTop - el.clientHeight < 100);
   }, []);
 
-  // Fetch initial reactions
+  // Fetch reactions for loaded messages
   useEffect(() => {
     async function loadReactions() {
       const ids = messages.filter((m) => !m.id.startsWith("optimistic-")).map((m) => m.id);
@@ -120,15 +240,24 @@ export function GreenroomChat({
     loadReactions();
   }, [messages.length, supabase]);
 
-  // Real-time: messages + reactions
+  // Real-time for THIS room only.
   useEffect(() => {
+    const channelName = `greenroom-${productionId || "org-" + orgId}`;
+    const filter = productionId ? `production_id=eq.${productionId}` : `org_id=eq.${orgId}`;
+
     const channel = supabase
-      .channel("greenroom-live")
+      .channel(channelName)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages", filter: `org_id=eq.${orgId}` },
+        { event: "INSERT", schema: "public", table: "messages", filter },
         async (payload) => {
-          const msg = payload.new as { id: string; content: string; created_at: string; person_id: string; attachment_url: string | null; attachment_name: string | null; attachment_type: string | null };
+          const msg = payload.new as {
+            id: string; content: string; created_at: string; person_id: string;
+            production_id: string | null; attachment_url: string | null;
+            attachment_name: string | null; attachment_type: string | null;
+          };
+          // Org room: ignore production messages that share this org_id.
+          if (!productionId && msg.production_id) return;
           const { data: author } = await supabase
             .from("people")
             .select("id, full_name, preferred_name, headshot_url")
@@ -146,7 +275,6 @@ export function GreenroomChat({
             attachment_type: msg.attachment_type,
           };
           setMessages((prev) => {
-            // Remove optimistic version if it exists (match by content + person)
             const withoutOptimistic = prev.filter((m) =>
               !(m.id.startsWith("optimistic-") && m.person_id === newMsg.person_id && m.content === newMsg.content)
             );
@@ -157,7 +285,7 @@ export function GreenroomChat({
       )
       .on(
         "postgres_changes",
-        { event: "DELETE", schema: "public", table: "messages", filter: `org_id=eq.${orgId}` },
+        { event: "DELETE", schema: "public", table: "messages", filter },
         (payload) => {
           const oldId = (payload.old as { id: string }).id;
           setMessages((prev) => prev.filter((m) => m.id !== oldId));
@@ -193,7 +321,7 @@ export function GreenroomChat({
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [orgId, supabase]);
+  }, [productionId, orgId, supabase]);
 
   async function sendMessage(attachmentUrl?: string, attachmentName?: string, attachmentType?: string) {
     const text = input.trim();
@@ -219,6 +347,7 @@ export function GreenroomChat({
 
     const { error } = await supabase.from("messages").insert({
       org_id: orgId,
+      production_id: productionId,
       person_id: personId,
       content: msgContent,
       attachment_url: attachmentUrl || null,
@@ -229,8 +358,9 @@ export function GreenroomChat({
     setSending(false);
     if (error) {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-    } else {
-      // Notify other org members (fire-and-forget)
+    } else if (roomKind === "org") {
+      // Org-room push/in-app notify to org members (production-room notifications
+      // to assignees are a separate follow-up).
       notifyGreenroomMessage(orgId, personId, personName, msgContent).catch(() => {});
     }
   }
@@ -256,10 +386,7 @@ export function GreenroomChat({
 
     const { data: urlData } = supabase.storage.from("greenroom-files").getPublicUrl(path);
     setUploading(false);
-
-    // Reset file input
     if (fileRef.current) fileRef.current.value = "";
-
     await sendMessage(urlData.publicUrl, file.name, file.type);
   }
 
@@ -269,7 +396,6 @@ export function GreenroomChat({
     const existing = msgReactions.find((r) => r.person_id === personId && r.emoji === emoji);
 
     if (existing) {
-      // Remove
       setReactions((prev) => {
         const next = new Map(prev);
         next.set(messageId, (next.get(messageId) || []).filter((r) => r.id !== existing.id));
@@ -277,7 +403,6 @@ export function GreenroomChat({
       });
       await supabase.from("message_reactions").delete().eq("id", existing.id);
     } else {
-      // Add
       const tempId = "temp-" + Date.now();
       const temp: Reaction = { id: tempId, message_id: messageId, person_id: personId, emoji };
       setReactions((prev) => {
@@ -315,25 +440,15 @@ export function GreenroomChat({
     if (messages.length === 0 || loadingMore) return;
     setLoadingMore(true);
     const oldest = messages[0];
-    const { data } = await supabase
-      .from("messages")
-      .select("id, content, created_at, person_id, attachment_url, attachment_name, attachment_type, people(id, full_name, preferred_name, headshot_url)")
-      .eq("org_id", orgId)
+    const { data } = await scopeQuery(supabase.from("messages").select(MSG_SELECT))
       .lt("created_at", oldest.created_at)
       .order("created_at", { ascending: false })
       .limit(50);
     setLoadingMore(false);
-    if (!data || data.length === 0) { setHasMore(false); return; }
-    const older: Message[] = data.reverse().map((m) => {
-      const p = m.people as unknown as { id: string; full_name: string; preferred_name: string | null; headshot_url: string | null };
-      return {
-        id: m.id, content: m.content, created_at: m.created_at, person_id: m.person_id,
-        author_name: p?.preferred_name || p?.full_name || "Unknown",
-        author_headshot: p?.headshot_url || null,
-        attachment_url: m.attachment_url, attachment_name: m.attachment_name, attachment_type: m.attachment_type,
-      };
-    });
-    if (data.length < 50) setHasMore(false);
+    const rows = (data || []) as Record<string, unknown>[];
+    if (rows.length === 0) { setHasMore(false); return; }
+    const older: Message[] = rows.slice().reverse().map(mapRow);
+    if (rows.length < 50) setHasMore(false);
     const el = scrollRef.current;
     const prevHeight = el?.scrollHeight || 0;
     setMessages((prev) => [...older, ...prev]);
@@ -380,8 +495,6 @@ export function GreenroomChat({
   function renderReactions(messageId: string) {
     const msgReactions = reactions.get(messageId) || [];
     if (msgReactions.length === 0) return null;
-
-    // Group by emoji
     const grouped = new Map<string, { count: number; mine: boolean }>();
     for (const r of msgReactions) {
       const existing = grouped.get(r.emoji) || { count: 0, mine: false };
@@ -389,7 +502,6 @@ export function GreenroomChat({
       if (r.person_id === personId) existing.mine = true;
       grouped.set(r.emoji, existing);
     }
-
     return (
       <div className="flex flex-wrap items-center gap-1 mt-1 pl-8">
         {Array.from(grouped.entries()).map(([emoji, { count, mine }]) => (
@@ -411,14 +523,7 @@ export function GreenroomChat({
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-2rem)]">
-      {/* Header */}
-      <div className="px-4 md:px-8 py-3 border-b border-bone shrink-0">
-        <h1 className="font-display text-display-xs text-ink">Greenroom</h1>
-        <p className="text-body-xs text-muted">{orgName}</p>
-      </div>
-
-      {/* Messages */}
+    <>
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -437,7 +542,11 @@ export function GreenroomChat({
           <div className="flex-1 flex flex-col items-center justify-center py-20 px-4">
             <span className="text-3xl mb-3 opacity-40">💬</span>
             <h3 className="font-display text-display-sm text-ink mb-2">The Greenroom is quiet</h3>
-            <p className="text-body-sm text-ash text-center max-w-sm">Your company's group chat. Share updates, ask questions, or just say hello.</p>
+            <p className="text-body-sm text-ash text-center max-w-sm">
+              {roomKind === "production"
+                ? "Everyone in this production can talk here — cast, crew, families, and the team."
+                : "Your company's group chat. Share updates, ask questions, or just say hello."}
+            </p>
           </div>
         )}
 
@@ -483,7 +592,6 @@ export function GreenroomChat({
                   }}
                 >
                   <div className="flex-1 min-w-0">
-                    {/* Text content — skip if it's just the auto-generated file label */}
                     {msg.content && !(msg.attachment_url && msg.content === (msg.attachment_name || "shared a file")) && (
                       <p className={`text-body-md leading-relaxed ${isOptimistic ? "text-ash" : "text-ink"}`}>
                         {msg.content}
@@ -493,7 +601,6 @@ export function GreenroomChat({
                   </div>
                 </div>
 
-                {/* Action bar — tap on mobile, hover on desktop */}
                 {!isOptimistic && activeMessageId === msg.id && (
                   <div className="flex items-center gap-1 pl-8 mt-1">
                     {REACTION_EMOJIS.map((emoji) => (
@@ -525,15 +632,10 @@ export function GreenroomChat({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       <div className="px-4 md:px-8 py-3 border-t border-bone bg-paper shrink-0">
         <div className="flex gap-2 max-w-3xl items-center">
           <label className={`shrink-0 w-10 h-10 rounded-card border border-bone flex items-center justify-center cursor-pointer transition-colors ${uploading ? "opacity-50" : "hover:border-ash hover:text-ink text-muted"}`}>
-            {uploading ? (
-              <span className="text-body-xs">...</span>
-            ) : (
-              <span className="text-body-md">📎</span>
-            )}
+            {uploading ? <span className="text-body-xs">...</span> : <span className="text-body-md">📎</span>}
             <input
               ref={fileRef}
               type="file"
@@ -553,7 +655,7 @@ export function GreenroomChat({
                 sendMessage();
               }
             }}
-            placeholder="Message the company..."
+            placeholder={roomKind === "production" ? "Message this production..." : "Message the company..."}
             autoFocus
             className="flex-1 px-4 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors"
           />
@@ -567,7 +669,6 @@ export function GreenroomChat({
         </div>
       </div>
 
-      {/* Image lightbox */}
       {lightboxUrl && (
         <div
           className="fixed inset-0 z-50 bg-ink/90 flex items-center justify-center p-4"
@@ -587,6 +688,6 @@ export function GreenroomChat({
           />
         </div>
       )}
-    </div>
+    </>
   );
 }
