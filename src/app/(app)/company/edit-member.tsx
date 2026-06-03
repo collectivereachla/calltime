@@ -145,7 +145,27 @@ export function EditMemberButton({ person, orgId, orgRole, assignments, producti
   }
 
   return (
-    <div className="mt-3 pt-3 border-t border-bone">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 p-4 print:hidden"
+      onClick={() => setEditing(false)}
+    >
+      <div
+        className="bg-card border border-bone rounded-card shadow-xl w-full max-w-xl my-12 p-5 text-left max-h-[85vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-body-md font-medium text-ink truncate">
+            {person.preferred_name || person.full_name}
+          </h3>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="text-muted hover:text-ink text-lg leading-none ml-3"
+            title="Close"
+          >
+            &times;
+          </button>
+        </div>
       {/* Tabs */}
       <div className="flex gap-1 mb-4">
         <button onClick={() => setTab("profile")}
@@ -408,6 +428,7 @@ export function EditMemberButton({ person, orgId, orgRole, assignments, producti
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }
