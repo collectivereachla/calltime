@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -22,6 +23,7 @@ function cleanPayer(f: PayerFields) {
 }
 
 export async function createPayer(orgId: string, f: PayerFields) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (!f.name?.trim()) return { error: "A payer name is required." };
   const { data, error } = await supabase
@@ -35,6 +37,7 @@ export async function createPayer(orgId: string, f: PayerFields) {
 }
 
 export async function updatePayer(payerId: string, f: PayerFields) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (!f.name?.trim()) return { error: "A payer name is required." };
   const { data, error } = await supabase
@@ -49,6 +52,7 @@ export async function updatePayer(payerId: string, f: PayerFields) {
 }
 
 export async function setProductionDefaultPayer(productionId: string, payerId: string | null) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("productions")
@@ -62,6 +66,7 @@ export async function setProductionDefaultPayer(productionId: string, payerId: s
 }
 
 export async function setContractPayer(contractId: string, payerId: string | null) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("contracts")
@@ -80,6 +85,7 @@ export async function addPaymentMethod(
   method: string,
   label: string
 ) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (!method?.trim()) return { error: "A method is required." };
   const { data, error } = await supabase
@@ -100,6 +106,7 @@ export async function addPaymentMethod(
 }
 
 export async function togglePaymentMethod(id: string, enabled: boolean) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("payment_method_options")
@@ -113,6 +120,7 @@ export async function togglePaymentMethod(id: string, enabled: boolean) {
 }
 
 export async function deletePaymentMethod(id: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("payment_method_options")

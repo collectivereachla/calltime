@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { NewEventForm } from "./new-event-form";
 import { EventCard } from "./event-card";
 import { EditEventButton } from "./edit-event";
@@ -19,6 +20,8 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
   const { person: filterPersonId } = await searchParams;
   const supabase = await createClient();
 
+  const { personId } = await getViewer(supabase);
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -26,7 +29,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
   const { data: person } = await supabase
     .from("people")
     .select("id")
-    .eq("user_id", user!.id)
+    .eq("id", personId!)
     .single();
 
   // Get user's org membership to check tier

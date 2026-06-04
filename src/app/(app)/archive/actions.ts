@@ -1,9 +1,11 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export async function updateProduction(productionId: string, formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("update_production_safe", {
@@ -26,6 +28,7 @@ export async function updateProduction(productionId: string, formData: FormData)
 }
 
 export async function updatePressLinks(productionId: string, links: { title: string; url: string; source?: string }[]) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("update_production_safe", {
@@ -39,6 +42,7 @@ export async function updatePressLinks(productionId: string, links: { title: str
 }
 
 export async function reopenProduction(productionId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("update_production_safe", {
@@ -54,6 +58,7 @@ export async function reopenProduction(productionId: string) {
 }
 
 export async function closeProduction(productionId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("update_production_safe", {

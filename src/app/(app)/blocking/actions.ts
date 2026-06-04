@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -42,6 +43,7 @@ export async function saveMoment(params: {
   sortOrder: number;
   momentId?: string;
 }) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   if (params.momentId) {
@@ -78,6 +80,7 @@ export async function saveMoment(params: {
 }
 
 export async function deleteMoment(momentId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase
     .from("blocking_moments")
@@ -100,6 +103,7 @@ export async function savePositions(
     exit_to?: string;
   }[]
 ) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   // Delete existing positions for this moment
@@ -137,6 +141,7 @@ export async function savePositionAndAnnotation(params: {
   scriptLineId?: string;
   productionId: string;
 }) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -213,6 +218,7 @@ function guessPosition(text: string): { x: number; y: number } | null {
 }
 
 export async function seedBlockingFromNotes(productionId: string, sceneId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   // Get the scene info

@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -8,6 +9,7 @@ import { resolveActingOrgId } from "@/lib/membership";
 // record status + year. We never store the SSN itself — only the file and a
 // "on file" marker.
 export async function submitW9(base64Pdf: string, taxYear: number) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();

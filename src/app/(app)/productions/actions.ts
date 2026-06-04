@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -6,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sendWelcomeEmail } from "@/lib/email-triggers";
 
 export async function createProduction(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const {
@@ -96,6 +98,7 @@ export async function createProduction(formData: FormData) {
 }
 
 export async function addPersonToProduction(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const {

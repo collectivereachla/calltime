@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -13,6 +14,7 @@ export async function saveDesignElement(data: {
   notes?: string | null;
   scene_ids?: string[];
 }) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   if (data.id) {
@@ -48,6 +50,7 @@ export async function saveDesignElement(data: {
 }
 
 export async function deleteDesignElement(id: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase.from("design_elements").delete().eq("id", id);
   if (error) return { error: error.message };
@@ -56,6 +59,7 @@ export async function deleteDesignElement(id: string) {
 }
 
 export async function uploadDesignImage(elementId: string, formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const file = formData.get("image") as File;
   if (!file || file.size === 0) return { error: "No file" };
@@ -90,6 +94,7 @@ export async function saveDesignReference(data: {
   category: string;
   formData: FormData;
 }) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const file = data.formData.get("image") as File;
   if (!file || file.size === 0) return { error: "No file" };
@@ -119,6 +124,7 @@ export async function saveDesignReference(data: {
 }
 
 export async function deleteDesignReference(id: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase.from("design_references").delete().eq("id", id);
   if (error) return { error: error.message };
@@ -127,6 +133,7 @@ export async function deleteDesignReference(id: string) {
 }
 
 export async function saveSceneDesignNote(sceneId: string, department: string, content: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase
     .from("scene_design_notes")
@@ -138,6 +145,7 @@ export async function saveSceneDesignNote(sceneId: string, department: string, c
 }
 
 export async function toggleMilestone(id: string, completed: boolean) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase
     .from("design_milestones")
@@ -152,6 +160,7 @@ export async function toggleMilestone(id: string, completed: boolean) {
 }
 
 export async function seedMilestones(productionId: string, department: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const templates: Record<string, string[]> = {
     set: ["Script analysis & concept discussion", "Research & reference images", "Rough sketches / thumbnails", "Ground plan", "Renderings / color model", "Construction drawings", "Materials & paint list", "Build complete", "Paint complete", "Load-in", "Tech rehearsal ready"],
@@ -179,6 +188,7 @@ export async function updateElementPosition(id: string, data: {
   height_ft?: number;
   rotation?: number;
 }) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase
     .from("design_elements")

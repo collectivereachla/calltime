@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -10,6 +11,7 @@ export async function submitInvoice(input: {
   paymentDetails: string;
   payeeAddress: string;
 }) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -151,6 +153,7 @@ export async function submitInvoice(input: {
 // ---- Finance management (owner/production only; enforced by RLS) ----
 
 export async function addInvoiceLine(invoiceId: string, description: string, amount: number) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (!description?.trim()) return { error: "A description is required." };
   if (!(amount > 0)) return { error: "Enter an amount greater than zero." };
@@ -167,6 +170,7 @@ export async function addInvoiceLine(invoiceId: string, description: string, amo
 }
 
 export async function deleteInvoiceLine(lineId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   // The locked base line can't be removed here.
   const { data, error } = await supabase
@@ -183,6 +187,7 @@ export async function deleteInvoiceLine(lineId: string) {
 }
 
 export async function setInvoiceStatus(invoiceId: string, status: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (!["submitted", "approved", "paid", "void"].includes(status)) return { error: "Invalid status." };
 

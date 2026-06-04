@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -8,6 +9,7 @@ export async function setCostumeAssignees(
   productionId: string,
   personIds: string[]
 ) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   // Replace the full set of actors this item is assigned to for this production.
@@ -80,6 +82,7 @@ function normalizeOwner(f: ItemFields) {
 }
 
 export async function createInventoryItem(orgId: string, f: ItemFields) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (!f.itemName?.trim()) return { error: "Item name is required." };
   if (!CATEGORIES.includes(f.category)) return { error: "Please choose a valid category." };
@@ -108,6 +111,7 @@ export async function createInventoryItem(orgId: string, f: ItemFields) {
 }
 
 export async function updateInventoryItem(itemId: string, f: ItemFields) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (!f.itemName?.trim()) return { error: "Item name is required." };
   if (!CATEGORIES.includes(f.category)) return { error: "Please choose a valid category." };
@@ -135,6 +139,7 @@ export async function updateInventoryItem(itemId: string, f: ItemFields) {
 }
 
 export async function deleteInventoryItem(itemId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("costume_inventory")

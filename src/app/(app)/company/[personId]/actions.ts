@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -8,6 +9,7 @@ export async function updatePublicProfile(personId: string, data: {
   birth_month?: number | null;
   birth_day?: number | null;
 }) {
+  await assertNotPreviewing();
   try {
     const supabase = await createClient();
     const { error } = await supabase
@@ -32,6 +34,7 @@ export async function updatePrivateDetails(personId: string, orgId: string, data
   dietary_needs?: string | null;
   birth_year?: number | null;
 }) {
+  await assertNotPreviewing();
   try {
     const supabase = await createClient();
     const { error } = await supabase
@@ -51,6 +54,7 @@ export async function updatePrivateDetails(personId: string, orgId: string, data
 }
 
 export async function uploadHeadshot(personId: string, imageDataUrl: string) {
+  await assertNotPreviewing();
   try {
     const supabase = await createClient();
 
@@ -87,6 +91,7 @@ export async function uploadHeadshot(personId: string, imageDataUrl: string) {
 }
 
 export async function toggleW9Status(personId: string, submitted: boolean) {
+  await assertNotPreviewing();
   try {
     const supabase = await createClient();
     const { error } = await supabase

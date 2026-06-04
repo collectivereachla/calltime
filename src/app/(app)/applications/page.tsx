@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { redirect } from "next/navigation";
 import { ApplicationReview } from "./application-review";
 import { getActiveProductionId } from "@/lib/active-production";
@@ -7,13 +8,15 @@ import { orgIdForProduction, getRoleInOrg, isLeadershipRole } from "@/lib/member
 export default async function ApplicationsPage() {
   const supabase = await createClient();
 
+  const { personId } = await getViewer(supabase);
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: person } = await supabase
     .from("people")
     .select("id")
-    .eq("user_id", user.id)
+    .eq("id", personId!)
     .single();
 
   if (!person) redirect("/onboarding");

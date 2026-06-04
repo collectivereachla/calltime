@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -6,6 +7,7 @@ import { createNotification } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity-log";
 
 export async function addAnnotation(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -165,6 +167,7 @@ async function notifyTaggedActors(
 }
 
 export async function updateAnnotation(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const id = formData.get("id") as string;
@@ -197,6 +200,7 @@ export async function updateAnnotation(formData: FormData) {
 }
 
 export async function deleteAnnotation(annotationId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -253,6 +257,7 @@ export async function createScriptVersion(
   versionNotes: string | null,
   copyAnnotations: boolean
 ) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { data, error } = await supabase.rpc("create_script_version", {
@@ -269,6 +274,7 @@ export async function createScriptVersion(
 }
 
 export async function lockScriptVersion(scriptId: string, locked: boolean) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("lock_script_version", {
@@ -282,6 +288,7 @@ export async function lockScriptVersion(scriptId: string, locked: boolean) {
 }
 
 export async function updateVersionNotes(scriptId: string, notes: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("update_script_version_notes", {
@@ -303,6 +310,7 @@ export async function updateScriptLine(
     tagged_characters?: string[];
   }
 ) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const {
@@ -321,6 +329,7 @@ export async function updateScriptLine(
 }
 
 export async function deleteScriptLine(lineId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const {
@@ -366,6 +375,7 @@ export async function scanMentions(scriptId: string): Promise<{
   candidates?: MentionCandidate[];
   aliasCount?: number;
 }> {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
@@ -438,6 +448,7 @@ export async function scanMentions(scriptId: string): Promise<{
 export async function applyMentionTags(
   updates: { lineId: string; tokens: string[] }[]
 ): Promise<{ error?: string; success?: boolean; updated?: number }> {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
@@ -475,6 +486,7 @@ export async function addMentionAlias(
   characterToken: string,
   alias: string
 ): Promise<{ error?: string; success?: boolean }> {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
@@ -492,6 +504,7 @@ export async function addMentionAlias(
 export async function deleteMentionAlias(
   aliasId: string
 ): Promise<{ error?: string; success?: boolean }> {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };

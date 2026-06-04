@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { SpineLayout } from "./spine-layout";
 import { getActiveProductionId } from "@/lib/active-production";
 import { orgIdForProduction, resolveActingOrgId, getRoleInOrg, isLeadershipRole } from "@/lib/membership";
@@ -15,6 +16,8 @@ export default async function SpinePage({
   const params = await searchParams;
   const supabase = await createClient();
 
+  const { personId } = await getViewer(supabase);
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -22,7 +25,7 @@ export default async function SpinePage({
   const { data: person } = await supabase
     .from("people")
     .select("id")
-    .eq("user_id", user!.id)
+    .eq("id", personId!)
     .single();
 
   // Resolve the org from the SELECTED show, not an arbitrary membership. The

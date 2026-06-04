@@ -1,7 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
+import { PreviewBar } from "@/components/preview-bar";
 import { getActiveProductionId } from "@/lib/active-production";
+import { getViewer, getPreviewablePeople } from "@/lib/viewer";
 
 export default async function AppLayout({
   children,
@@ -10,46 +12,42 @@ export default async function AppLayout({
 }) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const viewer = await getViewer(supabase);
+  if (!viewer.user) {
     redirect("/login");
+  }
+  if (!viewer.realPerson) {
+    redirect("/onboarding");
   }
 
   // Auto-update production statuses based on dates (lightweight, only updates drifted rows)
   await supabase.rpc("refresh_production_statuses");
 
-  // Check if user has a person record and org membership
-  const { data: person } = await supabase
-    .from("people")
-    .select("id, full_name, preferred_name")
-    .eq("user_id", user.id)
-    .single();
+  const { isPreview, canPreview, previewCookiePresent } = viewer;
+  // Effective identity — the previewed person when an owner is in preview,
+  // otherwise the real signed-in person. The entire shell renders from this.
+  const person = viewer.person!;
+  const personId = viewer.personId!;
 
-  if (!person) {
-    redirect("/onboarding");
-  }
-
-  const { data: memberships } = await supabase
+  const { data: membershipsRaw } = await supabase
     .from("org_memberships")
     .select("id, role, status, organizations(id, name, slug)")
-    .eq("person_id", person.id)
+    .eq("person_id", personId)
     .eq("status", "active");
+  const memberships = membershipsRaw ?? [];
 
-  if (!memberships || memberships.length === 0) {
+  if (!isPreview && memberships.length === 0) {
     redirect("/onboarding");
   }
 
   // Check if non-admin member needs to complete org profile
   const isAdminOrOwner = memberships.some((m) => m.role === "owner" || m.role === "admin");
-  if (!isAdminOrOwner) {
+  if (!isPreview && !isAdminOrOwner) {
     const firstOrg = memberships[0].organizations as unknown as { id: string };
     const { data: details } = await supabase
       .from("member_details")
       .select("id")
-      .eq("person_id", person.id)
+      .eq("person_id", personId)
       .eq("org_id", firstOrg.id)
       .maybeSingle();
 
@@ -68,7 +66,7 @@ export default async function AppLayout({
     }
   }
 
-  const displayName = person.preferred_name || person.full_name;
+  const displayName = person.preferred_name || person.full_name || "";
 
   // Productions for the switcher, ACROSS every org. Leadership (owner/production)
   // sees all active shows in each org they lead; everyone sees every active show
@@ -93,7 +91,7 @@ export default async function AppLayout({
   const { data: assignedProds } = await supabase
     .from("production_assignments")
     .select("productions!inner(id, title, status)")
-    .eq("person_id", person.id)
+    .eq("person_id", personId)
     .eq("active", true)
     .in("productions.status", ACTIVE_STATUSES);
   for (const a of assignedProds || []) {
@@ -136,7 +134,7 @@ export default async function AppLayout({
     const { data: boothAssignments } = await supabase
       .from("production_assignments")
       .select("access_tier, department")
-      .eq("person_id", person.id)
+      .eq("person_id", personId)
       .eq("production_id", activeProductionId)
       .eq("active", true);
     boothAccess = (boothAssignments || []).some(
@@ -171,9 +169,13 @@ export default async function AppLayout({
   const { count: notifCount } = await supabase
     .from("notifications")
     .select("id", { count: "exact", head: true })
-    .eq("person_id", person.id)
+    .eq("person_id", personId)
     .is("read_at", null);
   unreadNotificationCount = notifCount || 0;
+
+  const previewPeople = canPreview
+    ? await getPreviewablePeople(supabase, viewer.ownerOrgIds)
+    : [];
 
   return (
     <div className="min-h-screen flex">
@@ -194,6 +196,13 @@ export default async function AppLayout({
         boothAccess={boothAccess}
       />
       <main className="flex-1 min-w-0 pt-14 pb-16 md:pt-0 md:pb-0">
+        <PreviewBar
+          isPreview={isPreview}
+          previewName={isPreview ? displayName ?? null : null}
+          canPreview={canPreview}
+          previewCookiePresent={previewCookiePresent}
+          people={previewPeople}
+        />
         {children}
       </main>
     </div>

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { EditMemberButton } from "./edit-member";
 import { CompanyScopeToggle } from "./company-scope-toggle";
 import { getActiveProductionId } from "@/lib/active-production";
@@ -7,6 +8,8 @@ import Link from "next/link";
 export default async function CompanyPage() {
   const supabase = await createClient();
 
+  const { personId } = await getViewer(supabase);
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -14,7 +17,7 @@ export default async function CompanyPage() {
   const { data: person } = await supabase
     .from("people")
     .select("id")
-    .eq("user_id", user!.id)
+    .eq("id", personId!)
     .single();
 
   // A person has memberships (plural). Resolve the set; derive the active org

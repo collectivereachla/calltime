@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -7,6 +8,7 @@ import { logActivity } from "@/lib/activity-log";
 // ── Run Sheet ──
 
 export async function addRunSheetItem(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const productionId = formData.get("production_id") as string;
@@ -40,6 +42,7 @@ export async function addRunSheetItem(formData: FormData) {
 }
 
 export async function toggleRunSheetItem(itemId: string, completed: boolean) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -56,6 +59,7 @@ export async function toggleRunSheetItem(itemId: string, completed: boolean) {
 }
 
 export async function deleteRunSheetItem(itemId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase.from("run_sheet_items").delete().eq("id", itemId);
   if (error) return { error: error.message };
@@ -64,6 +68,7 @@ export async function deleteRunSheetItem(itemId: string) {
 }
 
 export async function resetRunSheet(productionId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase
     .from("run_sheet_items")
@@ -77,6 +82,7 @@ export async function resetRunSheet(productionId: string) {
 // ── Line Notes ──
 
 export async function addLineNote(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -147,6 +153,7 @@ export async function addFastLineNote(input: {
   personId?: string | null;   // explicit actor (e.g. blocking on a stage direction)
   content?: string | null;    // explicit content (e.g. a tapped blocking note)
 }) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -248,6 +255,7 @@ export async function addFastLineNote(input: {
 
 // Actor acknowledges a note ("Got it") — distinct from the SM marking it delivered.
 export async function markLineNoteCorrected(noteId: string, corrected: boolean) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase
     .from("line_notes")
@@ -259,6 +267,7 @@ export async function markLineNoteCorrected(noteId: string, corrected: boolean) 
 }
 
 export async function markLineNoteGiven(noteId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase
     .from("line_notes")
@@ -272,6 +281,7 @@ export async function markLineNoteGiven(noteId: string) {
 // ── Rehearsal Work Log ──
 
 export async function logRehearsalWork(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.from("rehearsal_work").insert({
@@ -291,6 +301,7 @@ export async function logRehearsalWork(formData: FormData) {
 // ── Show Report (uses existing sm_reports table) ──
 
 export async function submitShowReport(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();

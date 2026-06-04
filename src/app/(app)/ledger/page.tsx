@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { getRoleInOrg, isOwnerRole, isLeadershipRole, resolveActingOrgId } from "@/lib/membership";
 import { LedgerLayout } from "./ledger-layout";
 import { getActiveProductionId } from "@/lib/active-production";
@@ -7,12 +8,14 @@ import { parseCompensationAmount } from "./invoice-utils";
 export default async function LedgerPage() {
   const supabase = await createClient();
 
+  const { personId } = await getViewer(supabase);
+
   const { data: { user } } = await supabase.auth.getUser();
 
   const { data: person } = await supabase
     .from("people")
     .select("id, full_name")
-    .eq("user_id", user!.id)
+    .eq("id", personId!)
     .single();
 
   // Resolve the org from the show being worked in — never an arbitrary membership.

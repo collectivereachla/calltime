@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { createClient } from "@/lib/supabase/server";
 import { getRoleInOrg, isOwnerRole, orgIdForProduction, orgIdForRow } from "@/lib/membership";
@@ -19,6 +20,7 @@ async function requireOwner(orgId: string | null, message: string) {
 }
 
 export async function addBudgetItem(formData: FormData) {
+  await assertNotPreviewing();
   const productionId = formData.get("production_id") as string;
   const { supabase, ok, error } = await requireOwner(
     await orgIdForProduction(productionId),
@@ -48,6 +50,7 @@ export async function addBudgetItem(formData: FormData) {
 }
 
 export async function updateBudgetItem(formData: FormData) {
+  await assertNotPreviewing();
   const id = formData.get("id") as string;
   const { supabase, ok, error } = await requireOwner(
     await orgIdForRow("budget_items", id),
@@ -77,6 +80,7 @@ export async function updateBudgetItem(formData: FormData) {
 }
 
 export async function deleteBudgetItem(id: string) {
+  await assertNotPreviewing();
   const { supabase, ok, error } = await requireOwner(
     await orgIdForRow("budget_items", id),
     "Only owners can delete budget items"

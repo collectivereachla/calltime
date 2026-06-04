@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { createClient } from "@/lib/supabase/server";
 import { getRoleInOrg, isLeadershipRole, resolveActingOrgId, orgIdForProduction } from "@/lib/membership";
@@ -25,6 +26,7 @@ async function requireLeader(personId: string | null, orgId: string | null) {
 }
 
 export async function addInventoryItem(formData: FormData) {
+  await assertNotPreviewing();
   const { supabase, personId } = await person();
   const orgId = personId ? await resolveActingOrgId(personId) : null;
   const gate = await requireLeader(personId, orgId);
@@ -47,6 +49,7 @@ export async function addInventoryItem(formData: FormData) {
 }
 
 export async function updateInventoryItem(formData: FormData) {
+  await assertNotPreviewing();
   const { supabase, personId } = await person();
   const id = formData.get("id") as string;
   const orgId = await orgIdForItem(supabase, id);
@@ -66,6 +69,7 @@ export async function updateInventoryItem(formData: FormData) {
 }
 
 export async function deleteInventoryItem(id: string) {
+  await assertNotPreviewing();
   const { supabase, personId } = await person();
   const orgId = await orgIdForItem(supabase, id);
   const gate = await requireLeader(personId, orgId);
@@ -76,6 +80,7 @@ export async function deleteInventoryItem(id: string) {
 }
 
 export async function checkoutItem(formData: FormData) {
+  await assertNotPreviewing();
   const { supabase, personId } = await person();
   const itemId = formData.get("item_id") as string;
   const productionId = formData.get("production_id") as string;
@@ -96,6 +101,7 @@ export async function checkoutItem(formData: FormData) {
 }
 
 export async function returnCheckout(checkoutId: string) {
+  await assertNotPreviewing();
   const { supabase, personId } = await person();
   const { data: co } = await supabase.from("inventory_checkouts").select("production_id").eq("id", checkoutId).maybeSingle();
   const orgId = co?.production_id ? await orgIdForProduction(co.production_id) : null;

@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -10,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 // timeout; the client loops until `remaining` is 0. Idempotent: a row that
 // fails is left pointing at Drive and retried on the next run.
 export async function migrateCostumePhotos(orgId: string, limit = 6) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { data: rows, error } = await supabase

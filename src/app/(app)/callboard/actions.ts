@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -7,6 +8,7 @@ import { createNotification, notifyOrgOwners } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity-log";
 
 export async function createScheduleEvent(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const productionId = formData.get("production_id") as string;
@@ -137,6 +139,7 @@ async function notifyCalledPeople(
 }
 
 export async function updateScheduleEvent(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const eventId = formData.get("event_id") as string;
@@ -215,6 +218,7 @@ export async function updateScheduleEvent(formData: FormData) {
 }
 
 export async function deleteScheduleEvent(eventId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   // Snapshot before deletion so we can notify confirmed/called people.
@@ -265,6 +269,7 @@ export async function updateEventCalls(
   personIds: string[],
   times?: { person_id: string; call_time: string | null }[]
 ): Promise<{ success?: boolean; error?: string }> {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("update_event_calls", {
@@ -301,6 +306,7 @@ export async function respondToCall(
   status: "confirmed" | "tentative" | "conflict",
   conflictReason?: string
 ) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("respond_to_call", {
@@ -369,6 +375,7 @@ async function notifyOnConflict(eventCallId: string, reason?: string) {
 }
 
 export async function removeEventCall(eventCallId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { data: call } = await supabase
@@ -421,6 +428,7 @@ export async function removeEventCall(eventCallId: string) {
 }
 
 export async function addEventCall(eventId: string, personId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -491,6 +499,7 @@ async function logConflictActivity(eventCallId: string, reason?: string) {
 // what makes calls live and starts the confirm cycle: it sends the call emails
 // and the "you've been called" notifications for the newly published events.
 export async function publishWeek(productionId: string, weekStartISO: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "You're not signed in." };

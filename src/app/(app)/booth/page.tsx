@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { CostumeBible } from "./costume-bible";
 import { SetDesign } from "./set-design";
 import { DesignRoom } from "./design-room";
@@ -12,6 +13,8 @@ import { getActiveProductionId } from "@/lib/active-production";
 export default async function BoothPage() {
   const supabase = await createClient();
 
+  const { personId } = await getViewer(supabase);
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -19,7 +22,7 @@ export default async function BoothPage() {
   const { data: person } = await supabase
     .from("people")
     .select("id")
-    .eq("user_id", user!.id)
+    .eq("id", personId!)
     .single();
 
   // A person has memberships (plural). Resolve the set, then derive the

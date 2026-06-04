@@ -1,9 +1,11 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export async function upsertCostumePlot(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const productionId = formData.get("production_id") as string;
@@ -38,6 +40,7 @@ export async function upsertCostumePlot(formData: FormData) {
 }
 
 export async function addScene(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const productionId = formData.get("production_id") as string;
@@ -60,6 +63,7 @@ export async function addScene(formData: FormData) {
 }
 
 export async function updateScene(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const sceneId = formData.get("scene_id") as string;
@@ -78,6 +82,7 @@ export async function updateScene(formData: FormData) {
 }
 
 export async function saveMeasurement(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const productionId = formData.get("production_id") as string;
@@ -109,6 +114,7 @@ export async function saveMeasurement(formData: FormData) {
 }
 
 export async function generateParade(productionId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   // Get all costume plot entries grouped by person
@@ -168,6 +174,7 @@ export async function generateParade(productionId: string) {
 }
 
 export async function updateParadeStatus(entryId: string, status: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase

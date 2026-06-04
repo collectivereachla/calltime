@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { redirect } from "next/navigation";
 import { getRoleInOrg, isOwnerRole, resolveActingOrgId } from "@/lib/membership";
 import { fetchOrgBudgetRollup } from "@/lib/budget-rollup";
@@ -9,10 +10,12 @@ const titleCase = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.
 
 export default async function OrganizationBudgetPage() {
   const supabase = await createClient();
+
+  const { personId } = await getViewer(supabase);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: person } = await supabase.from("people").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: person } = await supabase.from("people").select("id").eq("id", personId!).maybeSingle();
   if (!person) redirect("/login");
 
   const orgId = await resolveActingOrgId(person.id);

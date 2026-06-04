@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { getRoleInOrg, isLeadershipRole, orgIdForProduction } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 import { RunLayout } from "./run-layout";
@@ -6,10 +7,12 @@ import { RunLayout } from "./run-layout";
 export default async function RunPage() {
   const supabase = await createClient();
 
+  const { personId } = await getViewer(supabase);
+
   const { data: { user } } = await supabase.auth.getUser();
   const { data: person } = await supabase
     .from("people").select("id, full_name, preferred_name")
-    .eq("user_id", user!.id).single();
+    .eq("id", personId!).single();
 
   const activeProductionId = await getActiveProductionId();
 

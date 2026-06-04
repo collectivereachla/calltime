@@ -1,9 +1,11 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export async function addActionItem(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { data: person } = await supabase
@@ -28,6 +30,7 @@ export async function addActionItem(formData: FormData) {
 }
 
 export async function toggleActionItem(itemId: string, done: boolean) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -44,6 +47,7 @@ export async function toggleActionItem(itemId: string, done: boolean) {
 }
 
 export async function updateScene(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -65,6 +69,7 @@ export async function updateScene(formData: FormData) {
 }
 
 export async function updateProp(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -87,6 +92,7 @@ export async function updateProp(formData: FormData) {
 }
 
 export async function addProp(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.from("props").insert({

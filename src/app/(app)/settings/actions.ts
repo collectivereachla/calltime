@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
@@ -23,6 +24,7 @@ export async function getProfile() {
 }
 
 export async function updateProfile(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const {
@@ -91,6 +93,7 @@ export async function updateProfile(formData: FormData) {
 }
 
 export async function changePassword(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const newPassword = formData.get("new_password") as string;
@@ -114,6 +117,7 @@ export async function changePassword(formData: FormData) {
 }
 
 export async function toggleRoomLock(productionId: string, roomKey: string, lock: boolean) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { data: prod } = await supabase
@@ -142,6 +146,7 @@ export async function toggleRoomLock(productionId: string, roomKey: string, lock
 }
 
 export async function updateOrganization(orgId: string, formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("update_organization_safe", {

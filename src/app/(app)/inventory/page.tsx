@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { redirect } from "next/navigation";
 import { getActiveProductionId } from "@/lib/active-production";
 import { getRoleInOrg, isLeadershipRole, resolveActingOrgId } from "@/lib/membership";
@@ -6,9 +7,11 @@ import { InventoryRoom } from "./inventory-room";
 
 export default async function InventoryPage() {
   const supabase = await createClient();
+
+  const { personId } = await getViewer(supabase);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data: person } = await supabase.from("people").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: person } = await supabase.from("people").select("id").eq("id", personId!).maybeSingle();
   if (!person) redirect("/login");
 
   const orgId = await resolveActingOrgId(person.id);

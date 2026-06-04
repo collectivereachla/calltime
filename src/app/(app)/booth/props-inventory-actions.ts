@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -8,6 +9,7 @@ export async function setPropAssignees(
   productionId: string,
   personIds: string[]
 ) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   // Replace the full set of actors this prop is assigned to for this production.
@@ -68,6 +70,7 @@ function normalizeOwner(f: PropFields) {
 }
 
 export async function createPropItem(orgId: string, f: PropFields) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (!f.itemName?.trim()) return { error: "Item name is required." };
   if (!CATEGORIES.includes(f.category)) return { error: "Please choose a valid category." };
@@ -95,6 +98,7 @@ export async function createPropItem(orgId: string, f: PropFields) {
 }
 
 export async function updatePropItem(itemId: string, f: PropFields) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (!f.itemName?.trim()) return { error: "Item name is required." };
   if (!CATEGORIES.includes(f.category)) return { error: "Please choose a valid category." };
@@ -122,6 +126,7 @@ export async function updatePropItem(itemId: string, f: PropFields) {
 }
 
 export async function deletePropItem(itemId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("props_inventory")

@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -6,6 +7,7 @@ import { sendWelcomeEmail } from "@/lib/email-triggers";
 import { logAudit } from "@/lib/audit-log";
 
 export async function updateMember(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("update_person_profile", {
@@ -29,6 +31,7 @@ export async function updateMemberRole(
   personId: string,
   role: string
 ) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("update_member_role", {
@@ -52,6 +55,7 @@ export async function updateMemberRole(
 }
 
 export async function updateAssignment(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("update_production_assignment", {
@@ -70,6 +74,7 @@ export async function updateAssignment(formData: FormData) {
 }
 
 export async function addAssignment(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const personId = formData.get("person_id") as string;
@@ -99,6 +104,7 @@ export async function addAssignment(formData: FormData) {
 }
 
 export async function removeMember(orgId: string, personId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("remove_org_member", {
@@ -123,6 +129,7 @@ export async function removeFromProduction(
   productionId: string,
   personId: string
 ) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };

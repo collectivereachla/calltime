@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -8,6 +9,7 @@ import { logAudit } from "@/lib/audit-log";
 import { getRoleInOrg, isOwnerRole, isLeadershipRole, orgIdForProduction, orgIdForRow } from "@/lib/membership";
 
 export async function signContract(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const contractId = formData.get("contract_id") as string;
@@ -95,6 +97,7 @@ export async function signContract(formData: FormData) {
 }
 
 export async function countersignContract(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const contractId = formData.get("contract_id") as string;
@@ -190,6 +193,7 @@ export async function countersignContract(formData: FormData) {
 }
 
 export async function markContractViewed(contractId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   await supabase
@@ -206,6 +210,7 @@ export async function markContractViewed(contractId: string) {
 }
 
 export async function updateContract(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
@@ -230,6 +235,7 @@ export async function updateContract(formData: FormData) {
 }
 
 export async function deleteContract(id: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
@@ -247,6 +253,7 @@ export async function deleteContract(id: string) {
 }
 
 export async function voidContract(id: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
@@ -276,6 +283,7 @@ export async function voidContract(id: string) {
 // ---------- Template CRUD ----------
 
 export async function updateTemplate(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
@@ -302,6 +310,7 @@ export async function updateTemplate(formData: FormData) {
 }
 
 export async function createTemplate(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
@@ -333,6 +342,7 @@ export async function createTemplate(formData: FormData) {
 }
 
 export async function deleteTemplate(id: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
@@ -360,6 +370,7 @@ export async function deleteTemplate(id: string) {
 }
 
 export async function addStaffMember(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };

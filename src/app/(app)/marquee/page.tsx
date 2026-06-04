@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { getRoleInOrg, isLeadershipRole, resolveActingOrgId } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 import { MarqueeRoom } from "./marquee-room";
@@ -10,10 +11,12 @@ export default async function MarqueePage({
   searchParams: Promise<{ p?: string }>;
 }) {
   const supabase = await createClient();
+
+  const { personId } = await getViewer(supabase);
   const { data: { user } } = await supabase.auth.getUser();
 
   const { data: person } = await supabase
-    .from("people").select("id, full_name, preferred_name").eq("user_id", user!.id).single();
+    .from("people").select("id, full_name, preferred_name").eq("id", personId!).single();
 
   const orgId = await resolveActingOrgId(person!.id);
 

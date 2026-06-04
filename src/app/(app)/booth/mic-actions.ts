@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -26,6 +27,7 @@ function clean(f: MicFields) {
 }
 
 export async function createMic(productionId: string, f: MicFields) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (!f.packNumber?.trim()) return { error: "A pack number or label is required." };
 
@@ -43,6 +45,7 @@ export async function createMic(productionId: string, f: MicFields) {
 }
 
 export async function updateMic(micId: string, f: MicFields) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (!f.packNumber?.trim()) return { error: "A pack number or label is required." };
 
@@ -62,6 +65,7 @@ export async function updateMic(micId: string, f: MicFields) {
 }
 
 export async function deleteMic(micId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("wireless_mics")
@@ -81,6 +85,7 @@ export async function deleteMic(micId: string) {
 // Set which actors are on a given mic. An actor wears one mic at a time, so
 // selecting an actor here also clears them off any other mic in this production.
 export async function setMicAssignees(micId: string, productionId: string, personIds: string[]) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   // Clear this mic's current actors.

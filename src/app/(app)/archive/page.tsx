@@ -1,13 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { getRoleInOrg, isOwnerRole, resolveActingOrgId } from "@/lib/membership";
 import Link from "next/link";
 
 export default async function ArchivePage() {
   const supabase = await createClient();
 
+  const { personId } = await getViewer(supabase);
+
   const { data: { user } } = await supabase.auth.getUser();
   const { data: person } = await supabase
-    .from("people").select("id").eq("user_id", user!.id).single();
+    .from("people").select("id").eq("id", personId!).single();
   const orgId = await resolveActingOrgId(person!.id);
 
   if (!orgId) {

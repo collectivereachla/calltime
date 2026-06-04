@@ -1,10 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { GreenroomChat } from "./greenroom-chat";
 import { resolveActingOrgId, getRoleInOrg, isLeadershipRole } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 
 export default async function GreenroomPage() {
   const supabase = await createClient();
+
+  const { personId } = await getViewer(supabase);
 
   const {
     data: { user },
@@ -13,7 +16,7 @@ export default async function GreenroomPage() {
   const { data: person } = await supabase
     .from("people")
     .select("id, full_name, preferred_name, headshot_url")
-    .eq("user_id", user!.id)
+    .eq("id", personId!)
     .single();
 
   // Resolve the org from the selected show (never an arbitrary membership).

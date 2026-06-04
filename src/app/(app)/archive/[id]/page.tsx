@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { getRoleInOrg, isLeadershipRole, orgIdForProduction } from "@/lib/membership";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -8,9 +9,11 @@ export default async function ArchiveDetailPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const supabase = await createClient();
 
+  const { personId } = await getViewer(supabase);
+
   const { data: { user } } = await supabase.auth.getUser();
   const { data: person } = await supabase
-    .from("people").select("id").eq("user_id", user!.id).single();
+    .from("people").select("id").eq("id", personId!).single();
   const orgId = await orgIdForProduction(id);
   const role = orgId ? await getRoleInOrg(person!.id, orgId) : null;
   const canManage = isLeadershipRole(role);

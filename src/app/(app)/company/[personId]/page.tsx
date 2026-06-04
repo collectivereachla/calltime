@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { EditProfile } from "./edit-profile";
@@ -22,14 +23,12 @@ export default async function MemberDetailPage({
   const { personId } = await params;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { personId: meId } = await getViewer(supabase);
 
   const { data: viewer } = await supabase
     .from("people")
     .select("id")
-    .eq("user_id", user!.id)
+    .eq("id", meId!)
     .single();
 
   const { data: viewerMembership } = await supabase

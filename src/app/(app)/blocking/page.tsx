@@ -1,13 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { getRoleInOrg, isLeadershipRole, orgIdForProduction } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 import { BlockingMap } from "./blocking-map";
 
 export default async function BlockingPage() {
   const supabase = await createClient();
+
+  const { personId } = await getViewer(supabase);
   const { data: { user } } = await supabase.auth.getUser();
   const { data: person } = await supabase
-    .from("people").select("id").eq("user_id", user!.id).single();
+    .from("people").select("id").eq("id", personId!).single();
   const activeProductionId = await getActiveProductionId();
   if (!activeProductionId) {
     return (

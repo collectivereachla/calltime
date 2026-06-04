@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { resolveActingOrgId } from "@/lib/membership";
 import { redirect } from "next/navigation";
 import { SettingsForm } from "./settings-form";
@@ -11,6 +12,8 @@ import { W9Card } from "./w9-card";
 export default async function SettingsPage() {
   const supabase = await createClient();
 
+  const { personId } = await getViewer(supabase);
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -21,7 +24,7 @@ export default async function SettingsPage() {
     .select(
       "id, full_name, preferred_name, pronouns, email, phone, bio, birth_month, birth_day, is_minor"
     )
-    .eq("user_id", user.id)
+    .eq("id", personId!)
     .single();
 
   if (!person) redirect("/onboarding");

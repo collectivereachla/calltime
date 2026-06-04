@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { CalendarLink } from "@/components/calendar-link";
 import { WhatChanged, type WhatChangedProduction } from "@/components/what-changed";
 import { ShowLink } from "@/components/show-link";
@@ -62,6 +63,8 @@ function StatusBadge({ status }: { status: string | null }) {
 export default async function HomePage() {
   const supabase = await createClient();
 
+  const { personId } = await getViewer(supabase);
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -70,7 +73,7 @@ export default async function HomePage() {
   const { data: person } = await supabase
     .from("people")
     .select("id, full_name, preferred_name, calendar_token")
-    .eq("user_id", user!.id)
+    .eq("id", personId!)
     .single();
 
   // Every active production assignment for this person, across every org.

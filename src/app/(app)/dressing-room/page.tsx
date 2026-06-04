@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { getActiveProductionId } from "@/lib/active-production";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -28,6 +29,8 @@ type Look = {
 export default async function DressingRoomPage() {
   const supabase = await createClient();
 
+  const { personId } = await getViewer(supabase);
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -35,7 +38,7 @@ export default async function DressingRoomPage() {
   const { data: person } = await supabase
     .from("people")
     .select("id, full_name, preferred_name")
-    .eq("user_id", user!.id)
+    .eq("id", personId!)
     .single();
 
   if (!person) {

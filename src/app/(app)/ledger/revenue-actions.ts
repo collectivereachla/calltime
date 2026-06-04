@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { createClient } from "@/lib/supabase/server";
 import { getRoleInOrg, isOwnerRole, orgIdForProduction, orgIdForRow } from "@/lib/membership";
@@ -20,6 +21,7 @@ async function checkOwner(orgId: string | null) {
 }
 
 export async function addRevenueItem(formData: FormData) {
+  await assertNotPreviewing();
   const productionId = formData.get("production_id") as string;
   const { supabase, ok, error } = await checkOwner(await orgIdForProduction(productionId));
   if (!ok) return { error };
@@ -40,6 +42,7 @@ export async function addRevenueItem(formData: FormData) {
 }
 
 export async function updateRevenueItem(formData: FormData) {
+  await assertNotPreviewing();
   const id = formData.get("id") as string;
   const { supabase, ok, error } = await checkOwner(await orgIdForRow("revenue_items", id));
   if (!ok) return { error };
@@ -65,6 +68,7 @@ export async function updateRevenueItem(formData: FormData) {
 }
 
 export async function deleteRevenueItem(id: string) {
+  await assertNotPreviewing();
   const { supabase, ok, error } = await checkOwner(await orgIdForRow("revenue_items", id));
   if (!ok) return { error };
 

@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -18,6 +19,7 @@ export async function saveCue(data: {
   sort_order?: number;
   metadata?: Record<string, unknown>;
 }) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   if (data.id) {
@@ -70,6 +72,7 @@ export async function saveCue(data: {
 }
 
 export async function deleteCue(id: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase.from("cues").delete().eq("id", id);
   if (error) return { error: error.message };
@@ -78,6 +81,7 @@ export async function deleteCue(id: string) {
 }
 
 export async function updateCueStatus(id: string, status: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase
     .from("cues")

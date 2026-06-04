@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -29,6 +30,7 @@ export async function saveVideoShot(data: {
   status?: string;
   notes?: string | null;
 }) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (data.id) {
     const { error } = await supabase
@@ -66,6 +68,7 @@ export async function saveVideoShot(data: {
 }
 
 export async function updateShotStatus(id: string, status: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase.from("video_shots").update({ status }).eq("id", id);
   if (error) return { error: error.message };
@@ -74,6 +77,7 @@ export async function updateShotStatus(id: string, status: string) {
 }
 
 export async function deleteVideoShot(id: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase.from("video_shots").delete().eq("id", id);
   if (error) return { error: error.message };
@@ -96,6 +100,7 @@ export async function saveVideoDeliverable(data: {
   link_url?: string | null;
   notes?: string | null;
 }) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (data.id) {
     const { error } = await supabase
@@ -135,6 +140,7 @@ export async function saveVideoDeliverable(data: {
 }
 
 export async function updateDeliverableStatus(id: string, status: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase.from("video_deliverables").update({ status }).eq("id", id);
   if (error) return { error: error.message };
@@ -143,6 +149,7 @@ export async function updateDeliverableStatus(id: string, status: string) {
 }
 
 export async function deleteVideoDeliverable(id: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase.from("video_deliverables").delete().eq("id", id);
   if (error) return { error: error.message };
@@ -163,6 +170,7 @@ export async function saveVideoRelease(data: {
   signed_at?: string | null;
   notes?: string | null;
 }) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   if (data.id) {
     const { error } = await supabase
@@ -198,6 +206,7 @@ export async function saveVideoRelease(data: {
 }
 
 export async function updateReleaseStatus(id: string, status: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const signed_at = status === "signed" ? new Date().toISOString().slice(0, 10) : null;
   const { error } = await supabase
@@ -210,6 +219,7 @@ export async function updateReleaseStatus(id: string, status: string) {
 }
 
 export async function deleteVideoRelease(id: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { error } = await supabase.from("video_releases").delete().eq("id", id);
   if (error) return { error: error.message };

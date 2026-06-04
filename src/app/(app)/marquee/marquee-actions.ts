@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -64,6 +65,7 @@ async function isProductionLeadership(
 
 // Promote a company upload into Approved (or move it back). Leadership only.
 export async function setPromoOfficial(id: string, isOfficial: boolean) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "You're not signed in." };
@@ -86,6 +88,7 @@ export async function setPromoOfficial(id: string, isOfficial: boolean) {
 
 // Rename / recategorize an asset. RLS allows the uploader or owners/production.
 export async function updatePromoAsset(id: string, caption: string, category: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const patch: { caption: string | null; category?: string } = {
     caption: caption?.trim() || null,
@@ -113,6 +116,7 @@ export async function recordPromoAsset(input: {
   durationSeconds: number | null;
   taggedPersonIds?: string[];
 }) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "You're not signed in." };
@@ -162,6 +166,7 @@ export async function recordPromoAsset(input: {
 
 // Replace an asset's tags; notify only people who are newly added.
 export async function setPromoTags(assetId: string, personIds: string[]) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "You're not signed in." };
@@ -212,6 +217,7 @@ export async function setPromoTags(assetId: string, personIds: string[]) {
 }
 
 export async function deletePromoAsset(id: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "You're not signed in." };

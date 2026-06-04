@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { AddPersonForm } from "./add-person-form";
@@ -10,6 +11,8 @@ interface Props {
 export default async function ProductionPage({ params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
+
+  const { personId } = await getViewer(supabase);
 
   const {
     data: { user },
@@ -58,7 +61,7 @@ export default async function ProductionPage({ params }: Props) {
   const { data: person } = await supabase
     .from("people")
     .select("id")
-    .eq("user_id", user!.id)
+    .eq("id", personId!)
     .single();
 
   const userAssignment = assignments?.find(

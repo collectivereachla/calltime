@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -23,6 +24,7 @@ export async function getMyConflicts() {
 }
 
 export async function submitConflict(formData: FormData) {
+  await assertNotPreviewing();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
@@ -115,6 +117,7 @@ export async function submitConflict(formData: FormData) {
 }
 
 export async function deleteConflict(conflictId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("delete_conflict", {

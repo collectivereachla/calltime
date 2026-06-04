@@ -1,4 +1,5 @@
 "use server";
+import { assertNotPreviewing } from "@/lib/viewer";
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
@@ -30,6 +31,7 @@ export async function getNotifications(limit = 20) {
 }
 
 export async function markNotificationRead(notificationId: string) {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   await supabase
@@ -42,6 +44,7 @@ export async function markNotificationRead(notificationId: string) {
 }
 
 export async function markAllNotificationsRead() {
+  await assertNotPreviewing();
   const supabase = await createClient();
 
   const {
