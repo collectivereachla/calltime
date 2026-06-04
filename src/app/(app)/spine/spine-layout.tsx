@@ -113,7 +113,8 @@ export function SpineLayout(props: Props) {
         <div className="flex items-center gap-2 px-4 py-2.5 mb-4 bg-bone/40 border border-bone rounded-card print:hidden">
           <span className="text-body-xs">🔒</span>
           <span className="text-body-sm text-ash">
-            This is a locked version. Annotations are read-only.
+            This version is locked and read-only.
+            {props.canManage ? " Use “New version” above to make an editable copy and keep working — the script carries over." : ""}
           </span>
         </div>
       )}

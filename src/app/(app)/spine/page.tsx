@@ -122,6 +122,21 @@ export default async function SpinePage({
     }
   }
 
+  // If every version is locked (e.g. the latest version was just locked), still
+  // show the most recent one read-only rather than acting as if no script exists.
+  // Locking freezes a version; it must never hide the script or demand a re-import.
+  if (!activeScript && versions.length > 0) {
+    const latest = [...versions].sort(
+      (a, b) => (b.created_at || "").localeCompare(a.created_at || "")
+    )[0];
+    activeScript = {
+      id: latest.id,
+      title: latest.title,
+      version: latest.version,
+      is_locked: latest.is_locked,
+    };
+  }
+
   let lines: {
     id: string;
     line_number: number;
