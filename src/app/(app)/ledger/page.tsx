@@ -203,9 +203,24 @@ export default async function LedgerPage() {
     budgetItems = data || [];
   }
 
+  // Load addendums for these contracts. Effective compensation = latest executed (countersigned)
+  // addendum, else the contract's own figure. Pending/signed addendums don't move the number yet.
+  const { data: addendumRows } = await supabase
+    .from("contract_addendums")
+    .select("id, contract_id, reason, old_compensation, new_compensation, status, signed_at, countersigned_at, signature_typed, countersigned_typed, body_markdown, created_at")
+    .in("production_id", productionIds.length ? productionIds : ["00000000-0000-0000-0000-000000000000"]);
+  const addendums = addendumRows || [];
+  const effectiveCompFor = (contractId: string, fallback: string | null): string | null => {
+    const executed = addendums
+      .filter((a) => a.contract_id === contractId && a.status === "countersigned")
+      .sort((a, b) => (b.countersigned_at || "").localeCompare(a.countersigned_at || ""));
+    return executed[0]?.new_compensation ?? fallback;
+  };
+
   // Build contract summaries with contract_type for budget.
   // Voided contracts are not a real obligation, so they're excluded from the P&L
   // (they remain visible in the contracts list, correctly marked void).
+  // Compensation reflects the effective (post-addendum) figure.
   const templateMap = new Map(templates.map((t) => [t.id, t]));
   const contractSummaries = contracts
     .filter((c) => c.status !== "void")
@@ -213,8 +228,9 @@ export default async function LedgerPage() {
       id: c.id,
       person_name: c.person_name,
       role_title: c.role_title,
-      compensation: c.compensation,
+      compensation: effectiveCompFor(c.id, c.compensation),
       contract_type: templateMap.get(c.template_id)?.contract_type || "other",
+      status: c.status,
     }));
 
   // Load revenue items (owner/production only)
@@ -310,12 +326,13 @@ export default async function LedgerPage() {
 
     if (myCRow) {
       const billToId = myCRow.payer_id || defaultPayerId;
+      const myEffComp = effectiveCompFor(myCRow.id, myCRow.compensation);
       invoiceMyContract = {
         id: myCRow.id,
         role_title: myCRow.role_title,
-        compensation: myCRow.compensation,
+        compensation: myEffComp,
         billTo: billToId ? payerName.get(billToId) || null : null,
-        baseAmount: parseCompensationAmount(myCRow.compensation),
+        baseAmount: parseCompensationAmount(myEffComp),
       };
     }
 
@@ -387,6 +404,7 @@ export default async function LedgerPage() {
           budgetItems={budgetItems}
           revenueItems={revenueItems}
           contractSummaries={contractSummaries}
+          addendums={addendums}
           canManage={canManage}
           canSeeContent={canSeeContent}
           personId={person!.id}

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { signContract, countersignContract, markContractViewed, updateContract, deleteContract, voidContract } from "./ledger-actions";
+import { createAddendum, signAddendum, countersignAddendum, voidAddendum } from "./addendum-actions";
 import { useRouter } from "next/navigation";
 import { SignaturePad } from "./signature-pad";
 
@@ -61,6 +62,21 @@ interface Contract {
   countersigned_draw_url: string | null;
 }
 
+interface Addendum {
+  id: string;
+  contract_id: string;
+  reason: string | null;
+  old_compensation: string | null;
+  new_compensation: string;
+  status: string;
+  signed_at: string | null;
+  countersigned_at: string | null;
+  signature_typed: string | null;
+  countersigned_typed: string | null;
+  body_markdown: string | null;
+  created_at: string;
+}
+
 interface Template {
   id: string;
   contract_type: string;
@@ -77,6 +93,7 @@ interface Props {
   personName: string;
   orgName: string;
   productions: { id: string; title: string; first_rehearsal: string | null; opening_date: string | null; closing_date: string | null }[];
+  addendums: Addendum[];
 }
 
 type StatusFilter = "all" | "pending" | "signed" | "countersigned" | "void";
@@ -145,7 +162,126 @@ function renderContractBody(
   return body;
 }
 
-export function LedgerView({ contracts, templates, canManage, canSeeContent, personId, personName, orgName, productions }: Props) {
+function AddendumPanel({ contract, addendums, canManage, isMine }: {
+  contract: { id: string; person_name: string; role_title: string; status: string };
+  addendums: Addendum[];
+  canManage: boolean;
+  isMine: boolean;
+}) {
+  const router = useRouter();
+  const [proposing, setProposing] = useState(false);
+  const [reason, setReason] = useState("");
+  const [newComp, setNewComp] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [signName, setSignName] = useState("");
+  const [signDraw, setSignDraw] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const list = addendums
+    .filter((a) => a.contract_id === contract.id)
+    .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+  const inFlight = list.some((a) => a.status === "pending" || a.status === "signed");
+  const contractSigned = contract.status === "signed" || contract.status === "countersigned";
+  if (!contractSigned && list.length === 0) return null;
+
+  async function propose() {
+    if (!newComp.trim()) return;
+    setSaving(true);
+    const fd = new FormData();
+    fd.set("contract_id", contract.id);
+    fd.set("reason", reason.trim());
+    fd.set("new_compensation", newComp.trim());
+    const r = await createAddendum(fd);
+    setSaving(false);
+    if (r.error) alert(r.error);
+    else { setProposing(false); setReason(""); setNewComp(""); router.refresh(); }
+  }
+  async function doSign(id: string, counter: boolean) {
+    if (!signName.trim() || !signDraw) return;
+    setSaving(true);
+    const fd = new FormData();
+    fd.set("addendum_id", id);
+    fd.set("signature_typed", signName.trim());
+    if (signDraw) fd.set("signature_draw_url", signDraw);
+    const r = counter ? await countersignAddendum(fd) : await signAddendum(fd);
+    setSaving(false);
+    if (r.error) alert(r.error);
+    else { setSignName(""); setSignDraw(null); setActiveId(null); router.refresh(); }
+  }
+  async function voidA(id: string) {
+    if (!confirm("Void this addendum?")) return;
+    const r = await voidAddendum(id);
+    if (r.error) alert(r.error); else router.refresh();
+  }
+
+  return (
+    <div className="px-6 py-6 border-t border-bone print:hidden">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-display text-display-sm text-ink">Addendums</h3>
+        {canManage && contractSigned && !inFlight && !proposing && (
+          <button onClick={() => setProposing(true)} className="text-body-xs font-medium px-3 py-1.5 rounded-card border border-bone text-ash hover:text-ink hover:border-ash">Propose a change</button>
+        )}
+      </div>
+
+      {canManage && proposing && (
+        <div className="bg-paper border border-bone rounded-card p-4 mb-4 space-y-3">
+          <p className="text-body-sm text-ash">{contract.person_name} signs this, then you countersign. The figure only changes once both sign.</p>
+          <div>
+            <label className="text-body-xs text-muted uppercase tracking-wider">New compensation</label>
+            <input value={newComp} onChange={(e) => setNewComp(e.target.value)} placeholder="$500" className="mt-1 w-full px-3 py-2 bg-card border border-bone rounded text-body-md text-ink focus:border-brick focus:outline-none" />
+          </div>
+          <div>
+            <label className="text-body-xs text-muted uppercase tracking-wider">Reason (optional)</label>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Added performance stipend" className="mt-1 w-full px-3 py-2 bg-card border border-bone rounded text-body-md text-ink focus:border-brick focus:outline-none" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={propose} disabled={!newComp.trim() || saving} className="py-2 px-4 bg-brick text-paper font-medium rounded-card text-body-sm disabled:opacity-40">{saving ? "Creating\u2026" : "Create addendum"}</button>
+            <button onClick={() => { setProposing(false); setReason(""); setNewComp(""); }} className="py-2 px-4 text-ash text-body-sm">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {list.length === 0 ? (
+        <p className="text-body-sm text-muted">No changes to this contract yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {list.map((a) => (
+            <div key={a.id} className="border border-bone rounded-card p-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <p className="text-body-sm text-ink"><span className="font-mono">{a.old_compensation || "\u2014"}</span>{" \u2192 "}<span className="font-mono font-semibold">{a.new_compensation}</span></p>
+                <span className={`text-body-xs font-medium px-2 py-1 rounded-full ${statusColor(a.status)}`}>{statusLabel(a.status)}</span>
+              </div>
+              {a.reason && <p className="text-body-sm text-ash mt-1">{a.reason}</p>}
+              {(a.signed_at || a.countersigned_at) && (
+                <p className="text-body-xs text-muted mt-1">{a.signed_at ? `Signed ${formatDate(a.signed_at)}` : ""}{a.countersigned_at ? ` \u00b7 Countersigned ${formatDate(a.countersigned_at)}` : ""}</p>
+              )}
+
+              {isMine && a.status === "pending" && (
+                <div className="mt-3 space-y-3">
+                  <SignaturePad onChange={setSignDraw} />
+                  <input value={activeId === a.id ? signName : ""} onFocus={() => setActiveId(a.id)} onChange={(e) => { setActiveId(a.id); setSignName(e.target.value); }} placeholder={contract.person_name} className="w-full px-3 py-2 bg-card border border-bone rounded text-body-md text-ink font-display italic focus:border-brick focus:outline-none" />
+                  <button onClick={() => doSign(a.id, false)} disabled={!signDraw || !signName.trim() || saving} className="w-full py-2 bg-brick text-paper font-medium rounded-card text-body-sm disabled:opacity-40">{saving ? "Signing\u2026" : "Sign addendum"}</button>
+                </div>
+              )}
+              {canManage && a.status === "signed" && (
+                <div className="mt-3 space-y-3">
+                  <SignaturePad onChange={setSignDraw} />
+                  <input value={activeId === a.id ? signName : ""} onFocus={() => setActiveId(a.id)} onChange={(e) => { setActiveId(a.id); setSignName(e.target.value); }} placeholder="Producer signature" className="w-full px-3 py-2 bg-card border border-bone rounded text-body-md text-ink font-display italic focus:border-brick focus:outline-none" />
+                  <button onClick={() => doSign(a.id, true)} disabled={!signDraw || !signName.trim() || saving} className="w-full py-2 bg-confirmed text-paper font-medium rounded-card text-body-sm disabled:opacity-40">{saving ? "Countersigning\u2026" : "Countersign"}</button>
+                </div>
+              )}
+              {canManage && (a.status === "pending" || a.status === "signed") && (
+                <button onClick={() => voidA(a.id)} className="mt-2 text-body-xs text-muted hover:text-conflict">Void this addendum</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function LedgerView({ contracts, templates, canManage, canSeeContent, personId, personName, orgName, productions, addendums }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [signatureName, setSignatureName] = useState("");
@@ -250,6 +386,11 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
     const isMine = selected.person_id === personId;
     const canSign = isMine && selected.status === "pending";
     const canCountersign = canSeeContent && selected.status === "signed";
+    const contractAddenda = addendums.filter((a) => a.contract_id === selected.id);
+    const effComp = contractAddenda
+      .filter((a) => a.status === "countersigned")
+      .sort((a, b) => (b.countersigned_at || "").localeCompare(a.countersigned_at || ""))[0]?.new_compensation ?? selected.compensation;
+    const signedLock = selected.status === "signed" || selected.status === "countersigned";
     // Only show full content to owners or the person whose contract it is
     const showContent = canSeeContent || isMine;
 
@@ -281,16 +422,20 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
                         onSave={(v) => saveContractField(selected.id, "role_title", v)}
                       />
                       {" — "}
-                      <ContractEditCell
-                        value={selected.compensation || "TBD"}
-                        onSave={(v) => saveContractField(selected.id, "compensation", v)}
-                        className="font-mono"
-                      />
+                      {signedLock ? (
+                        <span className="font-mono">{effComp || "TBD"}</span>
+                      ) : (
+                        <ContractEditCell
+                          value={selected.compensation || "TBD"}
+                          onSave={(v) => saveContractField(selected.id, "compensation", v)}
+                          className="font-mono"
+                        />
+                      )}
                     </>
                   ) : (
                     <>
                       {selected.person_name} — {selected.role_title}
-                      {showContent && selected.compensation && ` — ${selected.compensation}`}
+                      {showContent && effComp && ` \u2014 ${effComp}`}
                     </>
                   )}
                 </p>
@@ -487,6 +632,14 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
                 <p className="text-body-xs text-muted mt-4">Contract content is only visible to the contract holder and the producer.</p>
               </div>
             </div>
+          )}
+          {showContent && (
+            <AddendumPanel
+              contract={{ id: selected.id, person_name: selected.person_name, role_title: selected.role_title, status: selected.status }}
+              addendums={contractAddenda}
+              canManage={canSeeContent}
+              isMine={isMine}
+            />
           )}
           {canSign && showContent && (
             <div className="px-6 py-6 bg-paper border-t border-bone print:hidden">

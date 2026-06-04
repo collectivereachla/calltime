@@ -228,6 +228,16 @@ export async function updateContract(formData: FormData) {
     updates[key] = (value as string) || null;
   }
 
+  // A signed contract's compensation can't be changed silently — it needs a signed addendum.
+  if ("compensation" in updates) {
+    const { data: existing } = await supabase
+      .from("contracts").select("status, compensation").eq("id", id).single();
+    if (existing && (existing.status === "signed" || existing.status === "countersigned")
+        && updates.compensation !== existing.compensation) {
+      return { error: "This contract is signed. Compensation changes require a signed addendum — use \u201CPropose a change\u201D on the contract." };
+    }
+  }
+
   const { error } = await supabase.from("contracts").update(updates).eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/ledger");

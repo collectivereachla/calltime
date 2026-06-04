@@ -52,6 +52,22 @@ interface ContractSummary {
   role_title: string;
   compensation: string | null;
   contract_type: string;
+  status: string;
+}
+
+interface Addendum {
+  id: string;
+  contract_id: string;
+  reason: string | null;
+  old_compensation: string | null;
+  new_compensation: string;
+  status: string;
+  signed_at: string | null;
+  countersigned_at: string | null;
+  signature_typed: string | null;
+  countersigned_typed: string | null;
+  body_markdown: string | null;
+  created_at: string;
 }
 
 interface RevenueItem {
@@ -75,6 +91,7 @@ interface Props {
   budgetItems: BudgetItem[];
   revenueItems: RevenueItem[];
   contractSummaries: ContractSummary[];
+  addendums: Addendum[];
   canManage: boolean;
   canSeeContent: boolean;
   personId: string;
@@ -150,6 +167,7 @@ export function LedgerLayout(props: Props) {
           personName={props.personName}
           orgName={props.orgName}
           productions={props.productions}
+          addendums={props.addendums}
         />
       )}
 

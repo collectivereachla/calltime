@@ -39,6 +39,7 @@ interface ContractSummary {
   role_title: string;
   compensation: string | null;
   contract_type: string;
+  status: string;
 }
 
 interface Props {
@@ -365,7 +366,9 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
                   <tr key={c.id} className="border-b border-bone/50 group">
                     <td className="px-4 py-2 text-ink"><EditCell value={c.person_name} onSave={(v) => saveStaffField(c.id, "person_name", v)} /></td>
                     <td className="px-4 py-2 text-ash"><EditCell value={c.role_title} onSave={(v) => saveStaffField(c.id, "role_title", v)} /></td>
-                    <td className="px-4 py-2 text-right font-mono text-ink"><EditCell value={c.compensation || ""} onSave={(v) => saveStaffField(c.id, "compensation", v)} className="text-right" /></td>
+                    <td className="px-4 py-2 text-right font-mono text-ink">{(c.status === "signed" || c.status === "countersigned")
+                      ? <span title="Signed — change via an addendum in Contracts" className="cursor-default border-b border-dotted border-bone">{c.compensation || ""}</span>
+                      : <EditCell value={c.compensation || ""} onSave={(v) => saveStaffField(c.id, "compensation", v)} className="text-right" />}</td>
                     <td className="px-1 py-2"><button onClick={() => delStaff(c.id)} className="opacity-0 group-hover:opacity-100 text-muted hover:text-conflict text-body-xs transition-opacity">&times;</button></td>
                   </tr>
                 ))}
