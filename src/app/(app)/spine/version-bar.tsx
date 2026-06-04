@@ -27,7 +27,7 @@ export function VersionBar({ versions, activeVersionId, isLocked, canManage, pro
   const [showHistory, setShowHistory] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newNotes, setNewNotes] = useState("");
-  const [copyAnnotations, setCopyAnnotations] = useState(false);
+  const [copyAnnotations, setCopyAnnotations] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
