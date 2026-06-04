@@ -79,6 +79,10 @@ interface Props {
   personId: string;
   personName: string;
   productionId: string;
+  coproduction: {
+    leadName: string; partnerName: string; leadPct: number; partnerPct: number;
+    basis: string; fiscalAgent: "lead" | "partner"; notes: string | null;
+  } | null;
   orgName: string;
   productions: { id: string; title: string; first_rehearsal: string | null; opening_date: string | null; closing_date: string | null }[];
   systemTemplates: { id: string; contract_type: string; title: string; body_markdown: string; is_system: boolean }[];
@@ -174,6 +178,7 @@ export function LedgerLayout(props: Props) {
           contractSummaries={props.contractSummaries}
           canSeeContent={props.canSeeContent}
           productionId={props.productionId}
+          coproduction={props.coproduction}
         />
       )}
 

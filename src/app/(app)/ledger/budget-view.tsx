@@ -46,6 +46,10 @@ interface Props {
   contractSummaries: ContractSummary[];
   canSeeContent: boolean;
   productionId: string;
+  coproduction: {
+    leadName: string; partnerName: string; leadPct: number; partnerPct: number;
+    basis: string; fiscalAgent: "lead" | "partner"; notes: string | null;
+  } | null;
 }
 
 const CAT_COLORS: Record<string, string> = {
@@ -79,7 +83,7 @@ function EditCell({ value, onSave, type = "text", className = "" }: {
   );
 }
 
-export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSeeContent, productionId }: Props) {
+export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSeeContent, productionId, coproduction }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [addingStaff, setAddingStaff] = useState(false);
@@ -211,6 +215,46 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
           </div>
         ))}
       </div>
+
+      {coproduction && (() => {
+        const basisAmount = coproduction.basis === "gross" ? revenueTotal : net;
+        const leadShare = (basisAmount * coproduction.leadPct) / 100;
+        const partnerShare = (basisAmount * coproduction.partnerPct) / 100;
+        const agentName = coproduction.fiscalAgent === "lead" ? coproduction.leadName : coproduction.partnerName;
+        const otherName = coproduction.fiscalAgent === "lead" ? coproduction.partnerName : coproduction.leadName;
+        const otherShare = coproduction.fiscalAgent === "lead" ? partnerShare : leadShare;
+        const basisLabel = coproduction.basis === "gross" ? "gross revenue" : "net, after all costs";
+        return (
+          <div className="border border-brick/30 rounded-card p-4 bg-brick/5">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="font-display text-display-xs text-ink">Co-production settlement</h3>
+              <span className="text-body-xs text-muted">
+                {coproduction.leadName} {coproduction.leadPct}% · {coproduction.partnerName} {coproduction.partnerPct}% of {basisLabel}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-3 mt-3">
+              <div className="bg-card border border-bone rounded-card px-3 py-2 text-center">
+                <p className={`font-mono text-display-sm ${basisAmount >= 0 ? "text-confirmed" : "text-conflict"}`}>{fmt(basisAmount)}</p>
+                <p className="text-body-xs text-muted mt-0.5">{coproduction.basis === "gross" ? "Gross" : "Net"}</p>
+              </div>
+              <div className="bg-card border border-bone rounded-card px-3 py-2 text-center">
+                <p className="font-mono text-display-sm text-ink">{fmt(leadShare)}</p>
+                <p className="text-body-xs text-muted mt-0.5">{coproduction.leadName} · {coproduction.leadPct}%</p>
+              </div>
+              <div className="bg-card border border-bone rounded-card px-3 py-2 text-center">
+                <p className="font-mono text-display-sm text-ink">{fmt(partnerShare)}</p>
+                <p className="text-body-xs text-muted mt-0.5">{coproduction.partnerName} · {coproduction.partnerPct}%</p>
+              </div>
+            </div>
+            <p className="text-body-sm text-ink mt-3">
+              {basisAmount >= 0
+                ? <>{agentName} holds all funds and pays {otherName} <span className="font-semibold">{fmt(otherShare)}</span>.</>
+                : <>Net loss. {otherName} owes {agentName} <span className="font-semibold">{fmt(Math.abs(otherShare))}</span> toward the shortfall.</>}
+            </p>
+            {coproduction.notes && <p className="text-body-xs text-muted mt-2 leading-relaxed">{coproduction.notes}</p>}
+          </div>
+        );
+      })()}
 
       {saving && <div className="text-body-xs text-muted text-center">Saving...</div>}
 

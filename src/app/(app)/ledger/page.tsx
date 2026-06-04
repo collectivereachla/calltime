@@ -62,6 +62,31 @@ export default async function LedgerPage() {
 
   const productionIds = productions.map((p) => p.id);
 
+  // Co-production settlement terms, if this show is co-produced
+  let coproduction: {
+    leadName: string; partnerName: string; leadPct: number; partnerPct: number;
+    basis: string; fiscalAgent: "lead" | "partner"; notes: string | null;
+  } | null = null;
+  if (productionIds[0]) {
+    const { data: copro } = await supabase
+      .from("coproductions")
+      .select("lead_org_id, partner_org_id, lead_pct, partner_pct, basis, fiscal_agent, notes")
+      .eq("production_id", productionIds[0])
+      .maybeSingle();
+    if (copro) {
+      const { data: orgs } = await supabase
+        .from("organizations").select("id, name")
+        .in("id", [copro.lead_org_id, copro.partner_org_id]);
+      coproduction = {
+        leadName: orgs?.find((o) => o.id === copro.lead_org_id)?.name ?? "Lead",
+        partnerName: orgs?.find((o) => o.id === copro.partner_org_id)?.name ?? "Partner",
+        leadPct: Number(copro.lead_pct), partnerPct: Number(copro.partner_pct),
+        basis: copro.basis as string, fiscalAgent: copro.fiscal_agent as "lead" | "partner",
+        notes: copro.notes as string | null,
+      };
+    }
+  }
+
   // Load contracts
   let contracts: {
     id: string;
@@ -362,6 +387,7 @@ export default async function LedgerPage() {
           personId={person!.id}
           personName={person!.full_name}
           productionId={productionIds[0] || ""}
+          coproduction={coproduction}
           orgName={orgName}
           productions={productions || []}
           systemTemplates={systemTemplates}
