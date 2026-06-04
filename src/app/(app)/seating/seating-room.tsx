@@ -440,6 +440,10 @@ function FloorPlan({ tables, guests, canEdit, addTable, updateTable, removeTable
               <button className="ct-btn" style={{ background: "none", padding: 4 }} onClick={() => setSelectedTable(null)}><X size={16} color={C.ash} /></button>
             </div>
             <div style={{ padding: "14px 16px" }}>
+              <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".1em", color: C.ash, fontWeight: 600 }}>Table number</label>
+              <input className="ct-input" data-nodrag type="number" min="1" value={sel.number} disabled={!canEdit} style={{ marginTop: 4, marginBottom: 14 }}
+                onChange={(e) => updateTable(sel.id, { number: Number(e.target.value) || 1 })} />
+
               <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".1em", color: C.ash, fontWeight: 600 }}>Name (optional)</label>
               <input className="ct-input" data-nodrag value={sel.name || ""} placeholder="e.g. Ochsner, Head Table" disabled={!canEdit} style={{ marginTop: 4, marginBottom: 14 }}
                 onChange={(e) => updateTable(sel.id, { name: e.target.value }, false)} onBlur={(e) => updateTable(sel.id, { name: e.target.value })} />
