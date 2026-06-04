@@ -203,15 +203,19 @@ export default async function LedgerPage() {
     budgetItems = data || [];
   }
 
-  // Build contract summaries with contract_type for budget
+  // Build contract summaries with contract_type for budget.
+  // Voided contracts are not a real obligation, so they're excluded from the P&L
+  // (they remain visible in the contracts list, correctly marked void).
   const templateMap = new Map(templates.map((t) => [t.id, t]));
-  const contractSummaries = contracts.map((c) => ({
-    id: c.id,
-    person_name: c.person_name,
-    role_title: c.role_title,
-    compensation: c.compensation,
-    contract_type: templateMap.get(c.template_id)?.contract_type || "other",
-  }));
+  const contractSummaries = contracts
+    .filter((c) => c.status !== "void")
+    .map((c) => ({
+      id: c.id,
+      person_name: c.person_name,
+      role_title: c.role_title,
+      compensation: c.compensation,
+      contract_type: templateMap.get(c.template_id)?.contract_type || "other",
+    }));
 
   // Load revenue items (owner/production only)
   let revenueItems: {
