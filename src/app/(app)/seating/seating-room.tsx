@@ -385,8 +385,9 @@ function FloorPlan({ tables, guests, canEdit, addTable, updateTable, removeTable
           </div>
         </div>
 
+        <div style={{ overflowX: "auto", width: "100%" }}>
         <div ref={canvasRef} style={{
-          position: "relative", width: "100%", height: 980, background: C.paper,
+          position: "relative", width: 1040, height: 900, margin: "0 auto", background: C.paper,
           border: `1px solid ${C.line}`, borderRadius: 10,
           backgroundImage: `radial-gradient(${C.line} 1px, transparent 1px)`, backgroundSize: "26px 26px",
         }}>
@@ -426,6 +427,7 @@ function FloorPlan({ tables, guests, canEdit, addTable, updateTable, removeTable
               No tables yet.
             </div>
           )}
+        </div>
         </div>
 
         <div style={{ display: "flex", gap: 18, marginTop: 12, fontSize: 11, color: C.ash, flexWrap: "wrap" }}>
