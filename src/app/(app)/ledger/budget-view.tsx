@@ -18,6 +18,7 @@ interface BudgetItem {
   transaction_date: string | null;
   is_paid: boolean;
   paid_date: string | null;
+  off_top: boolean;
 }
 
 interface RevenueItem {
@@ -217,13 +218,17 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
       </div>
 
       {coproduction && (() => {
-        const basisAmount = coproduction.basis === "gross" ? revenueTotal : net;
-        const leadShare = (basisAmount * coproduction.leadPct) / 100;
-        const partnerShare = (basisAmount * coproduction.partnerPct) / 100;
+        const isTickets = coproduction.basis === "tickets";
+        const ticketSales = revenueItems.filter((r) => r.category === "ticket_sales").reduce((s, r) => s + (r.amount || 0), 0);
+        const offTop = budgetItems.filter((b) => b.off_top).reduce((s, b) => s + (b.budget_amount || 0), 0);
+        const basisAmount = isTickets ? ticketSales - offTop : coproduction.basis === "gross" ? revenueTotal : net;
+        const splittable = isTickets ? Math.max(basisAmount, 0) : basisAmount;
+        const leadShare = (splittable * coproduction.leadPct) / 100;
+        const partnerShare = (splittable * coproduction.partnerPct) / 100;
         const agentName = coproduction.fiscalAgent === "lead" ? coproduction.leadName : coproduction.partnerName;
         const otherName = coproduction.fiscalAgent === "lead" ? coproduction.partnerName : coproduction.leadName;
         const otherShare = coproduction.fiscalAgent === "lead" ? partnerShare : leadShare;
-        const basisLabel = coproduction.basis === "gross" ? "gross revenue" : "net, after all costs";
+        const basisLabel = isTickets ? "ticket sales, venue off the top" : coproduction.basis === "gross" ? "gross revenue" : "net, after all costs";
         return (
           <div className="border border-brick/30 rounded-card p-4 bg-brick/5">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -232,10 +237,28 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
                 {coproduction.leadName} {coproduction.leadPct}% · {coproduction.partnerName} {coproduction.partnerPct}% of {basisLabel}
               </span>
             </div>
+
+            {isTickets && (
+              <div className="mt-3 text-body-sm">
+                <div className="flex justify-between py-1 border-b border-bone/50">
+                  <span className="text-ash">Ticket sales (gross)</span>
+                  <span className="font-mono text-ink">{fmt(ticketSales)}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-bone/50">
+                  <span className="text-ash">Less venue, off the top</span>
+                  <span className="font-mono text-conflict">{"\u2212"}{fmt(offTop)}</span>
+                </div>
+                <div className="flex justify-between py-1 font-medium">
+                  <span className="text-ink">Pool to split</span>
+                  <span className={`font-mono ${basisAmount >= 0 ? "text-confirmed" : "text-conflict"}`}>{fmt(basisAmount)}</span>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-3 gap-3 mt-3">
               <div className="bg-card border border-bone rounded-card px-3 py-2 text-center">
                 <p className={`font-mono text-display-sm ${basisAmount >= 0 ? "text-confirmed" : "text-conflict"}`}>{fmt(basisAmount)}</p>
-                <p className="text-body-xs text-muted mt-0.5">{coproduction.basis === "gross" ? "Gross" : "Net"}</p>
+                <p className="text-body-xs text-muted mt-0.5">{isTickets ? "Pool" : coproduction.basis === "gross" ? "Gross" : "Net"}</p>
               </div>
               <div className="bg-card border border-bone rounded-card px-3 py-2 text-center">
                 <p className="font-mono text-display-sm text-ink">{fmt(leadShare)}</p>
@@ -246,10 +269,15 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
                 <p className="text-body-xs text-muted mt-0.5">{coproduction.partnerName} · {coproduction.partnerPct}%</p>
               </div>
             </div>
+
             <p className="text-body-sm text-ink mt-3">
-              {basisAmount >= 0
-                ? <>{agentName} holds all funds and pays {otherName} <span className="font-semibold">{fmt(otherShare)}</span>.</>
-                : <>Net loss. {otherName} owes {agentName} <span className="font-semibold">{fmt(Math.abs(otherShare))}</span> toward the shortfall.</>}
+              {isTickets
+                ? (basisAmount > 0
+                    ? <>{agentName} collects ticket revenue and pays {otherName} <span className="font-semibold">{fmt(otherShare)}</span>.</>
+                    : <>Ticket sales haven&apos;t cleared the venue cost yet, so there&apos;s nothing to split. The split begins once ticket sales pass <span className="font-semibold">{fmt(offTop)}</span>.</>)
+                : (basisAmount >= 0
+                    ? <>{agentName} holds all funds and pays {otherName} <span className="font-semibold">{fmt(otherShare)}</span>.</>
+                    : <>Net loss. {otherName} owes {agentName} <span className="font-semibold">{fmt(Math.abs(otherShare))}</span> toward the shortfall.</>)}
             </p>
             {coproduction.notes && <p className="text-body-xs text-muted mt-2 leading-relaxed">{coproduction.notes}</p>}
           </div>

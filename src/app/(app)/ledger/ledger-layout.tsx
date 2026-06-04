@@ -43,6 +43,7 @@ interface BudgetItem {
   transaction_date: string | null;
   is_paid: boolean;
   paid_date: string | null;
+  off_top: boolean;
 }
 
 interface ContractSummary {

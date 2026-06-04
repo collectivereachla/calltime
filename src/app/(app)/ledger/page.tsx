@@ -190,12 +190,13 @@ export default async function LedgerPage() {
     transaction_date: string | null;
     is_paid: boolean;
     paid_date: string | null;
+    off_top: boolean;
   }[] = [];
 
   if (canManage && productionIds.length > 0) {
     const { data } = await supabase
       .from("budget_items")
-      .select("id, expense_name, category, budget_amount, paid_by, vendor, notes, transaction_date, is_paid, paid_date")
+      .select("id, expense_name, category, budget_amount, paid_by, vendor, notes, transaction_date, is_paid, paid_date, off_top")
       .in("production_id", productionIds)
       .order("category")
       .order("budget_amount", { ascending: false, nullsFirst: false });
