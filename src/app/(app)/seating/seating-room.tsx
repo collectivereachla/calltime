@@ -369,8 +369,8 @@ function FloorPlan({ tables, guests, canEdit, addTable, updateTable, removeTable
   };
 
   return (
-    <div style={{ padding: "20px 34px", display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
-      <div style={{ flex: "1 1 560px", minWidth: 320 }}>
+    <div style={{ padding: "20px 34px", display: "flex", flexDirection: "column", gap: 20, alignItems: "stretch" }}>
+      <div style={{ width: "100%" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }} className="no-print">
           <div style={{ fontSize: 12, color: C.ash }}>{canEdit ? "Drag tables to arrange the room. Tap a table to name it and seat guests." : "Tap a table to see who's seated."}</div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -438,8 +438,8 @@ function FloorPlan({ tables, guests, canEdit, addTable, updateTable, removeTable
         </div>
       </div>
 
-      {/* side panel */}
-      <div style={{ flex: "0 1 320px", minWidth: 280 }} className="no-print">
+      {/* table detail panel — below the map */}
+      <div style={{ width: "100%", maxWidth: 640, margin: "0 auto" }} className="no-print">
         {sel ? (
           <div style={{ border: `1px solid ${C.line}`, borderRadius: 10, overflow: "hidden" }}>
             <div style={{ background: C.paperDeep, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.line}` }}>
