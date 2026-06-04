@@ -32,7 +32,7 @@ export default async function SeatingPage() {
 
   const { data: tables } = await supabase
     .from("seating_tables")
-    .select("id, number, name, capacity, x, y")
+    .select("id, number, name, capacity, x, y, amount, source, status")
     .eq("production_id", activeProductionId)
     .order("number");
 

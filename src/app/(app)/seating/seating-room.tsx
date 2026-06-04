@@ -36,7 +36,7 @@ const ClipboardList = glyph("▤");
 const X = glyph("✕");
 const CircleDollarSign = glyph("$");
 
-type Table = { id: string; number: number; name: string | null; capacity: number; x: number; y: number };
+type Table = { id: string; number: number; name: string | null; capacity: number; x: number; y: number; amount: number | null; source: string | null; status: string };
 type Guest = { id: string; name: string; party_size: number; amount: number | null; source: string | null; status: string; table_id: string | null; notes: string | null };
 type Totals = { collected: number; heads: number; seated: number; bySource: Record<string, number>; outstanding: Guest[]; projected: number | null };
 
@@ -69,11 +69,16 @@ export function SeatingRoom({
   );
 
   const totals = (() => {
-    const collected = guests.reduce((s, g) => s + (Number(g.amount) || 0), 0);
+    // Tables are sold as a unit; GA (unseated) is sold per seat. Seated guests
+    // carry no payment — the table holds it.
+    const tableMoney = tables.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const gaMoney = guests.reduce((s, g) => s + (Number(g.amount) || 0), 0);
+    const collected = tableMoney + gaMoney;
     const heads = guests.reduce((s, g) => s + (Number(g.party_size) || 0), 0);
     const seated = guests.filter((g) => g.table_id).reduce((s, g) => s + (Number(g.party_size) || 0), 0);
     const bySource: Record<string, number> = {};
     SOURCES.forEach((s) => (bySource[s] = 0));
+    tables.forEach((t) => { if (t.source) bySource[t.source] = (bySource[t.source] || 0) + (Number(t.amount) || 0); });
     guests.forEach((g) => { if (g.source) bySource[g.source] = (bySource[g.source] || 0) + (Number(g.amount) || 0); });
     const outstanding = guests.filter((g) => g.status === "Unpaid" || g.status === "Partial");
     const projected = price ? Number(price) * heads : null;
@@ -451,6 +456,23 @@ function FloorPlan({ tables, guests, canEdit, addTable, updateTable, removeTable
               <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".1em", color: C.ash, fontWeight: 600 }}>Capacity</label>
               <input className="ct-input" data-nodrag type="number" min="1" value={sel.capacity} disabled={!canEdit} style={{ marginTop: 4, marginBottom: 14 }}
                 onChange={(e) => updateTable(sel.id, { capacity: Number(e.target.value) || 1 })} />
+
+              <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".1em", color: C.ash, fontWeight: 600 }}>Table purchase</label>
+              <div style={{ display: "flex", gap: 6, marginTop: 4, marginBottom: 14 }}>
+                <span style={{ position: "relative", display: "inline-flex", alignItems: "center", flex: "0 0 86px" }}>
+                  <span style={{ position: "absolute", left: 8, color: C.ash, fontSize: 13 }}>$</span>
+                  <input className="ct-input" data-nodrag value={sel.amount == null ? "" : String(sel.amount)} placeholder="0" disabled={!canEdit} style={{ paddingLeft: 18 }}
+                    onChange={(e) => updateTable(sel.id, { amount: (e.target.value.replace(/[^0-9.]/g, "") || null) as unknown as number | null }, false)}
+                    onBlur={(e) => updateTable(sel.id, { amount: (e.target.value === "" ? null : Number(e.target.value.replace(/[^0-9.]/g, ""))) })} />
+                </span>
+                <select className="ct-input" data-nodrag value={sel.source || ""} disabled={!canEdit} onChange={(e) => updateTable(sel.id, { source: e.target.value })}>
+                  <option value="">—</option>
+                  {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <select className="ct-input" data-nodrag value={sel.status} disabled={!canEdit} style={{ color: STATUS_COLOR[sel.status], fontWeight: 600, flex: "0 0 92px" }} onChange={(e) => updateTable(sel.id, { status: e.target.value })}>
+                  {STATUSES.map((s) => <option key={s} value={s} style={{ color: C.ink }}>{s}</option>)}
+                </select>
+              </div>
 
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".1em", color: C.ash, fontWeight: 600, marginBottom: 6 }}>
                 <Users size={12} style={{ verticalAlign: "middle", marginRight: 6 }} />

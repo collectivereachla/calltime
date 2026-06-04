@@ -6,10 +6,10 @@ import { assertNotPreviewing } from "@/lib/viewer";
 // Writes are authorized by RLS (leadership of the production's org). These
 // actions just perform the write; preview mode is hard-blocked.
 
-const TABLE_FIELDS = ["number", "name", "capacity", "x", "y"];
+const TABLE_FIELDS = ["number", "name", "capacity", "x", "y", "amount", "source", "status"];
 const GUEST_FIELDS = ["name", "party_size", "amount", "source", "status", "table_id", "notes"];
 
-const TABLE_COLS = "id, number, name, capacity, x, y";
+const TABLE_COLS = "id, number, name, capacity, x, y, amount, source, status";
 const GUEST_COLS = "id, name, party_size, amount, source, status, table_id, notes";
 
 export async function addSeatingTable(productionId: string) {
@@ -26,7 +26,7 @@ export async function addSeatingTable(productionId: string) {
   const y = 60 + Math.floor(idx / 4) * 155;
   const { data, error } = await supabase
     .from("seating_tables")
-    .insert({ production_id: productionId, number: nextNum, capacity: 8, x, y })
+    .insert({ production_id: productionId, number: nextNum, capacity: 8, x, y, amount: 400, status: "Paid" })
     .select(TABLE_COLS)
     .single();
   if (error) throw new Error(error.message);
@@ -41,6 +41,11 @@ export async function updateSeatingTable(id: string, patch: Record<string, unkno
   if ("capacity" in clean) clean.capacity = Number(clean.capacity) || 1;
   if ("number" in clean) clean.number = Number(clean.number) || 1;
   if ("name" in clean) clean.name = (clean.name as string)?.trim() || null;
+  if ("amount" in clean) {
+    const a = clean.amount;
+    clean.amount = a === "" || a == null ? null : Number(a);
+  }
+  if ("source" in clean) clean.source = (clean.source as string) || null;
   const { error } = await supabase.from("seating_tables").update(clean).eq("id", id);
   if (error) throw new Error(error.message);
 }
