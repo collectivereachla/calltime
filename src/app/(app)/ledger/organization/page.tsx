@@ -32,6 +32,29 @@ export default async function OrganizationBudgetPage() {
   const t = rollup.totals;
   const cash = t.received - t.spent;
 
+  // Org-level Statement of Activity — money not tied to a single production
+  const { data: financeRows } = await supabase
+    .from("org_finance_lines")
+    .select("section, category, amount, period_label, sort_order")
+    .eq("org_id", orgId);
+  const fl = (financeRows || [])
+    .map((l) => ({ ...l, amount: Number(l.amount) }))
+    .sort((a, b) => a.sort_order - b.sort_order);
+  const sumAmt = (arr: { amount: number }[]) => arr.reduce((s, l) => s + l.amount, 0);
+  const revLines = fl.filter((l) => l.section === "revenue");
+  const expLines = fl.filter((l) => l.section === "expenditure");
+  const otherRevLines = fl.filter((l) => l.section === "other_revenue");
+  const balanceLine = fl.find((l) => l.section === "balance");
+  const revTotal = sumAmt(revLines);
+  const expTotal = sumAmt(expLines);
+  const netOperating = revTotal - expTotal;
+  const otherRevTotal = sumAmt(otherRevLines);
+  const netRevenue = netOperating + otherRevTotal;
+  const hasStatement = fl.length > 0;
+  const statementPeriod = fl[0]?.period_label || "";
+  const money2 = (n: number) =>
+    n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   const Stat = ({ label, value, accent }: { label: string; value: number; accent?: boolean }) => (
     <div className="bg-card border border-bone rounded-card px-4 py-3">
       <p className="text-body-xs text-muted uppercase tracking-wider">{label}</p>
@@ -48,6 +71,69 @@ export default async function OrganizationBudgetPage() {
           {org?.name || "Organization"} — every active production combined.
         </p>
       </div>
+
+      {hasStatement && (
+        <div className="bg-card border border-bone rounded-card overflow-hidden mb-8">
+          <div className="px-4 py-3 border-b border-bone">
+            <p className="font-display text-display-xs text-ink">Statement of Activity</p>
+            {statementPeriod && <p className="text-body-xs text-muted mt-0.5">{statementPeriod}</p>}
+          </div>
+          <table className="w-full text-body-sm">
+            <tbody>
+              <tr><td colSpan={2} className="px-4 pt-3 pb-1 text-body-xs uppercase tracking-wider text-muted">Revenue</td></tr>
+              {revLines.map((l) => (
+                <tr key={`rev-${l.category}`} className="border-b border-bone/40">
+                  <td className="px-4 py-1.5 text-ink">{l.category}</td>
+                  <td className="px-4 py-1.5 text-right font-mono text-ink">{money2(l.amount)}</td>
+                </tr>
+              ))}
+              <tr className="border-b border-bone font-semibold">
+                <td className="px-4 py-1.5 text-ink">Total Revenue</td>
+                <td className="px-4 py-1.5 text-right font-mono text-ink">{money2(revTotal)}</td>
+              </tr>
+              <tr><td colSpan={2} className="px-4 pt-3 pb-1 text-body-xs uppercase tracking-wider text-muted">Expenditures</td></tr>
+              {expLines.map((l) => (
+                <tr key={`exp-${l.category}`} className="border-b border-bone/40">
+                  <td className="px-4 py-1.5 text-ink">{l.category}</td>
+                  <td className="px-4 py-1.5 text-right font-mono text-ink">{money2(l.amount)}</td>
+                </tr>
+              ))}
+              <tr className="border-b border-bone font-semibold">
+                <td className="px-4 py-1.5 text-ink">Total Expenditures</td>
+                <td className="px-4 py-1.5 text-right font-mono text-ink">{money2(expTotal)}</td>
+              </tr>
+              <tr className="border-b border-bone">
+                <td className="px-4 py-2 text-ink font-medium">Net Operating Revenue</td>
+                <td className={`px-4 py-2 text-right font-mono ${netOperating >= 0 ? "text-confirmed" : "text-conflict"}`}>{money2(netOperating)}</td>
+              </tr>
+              {otherRevLines.length > 0 && (
+                <>
+                  <tr><td colSpan={2} className="px-4 pt-3 pb-1 text-body-xs uppercase tracking-wider text-muted">Other Revenue</td></tr>
+                  {otherRevLines.map((l) => (
+                    <tr key={`oth-${l.category}`} className="border-b border-bone/40">
+                      <td className="px-4 py-1.5 text-ink">{l.category}</td>
+                      <td className="px-4 py-1.5 text-right font-mono text-ink">{money2(l.amount)}</td>
+                    </tr>
+                  ))}
+                </>
+              )}
+              <tr className="border-t-2 border-ink font-semibold">
+                <td className="px-4 py-2 text-ink">Net Revenue</td>
+                <td className={`px-4 py-2 text-right font-mono ${netRevenue >= 0 ? "text-confirmed" : "text-conflict"}`}>{money2(netRevenue)}</td>
+              </tr>
+              {balanceLine && (
+                <tr className="border-t border-bone bg-bone/20">
+                  <td className="px-4 py-2 text-ink font-medium">{balanceLine.category}</td>
+                  <td className="px-4 py-2 text-right font-mono text-ink">{money2(balanceLine.amount)}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <p className="text-body-xs text-muted px-4 py-2.5 border-t border-bone">
+            Org-level books, separate from the per-production rollup below.
+          </p>
+        </div>
+      )}
 
       {rollup.shows.length === 0 ? (
         <div className="bg-card border border-bone rounded-card px-6 py-10 text-center">
