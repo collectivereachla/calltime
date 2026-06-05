@@ -211,7 +211,7 @@ export function SeatingRoom({
         />
       ) : (
         <FloorPlan
-          tables={tables} guests={guests} canEdit={canEdit}
+          tables={tables} guests={guests} canEdit={canEdit} productionTitle={productionTitle}
           addTable={addTable} updateTable={updateTable} removeTable={removeTable}
           updateGuest={updateGuest} addGuestToTable={addGuestToTable} occupancyOf={occupancyOf}
           selectedTable={selectedTable} setSelectedTable={setSelectedTable}
@@ -347,13 +347,13 @@ function Roster({ guests, tables, totals, price, canEdit, changePrice, addParty,
 }
 
 type FloorProps = {
-  tables: Table[]; guests: Guest[]; canEdit: boolean;
+  tables: Table[]; guests: Guest[]; canEdit: boolean; productionTitle: string;
   addTable: () => void; updateTable: (id: string, patch: Partial<Table>, save?: boolean) => void; removeTable: (id: string) => void;
   updateGuest: (id: string, patch: Partial<Guest>, save?: boolean) => void; addGuestToTable: (tableId: string, name: string, size: number) => void;
   occupancyOf: (id: string) => number; selectedTable: string | null; setSelectedTable: (id: string | null) => void;
 };
 
-function FloorPlan({ tables, guests, canEdit, addTable, updateTable, removeTable, updateGuest, addGuestToTable, occupancyOf, selectedTable, setSelectedTable }: FloorProps) {
+function FloorPlan({ tables, guests, canEdit, productionTitle, addTable, updateTable, removeTable, updateGuest, addGuestToTable, occupancyOf, selectedTable, setSelectedTable }: FloorProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
   const [newName, setNewName] = useState("");
@@ -408,8 +408,8 @@ function FloorPlan({ tables, guests, canEdit, addTable, updateTable, removeTable
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }} className="no-print">
           <div style={{ fontSize: 12, color: C.ash }}>{canEdit ? "Drag tables to arrange the room. Tap a table to name it and seat guests." : "Tap a table to see who's seated."}</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="ct-btn" style={{ background: C.paperDeep, color: C.ink, border: `1px solid ${C.line}`, padding: "8px 13px", fontSize: 13 }} onClick={() => window.print()}>
-              <Printer size={14} /> Print
+            <button className="ct-btn" style={{ background: C.paperDeep, color: C.ink, border: `1px solid ${C.line}`, padding: "8px 13px", fontSize: 13 }} onClick={() => printFloorPlan(tables, guests, productionTitle)}>
+              <Printer size={14} /> Print map
             </button>
             {canEdit && (
               <button className="ct-btn" style={{ background: C.brick, color: C.paper, padding: "8px 14px", fontSize: 13 }} onClick={addTable}>
@@ -804,5 +804,46 @@ function printReport(kind: string, guests: Guest[], tables: Table[], productionT
 
   const w = window.open("", "_blank");
   if (!w) { alert("Allow pop-ups to print the report."); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ------------------ Floor plan: one-page landscape print ------------------ */
+
+function printFloorPlan(tables: Table[], guests: Guest[], productionTitle: string) {
+  const esc = (s: unknown) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
+  const occ = (id: string) => guests.filter((g) => g.table_id === id).reduce((s, g) => s + (Number(g.party_size) || 0), 0);
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const maxX = Math.max(940, ...tables.map((t) => t.x + 104));
+  const maxY = Math.max(900, ...tables.map((t) => t.y + 104));
+
+  const circles = tables.map((t) => {
+    const o = occ(t.id);
+    const cls = o > t.capacity ? "t over" : o >= t.capacity ? "t full" : o > 0 ? "t part" : "t";
+    return `<div class="${cls}" style="left:${t.x}px;top:${t.y}px;">
+      <div class="num">${t.number}</div><div class="nm">${esc(t.name)}</div><div class="cap">${o}/${t.capacity}</div></div>`;
+  }).join("");
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Floor Plan — ${esc(productionTitle)}</title>
+  <style>
+    *{box-sizing:border-box;} body{font-family:'Inter',system-ui,sans-serif;color:#1A1A1B;margin:0;padding:10px 14px;}
+    h1{font-family:'Newsreader',Georgia,serif;font-size:20px;margin:0;}
+    .sub{color:#7A726A;font-size:11px;margin:0 0 6px;}
+    .plan{position:relative;width:${maxX}px;height:${maxY}px;zoom:0.78;}
+    .stage{position:absolute;left:50%;top:6px;transform:translateX(-50%);border:1px dashed #C4522D;border-radius:6px;padding:5px 30px;font-size:11px;letter-spacing:.18em;color:#7A726A;background:#F3E9DF;}
+    .runway{position:absolute;left:50%;top:32px;transform:translateX(-50%);width:34px;height:112px;border:1px dashed #C4522D;border-top:none;background:#F8F0E6;}
+    .t{position:absolute;width:104px;height:104px;border-radius:50%;border:1.5px solid #C9BBA6;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:5px;}
+    .t.part{background:#F3E5DC;} .t.full{background:#E8C9BC;border-color:#C4522D;} .t.over{background:#7A1E12;color:#fff;border-color:#7A1E12;}
+    .t .num{font-family:'Newsreader',Georgia,serif;font-size:21px;font-weight:600;line-height:1;}
+    .t .nm{font-size:9.5px;line-height:1.12;margin-top:2px;max-width:94px;overflow:hidden;}
+    .t .cap{font-size:9px;color:#7A726A;margin-top:2px;} .t.over .cap{color:#f0d8d2;}
+    @media print{ @page{ size:landscape; margin:8mm; } body{padding:0;} }
+  </style></head><body>
+  <h1>Floor Plan</h1><div class="sub">${esc(productionTitle)} · ${esc(today)}</div>
+  <div class="plan"><div class="stage">STAGE</div><div class="runway"></div>${circles}</div>
+  <script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>
+  </body></html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) { alert("Allow pop-ups to print the floor plan."); return; }
   w.document.open(); w.document.write(html); w.document.close();
 }
