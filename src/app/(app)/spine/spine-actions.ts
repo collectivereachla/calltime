@@ -146,10 +146,13 @@ async function notifyTaggedActors(
     if (notified.has(assignment.person_id)) continue;
     if (assignment.person_id === author.id) continue;
 
-    // Check if this actor's character is tagged
-    const actorCharacter = assignment.role_title.toLowerCase();
-    const isTagged = taggedCharacters.some(
-      (tc) => tc.toLowerCase() === actorCharacter
+    // A doubled-cast actor's role_title can list several characters
+    // ("Rev. Marshall / Ashmay"); match the tag against each part.
+    const roleParts = assignment.role_title
+      .split(" / ")
+      .map((p: string) => p.trim().toLowerCase());
+    const isTagged = taggedCharacters.some((tc) =>
+      roleParts.includes(tc.trim().toLowerCase())
     );
 
     if (isTagged) {
