@@ -8,6 +8,7 @@ import {
   addSeatingGuest,
   updateSeatingGuest,
   removeSeatingGuest,
+  setGuestCheckedIn,
   setSeatingPrice,
 } from "./actions";
 
@@ -37,7 +38,7 @@ const X = glyph("✕");
 const CircleDollarSign = glyph("$");
 
 type Table = { id: string; number: number; name: string | null; capacity: number; x: number; y: number; amount: number | null; source: string | null; status: string };
-type Guest = { id: string; name: string; party_size: number; amount: number | null; source: string | null; status: string; table_id: string | null; notes: string | null };
+type Guest = { id: string; name: string; party_size: number; amount: number | null; source: string | null; status: string; table_id: string | null; notes: string | null; checked_in?: boolean };
 type Totals = { collected: number; heads: number; seated: number; bySource: Record<string, number>; outstanding: Guest[]; projected: number | null };
 
 const persist = (p: Promise<unknown>) => { p.catch((e) => console.error("seating save failed:", e)); };
@@ -48,7 +49,7 @@ export function SeatingRoom({
   productionId: string; productionTitle: string; canEdit: boolean;
   initialTables: Table[]; initialGuests: Guest[]; initialPrice: string;
 }) {
-  const [tab, setTab] = useState<"roster" | "floor">("roster");
+  const [tab, setTab] = useState<"roster" | "floor" | "checkin">("roster");
   const [tables, setTables] = useState<Table[]>(initialTables);
   const [guests, setGuests] = useState<Guest[]>(initialGuests);
   const [price, setPrice] = useState(initialPrice);
@@ -102,6 +103,16 @@ export function SeatingRoom({
     const row = await addSeatingGuest(productionId, tableId, name, size);
     if (row) setGuests((g) => [...g, row as Guest]);
   };
+  const checkIn = (id: string, value: boolean) => {
+    setGuests((gs) => gs.map((g) => (g.id === id ? { ...g, checked_in: value } : g)));
+    persist(setGuestCheckedIn(id, value));
+  };
+  const addWalkIn = async (name: string, tableId: string | null) => {
+    const row = (await addSeatingGuest(productionId, tableId, name, 1)) as Guest | undefined;
+    if (!row) return;
+    setGuests((g) => [...g, { ...row, checked_in: true }]);
+    persist(setGuestCheckedIn(row.id, true));
+  };
 
   // ---- table ops ----
   const addTable = async () => {
@@ -150,13 +161,31 @@ export function SeatingRoom({
         <div style={{ color: C.ash, fontSize: 14, marginBottom: 20 }}>
           Seating &amp; payment ledger{!canEdit && " · view only"}
         </div>
-        <div style={{ display: "flex", gap: 26 }} className="no-print">
+        <div style={{ display: "flex", gap: 26, alignItems: "center", flexWrap: "wrap" }} className="no-print">
           <button className={`ct-tab ${tab === "roster" ? "active" : ""}`} onClick={() => setTab("roster")}>
             <ClipboardList size={16} /> Guests &amp; Payments
+          </button>
+          <button className={`ct-tab ${tab === "checkin" ? "active" : ""}`} onClick={() => setTab("checkin")}>
+            <Users size={16} /> Check-in
           </button>
           <button className={`ct-tab ${tab === "floor" ? "active" : ""}`} onClick={() => setTab("floor")}>
             <MapPin size={16} /> Floor Plan
           </button>
+          <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 7 }}>
+            <Printer size={14} color={C.ash} />
+            <select
+              className="ct-input"
+              style={{ width: "auto", minWidth: 190, cursor: "pointer", paddingRight: 24 }}
+              value=""
+              onChange={(e) => { const v = e.target.value; e.target.value = ""; if (v) printReport(v, guests, tables, productionTitle); }}
+            >
+              <option value="">Print a report…</option>
+              <option value="checkin">Check-in sheet (A–Z, with tables)</option>
+              <option value="alpha_tables">Guest list (A–Z, with tables)</option>
+              <option value="alpha_names">Guest list (A–Z, names only)</option>
+              <option value="bytable">Seating by table</option>
+            </select>
+          </span>
         </div>
       </div>
 
@@ -174,6 +203,11 @@ export function SeatingRoom({
         <Roster
           guests={guests} tables={tables} totals={totals} price={price} canEdit={canEdit}
           changePrice={changePrice} addParty={addParty} updateGuest={updateGuest} removeGuest={removeGuest} occupancyOf={occupancyOf}
+        />
+      ) : tab === "checkin" ? (
+        <CheckIn
+          guests={guests} tables={tables} canEdit={canEdit}
+          checkIn={checkIn} addWalkIn={addWalkIn} occupancyOf={occupancyOf}
         />
       ) : (
         <FloorPlan
@@ -545,4 +579,230 @@ function Legend({ color, ring, label }: { color: string; ring: string; label: st
       {label}
     </span>
   );
+}
+
+/* ----------------------- Check-in (day-of door tool) ----------------------- */
+
+const surnameKey = (name: string) => {
+  const parts = (name || "").trim().split(/\s+/);
+  const last = parts.length ? parts[parts.length - 1] : "";
+  return (last + " " + (name || "")).toLowerCase();
+};
+
+function tableLabelFor(g: Guest, tables: Table[]): string {
+  if (!g.table_id) return "—";
+  const t = tables.find((x) => x.id === g.table_id);
+  if (!t) return "—";
+  return `Table ${t.number}${t.name ? " · " + t.name : ""}`;
+}
+
+type CheckInProps = {
+  guests: Guest[]; tables: Table[]; canEdit: boolean;
+  checkIn: (id: string, value: boolean) => void;
+  addWalkIn: (name: string, tableId: string | null) => void;
+  occupancyOf: (id: string) => number;
+};
+
+function CheckIn({ guests, tables, canEdit, checkIn, addWalkIn, occupancyOf }: CheckInProps) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "remaining" | "arrived">("all");
+  const [walkName, setWalkName] = useState("");
+  const [walkTable, setWalkTable] = useState("");
+  const [showWalk, setShowWalk] = useState(false);
+
+  const totalHeads = guests.reduce((s, g) => s + (Number(g.party_size) || 0), 0);
+  const arrivedHeads = guests.filter((g) => g.checked_in).reduce((s, g) => s + (Number(g.party_size) || 0), 0);
+  const arrivedParties = guests.filter((g) => g.checked_in).length;
+
+  const q = query.trim().toLowerCase();
+  const list = guests
+    .filter((g) => (filter === "all" ? true : filter === "arrived" ? g.checked_in : !g.checked_in))
+    .filter((g) => {
+      if (!q) return true;
+      return (g.name || "").toLowerCase().includes(q) || tableLabelFor(g, tables).toLowerCase().includes(q);
+    })
+    .sort((a, b) => surnameKey(a.name).localeCompare(surnameKey(b.name)));
+
+  const openTables = tables
+    .map((t) => ({ t, open: t.capacity - occupancyOf(t.id) }))
+    .filter((o) => o.open > 0)
+    .sort((a, b) => a.t.number - b.t.number);
+
+  const doWalkIn = () => {
+    const name = walkName.trim();
+    if (!name) return;
+    addWalkIn(name, walkTable || null);
+    setWalkName(""); setWalkTable("");
+  };
+
+  return (
+    <div style={{ padding: "20px 34px", maxWidth: 760, margin: "0 auto" }}>
+      {/* arrival tally */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ fontFamily: serif, fontSize: 30, fontWeight: 600, color: C.green, lineHeight: 1 }}>
+          {arrivedHeads} <span style={{ color: C.ash, fontWeight: 400, fontSize: 20 }}>/ {totalHeads} guests in</span>
+        </div>
+        <div style={{ fontSize: 12, color: C.ash }}>{arrivedParties} of {guests.length} parties checked in</div>
+      </div>
+
+      {/* search */}
+      <input
+        className="ct-input"
+        autoFocus
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search a name (first or last) or a table…"
+        style={{ fontSize: 16, padding: "11px 13px", marginBottom: 10 }}
+      />
+
+      {/* filter toggles + walk-in */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }} className="no-print">
+        {(["all", "remaining", "arrived"] as const).map((f) => (
+          <button key={f} onClick={() => setFilter(f)} className="ct-btn"
+            style={{
+              padding: "7px 14px", fontSize: 13, textTransform: "capitalize",
+              background: filter === f ? C.ink : C.paperDeep, color: filter === f ? C.paper : C.ink,
+              border: `1px solid ${filter === f ? C.ink : C.line}`,
+            }}>
+            {f === "remaining" ? "Not yet in" : f}
+          </button>
+        ))}
+        {canEdit && (
+          <button onClick={() => setShowWalk((s) => !s)} className="ct-btn"
+            style={{ marginLeft: "auto", padding: "7px 14px", fontSize: 13, background: C.brick, color: C.paper }}>
+            <Plus size={14} /> Walk-in
+          </button>
+        )}
+      </div>
+
+      {showWalk && canEdit && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center", background: C.paperDeep, border: `1px solid ${C.line}`, borderRadius: 8, padding: 12 }} className="no-print">
+          <input className="ct-input" style={{ flex: "1 1 200px" }} value={walkName} placeholder="Walk-in name"
+            onChange={(e) => setWalkName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") doWalkIn(); }} />
+          <select className="ct-input" style={{ flex: "0 1 230px" }} value={walkTable} onChange={(e) => setWalkTable(e.target.value)}>
+            <option value="">No table (seat later)</option>
+            {openTables.map(({ t, open }) => (
+              <option key={t.id} value={t.id}>{`Table ${t.number}${t.name ? " · " + t.name : ""} — ${open} open`}</option>
+            ))}
+          </select>
+          <button className="ct-btn" style={{ background: C.green, color: C.paper, padding: "9px 15px", fontSize: 13 }} onClick={doWalkIn}>
+            Add &amp; check in
+          </button>
+        </div>
+      )}
+
+      {/* the list */}
+      <div style={{ border: `1px solid ${C.line}`, borderRadius: 10, overflow: "hidden" }}>
+        {list.map((g) => {
+          const inHere = !!g.checked_in;
+          return (
+            <div key={g.id} onClick={() => canEdit && checkIn(g.id, !inHere)}
+              style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
+                borderBottom: `1px solid ${C.line}`, cursor: canEdit ? "pointer" : "default",
+                background: inHere ? "#EAF1EC" : C.paper,
+              }}>
+              <span style={{
+                width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                border: `2px solid ${inHere ? C.green : C.line}`, background: inHere ? C.green : C.paper,
+                color: C.paper, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15,
+              }}>{inHere ? "✓" : ""}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, color: C.ink, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {g.name || "(unnamed)"}{Number(g.party_size) > 1 ? <span style={{ color: C.ash, fontWeight: 400 }}> · party of {g.party_size}</span> : null}
+                </div>
+                <div style={{ fontSize: 12, color: g.table_id ? C.ash : C.brick }}>{g.table_id ? tableLabelFor(g, tables) : "No table assigned"}</div>
+              </div>
+              {inHere && <span style={{ fontSize: 11, color: C.green, fontWeight: 600, flexShrink: 0 }}>IN</span>}
+            </div>
+          );
+        })}
+        {list.length === 0 && (
+          <div style={{ padding: 28, textAlign: "center", color: C.ash, fontStyle: "italic" }}>
+            {q ? `No one matches “${query}.”` : "No guests."}
+          </div>
+        )}
+      </div>
+
+      {/* open-seats helper for anyone without a table */}
+      {openTables.length > 0 && (
+        <div style={{ marginTop: 16, fontSize: 12, color: C.ash }} className="no-print">
+          <span style={{ fontWeight: 600, color: C.ink }}>Tables with open seats:</span>{" "}
+          {openTables.map(({ t, open }) => `${t.number}${t.name ? " (" + t.name + ")" : ""} +${open}`).join(",  ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ----------------------------- Print reports ------------------------------ */
+
+function printReport(kind: string, guests: Guest[], tables: Table[], productionTitle: string) {
+  const esc = (s: unknown) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
+  const tLabel = (g: Guest) => {
+    if (!g.table_id) return "";
+    const t = tables.find((x) => x.id === g.table_id);
+    return t ? `${t.number}${t.name ? " " + t.name : ""}` : "";
+  };
+  const byName = [...guests].sort((a, b) => surnameKey(a.name).localeCompare(surnameKey(b.name)));
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
+  let title = "Guest List";
+  let body = "";
+
+  if (kind === "checkin") {
+    title = "Check-in Sheet";
+    body = `<table><thead><tr><th class="box"></th><th>Name</th><th class="c">Party</th><th>Table</th></tr></thead><tbody>` +
+      byName.map((g) => `<tr><td class="box">☐</td><td>${esc(g.name) || "<i>unnamed</i>"}</td><td class="c">${Number(g.party_size) > 1 ? g.party_size : ""}</td><td>${esc(tLabel(g))}</td></tr>`).join("") +
+      `</tbody></table>`;
+  } else if (kind === "alpha_tables") {
+    title = "Guest List — by name";
+    body = `<table><thead><tr><th>Name</th><th>Table</th></tr></thead><tbody>` +
+      byName.map((g) => `<tr><td>${esc(g.name) || "<i>unnamed</i>"}</td><td>${esc(tLabel(g))}</td></tr>`).join("") +
+      `</tbody></table>`;
+  } else if (kind === "alpha_names") {
+    title = "Guest List — names";
+    body = `<table><thead><tr><th>Name</th></tr></thead><tbody>` +
+      byName.map((g) => `<tr><td>${esc(g.name) || "<i>unnamed</i>"}</td></tr>`).join("") +
+      `</tbody></table>`;
+  } else if (kind === "bytable") {
+    title = "Seating — by table";
+    const ordered = [...tables].sort((a, b) => a.number - b.number);
+    body = ordered.map((t) => {
+      const gs = guests.filter((g) => g.table_id === t.id).sort((a, b) => surnameKey(a.name).localeCompare(surnameKey(b.name)));
+      const occ = gs.reduce((s, g) => s + (Number(g.party_size) || 0), 0);
+      const rows = gs.length
+        ? gs.map((g) => `<li>${esc(g.name)}${Number(g.party_size) > 1 ? ` (party of ${g.party_size})` : ""}</li>`).join("")
+        : `<li class="muted"><i>no guests yet</i></li>`;
+      return `<div class="tbl"><h2>Table ${t.number}${t.name ? " — " + esc(t.name) : ""} <span class="cap">${occ}/${t.capacity}</span></h2><ul>${rows}</ul></div>`;
+    }).join("");
+  }
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)} — ${esc(productionTitle)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; color:#1A1A1B; margin:28px; }
+    h1 { font-family:'Newsreader',Georgia,serif; font-size:24px; margin:0 0 2px; }
+    .sub { color:#7A726A; font-size:12px; margin-bottom:18px; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th { text-align:left; text-transform:uppercase; letter-spacing:.08em; font-size:10px; color:#7A726A; border-bottom:2px solid #1A1A1B; padding:6px 8px; }
+    td { padding:7px 8px; border-bottom:1px solid #E3DBCC; }
+    .box { width:30px; font-size:16px; text-align:center; }
+    .c { text-align:center; width:54px; }
+    tr { page-break-inside: avoid; }
+    .tbl { display:inline-block; width:48%; vertical-align:top; margin:0 1% 14px; page-break-inside:avoid; }
+    .tbl h2 { font-family:'Newsreader',Georgia,serif; font-size:15px; margin:0 0 4px; border-bottom:1px solid #C4522D; padding-bottom:3px; }
+    .tbl .cap { color:#7A726A; font-size:11px; font-weight:400; float:right; }
+    .tbl ul { margin:0; padding-left:18px; } .tbl li { font-size:12.5px; padding:1px 0; } .muted { list-style:none; margin-left:-18px; color:#7A726A; }
+    @media print { @page { margin:14mm; } }
+  </style></head><body>
+  <h1>${esc(title)}</h1>
+  <div class="sub">${esc(productionTitle)} · ${esc(today)} · ${guests.length} parties · ${guests.reduce((s, g) => s + (Number(g.party_size) || 0), 0)} guests</div>
+  ${body}
+  <script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>
+  </body></html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) { alert("Allow pop-ups to print the report."); return; }
+  w.document.open(); w.document.write(html); w.document.close();
 }

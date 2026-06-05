@@ -10,7 +10,7 @@ const TABLE_FIELDS = ["number", "name", "capacity", "x", "y", "amount", "source"
 const GUEST_FIELDS = ["name", "party_size", "amount", "source", "status", "table_id", "notes"];
 
 const TABLE_COLS = "id, number, name, capacity, x, y, amount, source, status";
-const GUEST_COLS = "id, name, party_size, amount, source, status, table_id, notes";
+const GUEST_COLS = "id, name, party_size, amount, source, status, table_id, notes, checked_in";
 
 export async function addSeatingTable(productionId: string) {
   await assertNotPreviewing();
@@ -93,6 +93,16 @@ export async function updateSeatingGuest(id: string, patch: Record<string, unkno
   }
   if ("table_id" in clean) clean.table_id = clean.table_id === "" ? null : clean.table_id;
   const { error } = await supabase.from("seating_guests").update(clean).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function setGuestCheckedIn(id: string, value: boolean) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("seating_guests")
+    .update({ checked_in: value, checked_in_at: value ? new Date().toISOString() : null })
+    .eq("id", id);
   if (error) throw new Error(error.message);
 }
 
