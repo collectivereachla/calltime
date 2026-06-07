@@ -983,13 +983,24 @@ const orchSideRows = (section: string, innerOnLeft: boolean): Cell[][] => {
 const ORCH_LEFT: Cell[][] = orchSideRows("Orchestra Left", false);  // aisle on the right
 const ORCH_RIGHT: Cell[][] = orchSideRows("Orchestra Right", true); // aisle on the left
 
-// --- Mezzanine side banks: single vertical columns. Seats 1,3,5 are partial-view.
-const bankCells = (section: string): Cell[] =>
-  [1, 3, 5, 7, 8, 9, 10, 11, 12, 13, 14].map((n) => ({
-    key: `${section}-${n}`, label: String(n), id: `${section}|${n}`, seatLabel: `${section} ${n}`, partial: n <= 5,
-  }));
-const MEZZ_LEFT_BANK = bankCells("Mezzanine Left");
-const MEZZ_RIGHT_BANK = bankCells("Mezzanine Right");
+// --- Mezzanine side banks. Top three rows are pairs: the odd seat (1,3,5) sits
+// inboard toward the stage, the even seat (2,4,6) sits outboard toward the wall and
+// is partial-view. Seats 7-14 are a single column aligned under the inboard column.
+const bankRows = (section: string, evenOutboardLeft: boolean): Cell[][] => {
+  const mk = (n: number): Cell => ({
+    key: `${section}-${n}`, label: String(n), id: `${section}|${n}`,
+    seatLabel: `${section} ${n}`, partial: n % 2 === 0 && n <= 6,
+  });
+  const rows: Cell[][] = [];
+  for (const odd of [1, 3, 5]) {
+    const even = odd + 1;
+    rows.push(evenOutboardLeft ? [mk(even), mk(odd)] : [mk(odd), mk(even)]);
+  }
+  for (const n of [7, 8, 9, 10, 11, 12, 13, 14]) rows.push([mk(n)]);
+  return rows;
+};
+const MEZZ_LEFT_BANK = bankRows("Mezzanine Left", true);    // evens on the outer (left) side
+const MEZZ_RIGHT_BANK = bankRows("Mezzanine Right", false); // evens on the outer (right) side
 
 // --- Mezzanine / Balcony block. Export calls rows L & M "Mezzanine Center".
 const BALCONY: Cell[][] = [
@@ -1000,8 +1011,7 @@ const BALCONY: Cell[][] = [
 
 const ALL_SEAT_IDS: Set<string> = (() => {
   const s = new Set<string>();
-  for (const block of [FRONT_ORCH, REAR_ORCH, ORCH_LEFT, ORCH_RIGHT, BALCONY]) for (const row of block) for (const c of row) if (c.id) s.add(c.id);
-  for (const c of [...MEZZ_LEFT_BANK, ...MEZZ_RIGHT_BANK]) if (c.id) s.add(c.id);
+  for (const block of [FRONT_ORCH, REAR_ORCH, ORCH_LEFT, ORCH_RIGHT, BALCONY, MEZZ_LEFT_BANK, MEZZ_RIGHT_BANK]) for (const row of block) for (const c of row) if (c.id) s.add(c.id);
   return s;
 })();
 
@@ -1053,11 +1063,16 @@ function SeatBlock({ rows, occ, rowLabels }: { rows: Cell[][]; occ: Map<string, 
   );
 }
 
-function ColumnBank({ title, cells, occ }: { title: string; cells: Cell[]; occ: Map<string, Guest> }) {
+function ColumnBank({ title, rows, inboard, occ }: { title: string; rows: Cell[][]; inboard: "left" | "right"; occ: Map<string, Guest> }) {
+  const ROW_W = 25 * 2 + 4; // two seats + gap
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: C.paperDeep, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 7px", alignSelf: "flex-start" }}>
       <div style={{ fontSize: 9, letterSpacing: ".04em", textTransform: "uppercase", color: C.ash, fontWeight: 700, marginBottom: 2, whiteSpace: "nowrap" }}>{title}</div>
-      {cells.map((c) => <SeatDot key={c.key} cell={c} guest={c.id ? occ.get(c.id) : undefined} />)}
+      {rows.map((r, i) => (
+        <div key={i} style={{ display: "flex", gap: 4, width: ROW_W, justifyContent: r.length > 1 ? "space-between" : (inboard === "right" ? "flex-end" : "flex-start") }}>
+          {r.map((c) => <SeatDot key={c.key} cell={c} guest={c.id ? occ.get(c.id) : undefined} />)}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1072,7 +1087,7 @@ function SeatMap({ occ, placed }: { occ: Map<string, Guest>; placed: number }) {
             <span style={{ display: "inline-block", border: `1px dashed ${C.ash}`, color: C.ash, fontSize: 10, letterSpacing: ".24em", padding: "5px 64px", borderRadius: 4, textTransform: "uppercase" }}>Stage</span>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "flex-start", justifyContent: "center" }}>
-            <ColumnBank title="Mezz. Left" cells={MEZZ_LEFT_BANK} occ={occ} />
+            <ColumnBank title="Mezz. Left" rows={MEZZ_LEFT_BANK} inboard="right" occ={occ} />
             <div style={{ alignSelf: "flex-start" }}><SeatBlock rows={ORCH_LEFT} occ={occ} /></div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <SeatBlock rows={FRONT_ORCH} occ={occ} rowLabels />
@@ -1080,7 +1095,7 @@ function SeatMap({ occ, placed }: { occ: Map<string, Guest>; placed: number }) {
               <SeatBlock rows={REAR_ORCH} occ={occ} rowLabels />
             </div>
             <div style={{ alignSelf: "flex-start" }}><SeatBlock rows={ORCH_RIGHT} occ={occ} /></div>
-            <ColumnBank title="Mezz. Right" cells={MEZZ_RIGHT_BANK} occ={occ} />
+            <ColumnBank title="Mezz. Right" rows={MEZZ_RIGHT_BANK} inboard="left" occ={occ} />
           </div>
           <div style={{ marginTop: 18, background: C.paperDeep, border: `1px solid ${C.line}`, borderRadius: 8, padding: "12px 10px" }}>
             <div style={{ textAlign: "center", fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: C.ash, fontWeight: 700, marginBottom: 10 }}>Mezzanine / Balcony</div>
