@@ -140,12 +140,43 @@ export default async function RunPage() {
     return { person_id: p.id, name: p.preferred_name || p.full_name, role_title: c.role_title };
   });
 
+  // ── Calling Script: resolve the production's current script version ──
+  // Mirror Spine: prefer the working (unlocked) version, else the most recent.
+  const { data: scriptRows } = await supabase
+    .from("scripts")
+    .select("id, version, is_locked, created_at")
+    .eq("production_id", activeProductionId)
+    .order("created_at", { ascending: false });
+
+  const callingScript =
+    (scriptRows || []).find(s => !s.is_locked) || (scriptRows || [])[0] || null;
+
+  let callingLines: { id: string; line_number: number; act: number; scene: number; line_type: string; character: string | null; content: string }[] = [];
+  if (callingScript) {
+    const { data: clines } = await supabase
+      .from("script_lines")
+      .select("id, line_number, act, scene, line_type, character, content")
+      .eq("script_id", callingScript.id)
+      .order("line_number", { ascending: true });
+    callingLines = clines || [];
+  }
+
+  const { data: callingCuesData } = await supabase
+    .from("cues")
+    .select("id, department, cue_number, description, call_script_line_id, standby_script_line_id, status")
+    .eq("production_id", activeProductionId)
+    .in("department", ["lights", "sound"])
+    .order("sort_order", { ascending: true });
+
   return (
     <RunLayout
       production={production}
       canManage={canManage}
       personId={person!.id}
       today={today}
+      callingLines={callingLines}
+      callingCues={(callingCuesData || []) as never[]}
+      scriptVersionLabel={callingScript?.version || null}
       trackingScenes={(trackingScenes || []) as never[]}
       stageProps={(propsData || []) as never[]}
       actionItems={(actionItemsData || []) as never[]}

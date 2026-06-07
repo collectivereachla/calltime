@@ -3,6 +3,7 @@
 import { useState, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
 import { StageTracking } from "./stage-tracking";
+import { CallingScript, type CallingLine, type CallingCue } from "./calling-script";
 import {
   addRunSheetItem, toggleRunSheetItem, deleteRunSheetItem, resetRunSheet,
   submitShowReport, logRehearsalWork,
@@ -48,9 +49,12 @@ interface Props {
   stageProps: TrackingProps["props"];
   actionItems: TrackingProps["actionItems"];
   cast: TrackingProps["cast"];
+  callingLines: CallingLine[];
+  callingCues: CallingCue[];
+  scriptVersionLabel: string | null;
 }
 
-const TABS = ["Today", "Run Sheet", "Tracking", "Reports", "Work Log"] as const;
+const TABS = ["Today", "Run Sheet", "Calling Script", "Tracking", "Reports", "Work Log"] as const;
 
 function formatTime(t: string | null) {
   if (!t) return "";
@@ -85,7 +89,7 @@ const RUN_CATEGORIES = [
 
 const inputClass = "w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors";
 
-export function RunLayout({ production, canManage, personId, today, todayEvents, runSheetItems, reports, scenes, workLog, trackingScenes, stageProps, actionItems, cast }: Props) {
+export function RunLayout({ production, canManage, personId, today, todayEvents, runSheetItems, reports, scenes, workLog, trackingScenes, stageProps, actionItems, cast, callingLines, callingCues, scriptVersionLabel }: Props) {
   const [tab, setTab] = useState<typeof TABS[number]>("Today");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -241,6 +245,17 @@ export function RunLayout({ production, canManage, personId, today, todayEvents,
             );
           })}
         </div>
+      )}
+
+      {/* ═══ CALLING SCRIPT ═══ */}
+      {tab === "Calling Script" && (
+        <CallingScript
+          productionId={production.id}
+          canManage={canManage}
+          scriptVersionLabel={scriptVersionLabel}
+          lines={callingLines}
+          cues={callingCues}
+        />
       )}
 
       {/* ═══ TRACKING (scene breakdown · props · action items) ═══ */}
