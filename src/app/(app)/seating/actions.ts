@@ -10,7 +10,7 @@ const TABLE_FIELDS = ["number", "name", "capacity", "x", "y", "amount", "source"
 const GUEST_FIELDS = ["name", "party_size", "amount", "source", "status", "table_id", "notes"];
 
 const TABLE_COLS = "id, number, name, capacity, x, y, amount, source, status";
-const GUEST_COLS = "id, name, party_size, amount, source, status, table_id, notes, checked_in";
+const GUEST_COLS = "id, name, party_size, amount, source, status, table_id, notes, checked_in, event_tag";
 
 export async function addSeatingTable(productionId: string) {
   await assertNotPreviewing();

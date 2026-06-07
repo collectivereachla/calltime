@@ -38,7 +38,7 @@ const X = glyph("✕");
 const CircleDollarSign = glyph("$");
 
 type Table = { id: string; number: number; name: string | null; capacity: number; x: number; y: number; amount: number | null; source: string | null; status: string };
-type Guest = { id: string; name: string; party_size: number; amount: number | null; source: string | null; status: string; table_id: string | null; notes: string | null; checked_in?: boolean };
+type Guest = { id: string; name: string; party_size: number; amount: number | null; source: string | null; status: string; table_id: string | null; notes: string | null; checked_in?: boolean; event_tag?: string | null };
 type Totals = { collected: number; heads: number; seated: number; bySource: Record<string, number>; outstanding: Guest[]; projected: number | null };
 
 const persist = (p: Promise<unknown>) => { p.catch((e) => console.error("seating save failed:", e)); };
@@ -50,6 +50,7 @@ export function SeatingRoom({
   initialTables: Table[]; initialGuests: Guest[]; initialPrice: string;
 }) {
   const [tab, setTab] = useState<"roster" | "floor" | "checkin">("roster");
+  const [eventFilter, setEventFilter] = useState<"both" | "jubilee" | "show">("both");
   const [tables, setTables] = useState<Table[]>(initialTables);
   const [guests, setGuests] = useState<Guest[]>(initialGuests);
   const [price, setPrice] = useState(initialPrice);
@@ -69,19 +70,33 @@ export function SeatingRoom({
     [guests]
   );
 
+  // Event filter (Jubilee / Performance / Both). Drives the check-in tab,
+  // the guests list, and the floor plan. A production only has event tags if
+  // its guests were imported with one (TJS does); otherwise this is inert and
+  // every view shows the full roster, exactly as before.
+  const hasEventData = guests.some((g) => g.event_tag === "show" || g.event_tag === "jubilee");
+  const jubileeGuests = guests.filter((g) => g.event_tag === "jubilee");
+  const showGuests = guests.filter((g) => g.event_tag === "show");
+  const filteredGuests =
+    !hasEventData || eventFilter === "both"
+      ? guests
+      : eventFilter === "jubilee"
+      ? jubileeGuests
+      : showGuests;
+
   const totals = (() => {
     // Tables are sold as a unit; GA (unseated) is sold per seat. Seated guests
-    // carry no payment — the table holds it.
+    // carry no payment — the table holds it. Counts follow the event filter.
     const tableMoney = tables.reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const gaMoney = guests.reduce((s, g) => s + (Number(g.amount) || 0), 0);
+    const gaMoney = filteredGuests.reduce((s, g) => s + (Number(g.amount) || 0), 0);
     const collected = tableMoney + gaMoney;
-    const heads = guests.reduce((s, g) => s + (Number(g.party_size) || 0), 0);
-    const seated = guests.filter((g) => g.table_id).reduce((s, g) => s + (Number(g.party_size) || 0), 0);
+    const heads = filteredGuests.reduce((s, g) => s + (Number(g.party_size) || 0), 0);
+    const seated = filteredGuests.filter((g) => g.table_id).reduce((s, g) => s + (Number(g.party_size) || 0), 0);
     const bySource: Record<string, number> = {};
     SOURCES.forEach((s) => (bySource[s] = 0));
     tables.forEach((t) => { if (t.source) bySource[t.source] = (bySource[t.source] || 0) + (Number(t.amount) || 0); });
-    guests.forEach((g) => { if (g.source) bySource[g.source] = (bySource[g.source] || 0) + (Number(g.amount) || 0); });
-    const outstanding = guests.filter((g) => g.status === "Unpaid" || g.status === "Partial");
+    filteredGuests.forEach((g) => { if (g.source) bySource[g.source] = (bySource[g.source] || 0) + (Number(g.amount) || 0); });
+    const outstanding = filteredGuests.filter((g) => g.status === "Unpaid" || g.status === "Partial");
     const projected = price ? Number(price) * heads : null;
     return { collected, heads, seated, bySource, outstanding, projected };
   })();
@@ -187,26 +202,48 @@ export function SeatingRoom({
             </select>
           </span>
         </div>
+
+        {hasEventData && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "16px 0 18px", flexWrap: "wrap" }} className="no-print">
+            <span style={{ fontSize: 11, letterSpacing: ".12em", textTransform: "uppercase", color: C.ash, fontWeight: 600, marginRight: 4 }}>Event</span>
+            {([
+              ["both", "Both", guests.length],
+              ["show", "Performance", showGuests.length],
+              ["jubilee", "Jubilee", jubileeGuests.length],
+            ] as const).map(([key, label, count]) => {
+              const active = eventFilter === key;
+              return (
+                <button key={key} className="ct-btn" onClick={() => setEventFilter(key)}
+                  style={{
+                    background: active ? C.brick : C.paper, color: active ? C.paper : C.ink,
+                    border: `1px solid ${active ? C.brick : C.line}`, padding: "6px 13px", fontSize: 13,
+                  }}>
+                  {label}<span style={{ opacity: 0.7, marginLeft: 6, fontSize: 12 }}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Summary band */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 0, borderBottom: `1px solid ${C.line}`, background: C.paperDeep }}>
         <Stat label="Collected" value={money(totals.collected)} accent={C.green} />
         <Stat label="Guests" value={totals.heads} />
-        <Stat label="Seated" value={`${totals.seated} / ${totals.heads}`} />
-        <Stat label="Tables" value={tables.length} />
+        {!hasEventData && <Stat label="Seated" value={`${totals.seated} / ${totals.heads}`} />}
+        {!hasEventData && <Stat label="Tables" value={tables.length} />}
         {totals.projected != null && <Stat label="Projected" value={money(totals.projected)} sub={`@ ${money(Number(price))}/seat`} />}
         <Stat label="Outstanding" value={totals.outstanding.length} accent={totals.outstanding.length ? C.brick : C.ash} />
       </div>
 
       {tab === "roster" ? (
         <Roster
-          guests={guests} tables={tables} totals={totals} price={price} canEdit={canEdit}
+          guests={filteredGuests} tables={tables} totals={totals} price={price} canEdit={canEdit}
           changePrice={changePrice} addParty={addParty} updateGuest={updateGuest} removeGuest={removeGuest} occupancyOf={occupancyOf}
         />
       ) : tab === "checkin" ? (
         <CheckIn
-          guests={guests} tables={tables} canEdit={canEdit}
+          guests={filteredGuests} tables={tables} canEdit={canEdit}
           checkIn={checkIn} addWalkIn={addWalkIn} occupancyOf={occupancyOf}
         />
       ) : (
@@ -215,6 +252,7 @@ export function SeatingRoom({
           addTable={addTable} updateTable={updateTable} removeTable={removeTable}
           updateGuest={updateGuest} addGuestToTable={addGuestToTable} occupancyOf={occupancyOf}
           selectedTable={selectedTable} setSelectedTable={setSelectedTable}
+          hasEventData={hasEventData} eventFilter={eventFilter} showGuests={showGuests} jubileeGuests={jubileeGuests}
         />
       )}
     </div>
@@ -351,9 +389,10 @@ type FloorProps = {
   addTable: () => void; updateTable: (id: string, patch: Partial<Table>, save?: boolean) => void; removeTable: (id: string) => void;
   updateGuest: (id: string, patch: Partial<Guest>, save?: boolean) => void; addGuestToTable: (tableId: string, name: string, size: number) => void;
   occupancyOf: (id: string) => number; selectedTable: string | null; setSelectedTable: (id: string | null) => void;
+  hasEventData: boolean; eventFilter: "both" | "jubilee" | "show"; showGuests: Guest[]; jubileeGuests: Guest[];
 };
 
-function FloorPlan({ tables, guests, canEdit, productionTitle, addTable, updateTable, removeTable, updateGuest, addGuestToTable, occupancyOf, selectedTable, setSelectedTable }: FloorProps) {
+function FloorPlan({ tables, guests, canEdit, productionTitle, addTable, updateTable, removeTable, updateGuest, addGuestToTable, occupancyOf, selectedTable, setSelectedTable, hasEventData, eventFilter, showGuests, jubileeGuests }: FloorProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
   const [newName, setNewName] = useState("");
@@ -401,6 +440,20 @@ function FloorPlan({ tables, guests, canEdit, productionTitle, addTable, updateT
     if (occ >= cap) return { fill: C.brick, ring: C.brick, text: C.paper };
     return { fill: "#E8C9BC", ring: C.brick, text: C.ink };
   };
+
+  // The Juneteenth Story (and any production imported with Jubilee/Performance
+  // tags) gets the venue seat map + Jubilee list instead of the banquet-table
+  // canvas. Productions without event tags keep the original table planner.
+  if (hasEventData) {
+    return (
+      <EventFloorPlan
+        eventFilter={eventFilter}
+        showGuests={showGuests}
+        jubileeGuests={jubileeGuests}
+        productionTitle={productionTitle}
+      />
+    );
+  }
 
   return (
     <div style={{ padding: "20px 34px", display: "flex", flexDirection: "column", gap: 20, alignItems: "stretch" }}>
@@ -846,4 +899,270 @@ function printFloorPlan(tables: Table[], guests: Guest[], productionTitle: strin
   const w = window.open("", "_blank");
   if (!w) { alert("Allow pop-ups to print the floor plan."); return; }
   w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ====================================================================== */
+/* The Juneteenth Story — event-aware floor plan                          */
+/* Venue: Acadiana Center for the Arts (Moncus Theater), Lafayette.       */
+/* Layout traced from the SimpleTix seat map. Occupancy comes from the    */
+/* ticket export (seating_guests.notes), never from the map's colors —    */
+/* those colors are live availability for the buyer, not our guest data.  */
+/* ====================================================================== */
+
+type Cell = {
+  key: string;
+  label: string;        // number shown on the seat
+  id: string | null;    // canonical id matched against the export; null = never assignable
+  seatLabel: string;    // human label for tooltips
+  ada?: boolean;
+  partial?: boolean;    // partial-view seat (rendered half-toned)
+};
+
+// Export Section Titles, longest first so a prefix never mis-binds.
+const SHOW_SECTIONS = [
+  "Front Orchestra", "Rear Orchestra", "Orchestra Left", "Orchestra Right",
+  "Mezzanine Center", "Mezzanine Right", "Mezzanine Left",
+].sort((a, b) => b.length - a.length);
+
+// "Show: Front Orchestra A1, A2; Rear Orchestra G16" -> canonical seat ids.
+function parseShowSeats(notes: string | null | undefined): string[] {
+  if (!notes) return [];
+  const body = notes.replace(/^\s*Show:\s*/i, "");
+  const ids: string[] = [];
+  for (const seg of body.split(";")) {
+    const s = seg.trim();
+    if (!s) continue;
+    const section = SHOW_SECTIONS.find((sec) => s.toLowerCase().startsWith(sec.toLowerCase()));
+    if (!section) continue;
+    const rest = s.slice(section.length).trim();
+    for (const tok of rest.split(",")) {
+      const t = tok.trim();
+      if (t) ids.push(`${section}|${t}`);
+    }
+  }
+  return ids;
+}
+
+const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+
+// Orchestra rows: seats carry a row letter (A1, K19...). Export = "<Section> <Row><Seat>".
+const orchSeats = (section: string, row: string, nums: number[]): Cell[] =>
+  nums.map((n) => ({ key: `${section}-${row}-${n}`, label: String(n), id: `${section}|${row}${n}`, seatLabel: `${section} ${row}${n}` }));
+
+const adaCell = (key: string): Cell => ({ key, label: "", id: null, seatLabel: "Accessible seating", ada: true });
+
+// --- Center orchestra (no center aisle; even rows are staggered/inset) ---
+const FRONT_ORCH: Cell[][] = [
+  orchSeats("Front Orchestra", "A", range(1, 16)),
+  orchSeats("Front Orchestra", "B", range(1, 15)),
+  orchSeats("Front Orchestra", "C", range(1, 16)),
+  orchSeats("Front Orchestra", "D", range(1, 15)),
+  orchSeats("Front Orchestra", "E", range(1, 16)),
+];
+const REAR_ORCH: Cell[][] = [
+  orchSeats("Rear Orchestra", "F", range(1, 14)),
+  orchSeats("Rear Orchestra", "G", range(1, 16)),
+  orchSeats("Rear Orchestra", "H", range(1, 16)),
+  orchSeats("Rear Orchestra", "I", range(1, 16)),
+  orchSeats("Rear Orchestra", "J", range(1, 16)),
+  orchSeats("Rear Orchestra", "K", range(1, 19)),
+];
+
+// --- Orchestra Left/Right: two-seat-wide blocks flanking the front orchestra.
+// Export uses bare seat numbers (1..12). Odd seats sit on the aisle (inner) side.
+const orchSideRows = (section: string, innerOnLeft: boolean): Cell[][] => {
+  const mk = (n: number): Cell => ({ key: `${section}-${n}`, label: String(n), id: `${section}|${n}`, seatLabel: `${section} ${n}` });
+  const rows: Cell[][] = [];
+  for (let p = 0; p < 6; p++) {
+    const odd = p * 2 + 1, even = p * 2 + 2;
+    rows.push(innerOnLeft ? [mk(odd), mk(even)] : [mk(even), mk(odd)]);
+  }
+  rows.push([adaCell(`${section}-ada1`), adaCell(`${section}-ada2`)]);
+  return rows;
+};
+const ORCH_LEFT: Cell[][] = orchSideRows("Orchestra Left", false);  // aisle on the right
+const ORCH_RIGHT: Cell[][] = orchSideRows("Orchestra Right", true); // aisle on the left
+
+// --- Mezzanine side banks: single vertical columns. Seats 1,3,5 are partial-view.
+const bankCells = (section: string): Cell[] =>
+  [1, 3, 5, 7, 8, 9, 10, 11, 12, 13, 14].map((n) => ({
+    key: `${section}-${n}`, label: String(n), id: `${section}|${n}`, seatLabel: `${section} ${n}`, partial: n <= 5,
+  }));
+const MEZZ_LEFT_BANK = bankCells("Mezzanine Left");
+const MEZZ_RIGHT_BANK = bankCells("Mezzanine Right");
+
+// --- Mezzanine / Balcony block. Export calls rows L & M "Mezzanine Center".
+const BALCONY: Cell[][] = [
+  orchSeats("Mezzanine Center", "L", range(2, 23)),
+  orchSeats("Mezzanine Center", "M", range(1, 25)),
+  [adaCell("balc-n-l1"), adaCell("balc-n-l2"), ...orchSeats("Mezzanine Center", "N", range(1, 21)), adaCell("balc-n-r1"), adaCell("balc-n-r2")],
+];
+
+const ALL_SEAT_IDS: Set<string> = (() => {
+  const s = new Set<string>();
+  for (const block of [FRONT_ORCH, REAR_ORCH, ORCH_LEFT, ORCH_RIGHT, BALCONY]) for (const row of block) for (const c of row) if (c.id) s.add(c.id);
+  for (const c of [...MEZZ_LEFT_BANK, ...MEZZ_RIGHT_BANK]) if (c.id) s.add(c.id);
+  return s;
+})();
+
+const rowLetterOf = (cells: Cell[]): string | undefined => {
+  const c = cells.find((x) => !x.ada && x.id);
+  const m = c?.seatLabel.match(/\s([A-Za-z])\d+$/);
+  return m ? m[1] : undefined;
+};
+
+function SeatDot({ cell, guest }: { cell: Cell; guest?: Guest }) {
+  const SIZE = 25;
+  const base: React.CSSProperties = {
+    width: SIZE, height: SIZE, borderRadius: "50%", display: "flex", alignItems: "center",
+    justifyContent: "center", fontSize: 10.5, flex: "0 0 auto",
+  };
+  if (cell.ada) {
+    return <div title="Accessible seating" style={{ ...base, background: C.paperDeep, color: C.ash, border: `1px solid ${C.line}` }}>♿</div>;
+  }
+  const occupied = !!guest;
+  const bg = occupied ? (guest!.checked_in ? C.green : C.brick) : (cell.partial ? "#EFE7D8" : C.paper);
+  const fg = occupied ? C.paper : C.ash;
+  const ring = occupied ? bg : C.line;
+  const tip = occupied
+    ? `${guest!.name || "Reserved"} — ${cell.seatLabel}${guest!.checked_in ? " (checked in)" : ""}`
+    : `${cell.seatLabel} — open`;
+  return (
+    <div title={tip} style={{
+      ...base, background: bg, color: fg, fontWeight: occupied ? 600 : 500, border: `1.5px solid ${ring}`,
+      boxShadow: cell.partial && !occupied ? `inset -6px 0 0 ${C.line}` : "none", cursor: "default",
+    }}>{cell.label}</div>
+  );
+}
+
+function SeatRow({ cells, occ, label }: { cells: Cell[]; occ: Map<string, Guest>; label?: string }) {
+  return (
+    <div style={{ display: "flex", gap: 4, alignItems: "center", justifyContent: "center" }}>
+      {label !== undefined && <span style={{ width: 14, textAlign: "right", fontSize: 11, color: C.ash, fontWeight: 700 }}>{label}</span>}
+      {cells.map((c) => <SeatDot key={c.key} cell={c} guest={c.id ? occ.get(c.id) : undefined} />)}
+      {label !== undefined && <span style={{ width: 14, textAlign: "left", fontSize: 11, color: C.ash, fontWeight: 700 }}>{label}</span>}
+    </div>
+  );
+}
+
+function SeatBlock({ rows, occ, rowLabels }: { rows: Cell[][]; occ: Map<string, Guest>; rowLabels?: boolean }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {rows.map((r, i) => <SeatRow key={i} cells={r} occ={occ} label={rowLabels ? rowLetterOf(r) : undefined} />)}
+    </div>
+  );
+}
+
+function ColumnBank({ title, cells, occ }: { title: string; cells: Cell[]; occ: Map<string, Guest> }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: C.paperDeep, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 7px", alignSelf: "flex-start" }}>
+      <div style={{ fontSize: 9, letterSpacing: ".04em", textTransform: "uppercase", color: C.ash, fontWeight: 700, marginBottom: 2, whiteSpace: "nowrap" }}>{title}</div>
+      {cells.map((c) => <SeatDot key={c.key} cell={c} guest={c.id ? occ.get(c.id) : undefined} />)}
+    </div>
+  );
+}
+
+function SeatMap({ occ, placed }: { occ: Map<string, Guest>; placed: number }) {
+  const open = ALL_SEAT_IDS.size - placed;
+  return (
+    <div style={{ width: "100%" }}>
+      <div style={{ overflowX: "auto", paddingBottom: 6 }}>
+        <div style={{ width: "fit-content", minWidth: 820, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
+            <span style={{ display: "inline-block", border: `1px dashed ${C.ash}`, color: C.ash, fontSize: 10, letterSpacing: ".24em", padding: "5px 64px", borderRadius: 4, textTransform: "uppercase" }}>Stage</span>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", justifyContent: "center" }}>
+            <ColumnBank title="Mezz. Left" cells={MEZZ_LEFT_BANK} occ={occ} />
+            <div style={{ alignSelf: "flex-start" }}><SeatBlock rows={ORCH_LEFT} occ={occ} /></div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <SeatBlock rows={FRONT_ORCH} occ={occ} rowLabels />
+              <div style={{ height: 18 }} />
+              <SeatBlock rows={REAR_ORCH} occ={occ} rowLabels />
+            </div>
+            <div style={{ alignSelf: "flex-start" }}><SeatBlock rows={ORCH_RIGHT} occ={occ} /></div>
+            <ColumnBank title="Mezz. Right" cells={MEZZ_RIGHT_BANK} occ={occ} />
+          </div>
+          <div style={{ marginTop: 18, background: C.paperDeep, border: `1px solid ${C.line}`, borderRadius: 8, padding: "12px 10px" }}>
+            <div style={{ textAlign: "center", fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: C.ash, fontWeight: 700, marginBottom: 10 }}>Mezzanine / Balcony</div>
+            <SeatBlock rows={BALCONY} occ={occ} rowLabels />
+          </div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 16, marginTop: 14, fontSize: 11, color: C.ash, flexWrap: "wrap", alignItems: "center", justifyContent: "center" }}>
+        <Legend color={C.brick} ring={C.brick} label="Reserved" />
+        <Legend color={C.green} ring={C.green} label="Checked in" />
+        <Legend color={C.paper} ring={C.line} label="Open" />
+        <span style={{ marginLeft: 4 }}>{placed} reserved · {open} open</span>
+      </div>
+    </div>
+  );
+}
+
+function JubileeList({ guests }: { guests: Guest[] }) {
+  const groups: Record<string, Guest[]> = {};
+  for (const g of guests) {
+    const k = (g.notes || "").trim() || "Jubilee";
+    (groups[k] = groups[k] || []).push(g);
+  }
+  const keys = Object.keys(groups).sort();
+  const heads = guests.reduce((s, g) => s + (Number(g.party_size) || 0), 0);
+  return (
+    <div style={{ border: `1px solid ${C.line}`, borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ background: C.paperDeep, padding: "12px 16px", borderBottom: `1px solid ${C.line}` }}>
+        <div style={{ fontFamily: serif, fontSize: 18, fontWeight: 500 }}>Jubilee</div>
+        <div style={{ fontSize: 12, color: C.ash }}>No assigned seats · {guests.length} entries · {heads} guests</div>
+      </div>
+      <div style={{ padding: "6px 0" }}>
+        {keys.length === 0 && <div style={{ padding: "16px", fontSize: 13, color: C.ash, fontStyle: "italic" }}>No Jubilee guests.</div>}
+        {keys.map((k) => (
+          <div key={k} style={{ padding: "8px 16px", borderBottom: `1px solid ${C.line}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, textTransform: "uppercase", letterSpacing: ".08em", color: C.ash, fontWeight: 700, marginBottom: 4 }}>
+              <span>{k}</span><span>{groups[k].length}</span>
+            </div>
+            {groups[k].map((g) => (
+              <div key={g.id} style={{ fontSize: 13, padding: "2px 0", color: C.ink }}>
+                {g.name || "unnamed"}
+                {g.checked_in && <span style={{ color: C.green, fontSize: 11, marginLeft: 6 }}>✓ in</span>}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EventFloorPlan({ eventFilter, showGuests, jubileeGuests }: {
+  eventFilter: "both" | "jubilee" | "show"; showGuests: Guest[]; jubileeGuests: Guest[]; productionTitle: string;
+}) {
+  const occ = new Map<string, Guest>();
+  for (const g of showGuests) for (const id of parseShowSeats(g.notes)) if (!occ.has(id)) occ.set(id, g);
+  const reserved = [...occ.keys()];
+  const placed = reserved.filter((id) => ALL_SEAT_IDS.has(id));
+  const unplaced = reserved.filter((id) => !ALL_SEAT_IDS.has(id));
+
+  const showMap = eventFilter !== "jubilee";
+  const showJub = eventFilter !== "show";
+
+  return (
+    <div style={{ padding: "20px 34px" }}>
+      <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+        {showMap && (
+          <div style={{ flex: "1 1 620px", minWidth: 0 }}>
+            <SeatMap occ={occ} placed={placed.length} />
+            {unplaced.length > 0 && (
+              <div style={{ marginTop: 12, background: "#FBEEE8", border: `1px solid ${C.brick}33`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: C.brick }}>
+                {unplaced.length} reserved seat(s) didn’t match the map: {unplaced.map((s) => s.replace("|", " ")).join(", ")}
+              </div>
+            )}
+          </div>
+        )}
+        {showJub && (
+          <div style={{ flex: showMap ? "0 0 300px" : "1 1 100%", maxWidth: showMap ? 320 : 560, width: "100%" }}>
+            <JubileeList guests={jubileeGuests} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

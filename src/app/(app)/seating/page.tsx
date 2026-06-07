@@ -38,7 +38,7 @@ export default async function SeatingPage() {
 
   const { data: guests } = await supabase
     .from("seating_guests")
-    .select("id, name, party_size, amount, source, status, table_id, notes, checked_in")
+    .select("id, name, party_size, amount, source, status, table_id, notes, checked_in, event_tag")
     .eq("production_id", activeProductionId)
     .order("created_at");
 
