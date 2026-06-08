@@ -8,6 +8,7 @@ import { BoothTabs } from "./booth-tabs";
 import { PropsInventoryTab } from "./props-inventory-tab";
 import { MicPlot } from "./mic-plot";
 import { VideoRoom } from "./video-room";
+import { DesignQA } from "./design-qa";
 import { getActiveProductionId } from "@/lib/active-production";
 
 export default async function BoothPage() {
@@ -203,6 +204,42 @@ export default async function BoothPage() {
 
   // Get costume inventory for this org — scoped to the SELECTED show's org.
   const orgId = activeProduction.org_id;
+
+  // ── Designer Q&A: load questions + replies for this production ──
+  // Who can resolve/close items: SM, director, and org leadership.
+  let canResolveQA = isOwnerOrProd;
+  if (!canResolveQA) {
+    const { data: leadAsg } = await supabase
+      .from("production_assignments")
+      .select("access_tier, department")
+      .eq("production_id", activeProduction.id)
+      .eq("person_id", person!.id)
+      .eq("active", true);
+    canResolveQA = (leadAsg || []).some(
+      (a) =>
+        ["admin", "owner", "production"].includes(a.access_tier) ||
+        ["stage_management", "directing"].includes(a.department)
+    );
+  }
+
+  const { data: qaQuestions } = await supabase
+    .from("design_questions")
+    .select("id, scene_id, script_line_id, department, author_person_id, body, status, resolved_at, created_at, author:people!design_questions_author_person_id_fkey(id, full_name, preferred_name)")
+    .eq("production_id", activeProduction.id)
+    .order("created_at", { ascending: false });
+
+  const qaQuestionIds = (qaQuestions || []).map((q) => q.id);
+  let qaReplies: unknown[] = [];
+  if (qaQuestionIds.length > 0) {
+    const { data: r } = await supabase
+      .from("design_question_replies")
+      .select("id, question_id, author_person_id, body, created_at, author:people!design_question_replies_author_person_id_fkey(id, full_name, preferred_name)")
+      .in("question_id", qaQuestionIds)
+      .order("created_at", { ascending: true });
+    qaReplies = r || [];
+  }
+  const openQACount = (qaQuestions || []).filter((q) => q.status === "open").length;
+
   const activeOrg = (memberships || [])
     .map((m) => m.organizations as unknown as { id: string; name: string; inventory_house_owner: string | null } | null)
     .find((o) => o?.id === orgId) || null;
@@ -489,6 +526,7 @@ export default async function BoothPage() {
           { key: "lights", label: "Lights", designer: lightDesigner.name },
           { key: "sound", label: "Sound", designer: soundDesigner.name },
           { key: "video", label: "Video" },
+          { key: "qa", label: openQACount > 0 ? `Q&A (${openQACount})` : "Q&A" },
         ]}
         contents={{
           costume: (
@@ -579,6 +617,16 @@ export default async function BoothPage() {
               releases={(videoReleasesRes.data || []) as any}
               references={(videoRefsRes.data || []) as any}
               canManage={canManage}
+            />
+          ),
+          qa: (
+            <DesignQA
+              productionId={activeProduction.id}
+              viewerPersonId={person!.id}
+              canResolve={canResolveQA}
+              scenes={scenes.map((s) => ({ id: s.id, act: s.act, scene_number: s.scene_number, title: s.title }))}
+              questions={(qaQuestions || []) as never}
+              replies={qaReplies as never}
             />
           ),
         }}
