@@ -140,7 +140,7 @@ export default async function AppLayout({
     boothAccess = (boothAssignments || []).some(
       (a) =>
         ["admin", "production", "staff"].includes(a.access_tier) ||
-        a.department === "design"
+        ["design", "music"].includes(a.department)
     );
   }
 

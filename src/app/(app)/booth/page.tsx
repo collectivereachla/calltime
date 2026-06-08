@@ -105,7 +105,8 @@ export default async function BoothPage() {
       (a) =>
         ["admin", "production", "staff"].includes(a.access_tier) ||
         a.department === "design" ||
-        a.department === "video"
+        a.department === "video" ||
+        a.department === "music"
     );
     if (hasDesignOrStaff) {
       canManage = true;
