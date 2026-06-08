@@ -101,17 +101,19 @@ export default async function BoothPage() {
       .eq("person_id", person!.id)
       .eq("active", true);
 
-    const hasDesignOrStaff = (assignments || []).some(
+    // Band/music get Booth VIEW + Q&A, but not edit. Edit (canManage) stays with
+    // designers, video, and production/admin/staff tiers — which includes the
+    // Music Director (production tier), so she can edit while the players cannot.
+    const canManageHere = (assignments || []).some(
       (a) =>
         ["admin", "production", "staff"].includes(a.access_tier) ||
         a.department === "design" ||
-        a.department === "video" ||
-        a.department === "music"
+        a.department === "video"
     );
-    if (hasDesignOrStaff) {
-      canManage = true;
-      canAccessBooth = true;
-    }
+    const canViewHere =
+      canManageHere || (assignments || []).some((a) => a.department === "music");
+    if (canManageHere) canManage = true;
+    if (canViewHere) canAccessBooth = true;
   }
 
   if (!activeProduction) {
