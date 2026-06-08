@@ -649,6 +649,14 @@ function tableLabelFor(g: Guest, tables: Table[]): string {
   return `Table ${t.number}${t.name ? " · " + t.name : ""}`;
 }
 
+// Show-seat buyers carry their seat assignment in notes as "Show: <Section> <seats>".
+// Return just the seat designation for display, or null if this row has no show seats.
+function showSeatLabel(notes?: string | null): string | null {
+  if (!notes) return null;
+  const m = notes.match(/^\s*Show:\s*(.+)$/i);
+  return m ? m[1].trim() : null;
+}
+
 type CheckInProps = {
   guests: Guest[]; tables: Table[]; canEdit: boolean;
   checkIn: (id: string, value: boolean) => void;
@@ -672,7 +680,7 @@ function CheckIn({ guests, tables, canEdit, checkIn, addWalkIn, occupancyOf }: C
     .filter((g) => (filter === "all" ? true : filter === "arrived" ? g.checked_in : !g.checked_in))
     .filter((g) => {
       if (!q) return true;
-      return (g.name || "").toLowerCase().includes(q) || tableLabelFor(g, tables).toLowerCase().includes(q);
+      return (g.name || "").toLowerCase().includes(q) || tableLabelFor(g, tables).toLowerCase().includes(q) || (showSeatLabel(g.notes) || "").toLowerCase().includes(q);
     })
     .sort((a, b) => surnameKey(a.name).localeCompare(surnameKey(b.name)));
 
@@ -748,6 +756,7 @@ function CheckIn({ guests, tables, canEdit, checkIn, addWalkIn, occupancyOf }: C
       <div style={{ border: `1px solid ${C.line}`, borderRadius: 10, overflow: "hidden" }}>
         {list.map((g) => {
           const inHere = !!g.checked_in;
+          const placement = g.table_id ? tableLabelFor(g, tables) : showSeatLabel(g.notes);
           return (
             <div key={g.id} onClick={() => canEdit && checkIn(g.id, !inHere)}
               style={{
@@ -764,7 +773,7 @@ function CheckIn({ guests, tables, canEdit, checkIn, addWalkIn, occupancyOf }: C
                 <div style={{ fontSize: 15, color: C.ink, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {g.name || "(unnamed)"}{Number(g.party_size) > 1 ? <span style={{ color: C.ash, fontWeight: 400 }}> · party of {g.party_size}</span> : null}
                 </div>
-                <div style={{ fontSize: 12, color: g.table_id ? C.ash : C.brick }}>{g.table_id ? tableLabelFor(g, tables) : "No table assigned"}</div>
+                <div style={{ fontSize: 12, color: placement ? C.ash : C.brick }}>{placement || "No table assigned"}</div>
               </div>
               {inHere && <span style={{ fontSize: 11, color: C.green, fontWeight: 600, flexShrink: 0 }}>IN</span>}
             </div>
