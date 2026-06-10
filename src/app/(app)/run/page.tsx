@@ -140,6 +140,56 @@ export default async function RunPage() {
     return { person_id: p.id, name: p.preferred_name || p.full_name, role_title: c.role_title };
   });
 
+  // ── Weapons custody log (leadership-only tab) ──
+  const weapons = (propsData || [])
+    .filter(p => p.is_weapon)
+    .map(p => ({ id: p.id, prop_name: p.prop_name, scenes: p.scenes, used_by: p.used_by }));
+
+  let custodyEntries: { id: string; prop_id: string; prop_name: string; action: string; custodian_name: string | null; chamber_verified: boolean; sm_signature: string | null; director_signature: string | null; occurred_at: string; notes: string | null }[] = [];
+  let custodyRoster: { id: string; name: string }[] = [];
+  if (canManage && weapons.length > 0) {
+    const { data: custodyData } = await supabase
+      .from("prop_custody_log")
+      .select(`
+        id, prop_id, action, chamber_verified, sm_signature, director_signature, occurred_at, notes,
+        custodian:people!prop_custody_log_custodian_person_id_fkey(id, full_name, preferred_name)
+      `)
+      .eq("production_id", activeProductionId)
+      .order("occurred_at", { ascending: false });
+
+    const weaponNameById = new Map(weapons.map(w => [w.id, w.prop_name]));
+    custodyEntries = (custodyData || []).map(e => {
+      const c = e.custodian as unknown as { full_name: string; preferred_name: string | null } | null;
+      return {
+        id: e.id,
+        prop_id: e.prop_id,
+        prop_name: weaponNameById.get(e.prop_id) || "Unknown prop",
+        action: e.action,
+        custodian_name: c ? (c.preferred_name || c.full_name) : null,
+        chamber_verified: e.chamber_verified,
+        sm_signature: e.sm_signature,
+        director_signature: e.director_signature,
+        occurred_at: e.occurred_at,
+        notes: e.notes,
+      };
+    });
+
+    const { data: rosterData } = await supabase
+      .from("production_assignments")
+      .select("people(id, full_name, preferred_name)")
+      .eq("production_id", activeProductionId)
+      .eq("active", true);
+    const seen = new Set<string>();
+    custodyRoster = (rosterData || [])
+      .filter(r => r.people)
+      .map(r => {
+        const p = r.people as unknown as { id: string; full_name: string; preferred_name: string | null };
+        return { id: p.id, name: p.preferred_name || p.full_name };
+      })
+      .filter(p => (seen.has(p.id) ? false : (seen.add(p.id), true)))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   // ── Calling Script: resolve the production's current script version ──
   // Mirror Spine: prefer the working (unlocked) version, else the most recent.
   const { data: scriptRows } = await supabase
@@ -177,6 +227,9 @@ export default async function RunPage() {
       callingLines={callingLines}
       callingCues={(callingCuesData || []) as never[]}
       scriptVersionLabel={callingScript?.version || null}
+      weapons={weapons}
+      custodyEntries={custodyEntries}
+      custodyRoster={custodyRoster}
       trackingScenes={(trackingScenes || []) as never[]}
       stageProps={(propsData || []) as never[]}
       actionItems={(actionItemsData || []) as never[]}

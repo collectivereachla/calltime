@@ -4,6 +4,7 @@ import { useState, type ComponentProps } from "react";
 import { useRouter } from "next/navigation";
 import { StageTracking } from "./stage-tracking";
 import { CallingScript, type CallingLine, type CallingCue } from "./calling-script";
+import { WeaponsLog, type WeaponProp, type CustodyEntry, type RosterPerson } from "./weapons-log";
 import {
   addRunSheetItem, toggleRunSheetItem, deleteRunSheetItem, resetRunSheet,
   submitShowReport, logRehearsalWork,
@@ -52,9 +53,12 @@ interface Props {
   callingLines: CallingLine[];
   callingCues: CallingCue[];
   scriptVersionLabel: string | null;
+  weapons: WeaponProp[];
+  custodyEntries: CustodyEntry[];
+  custodyRoster: RosterPerson[];
 }
 
-const TABS = ["Today", "Run Sheet", "Calling Script", "Tracking", "Reports", "Work Log"] as const;
+const TABS = ["Today", "Run Sheet", "Calling Script", "Tracking", "Weapons Log", "Reports", "Work Log"] as const;
 
 function formatTime(t: string | null) {
   if (!t) return "";
@@ -89,7 +93,7 @@ const RUN_CATEGORIES = [
 
 const inputClass = "w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors";
 
-export function RunLayout({ production, canManage, personId, today, todayEvents, runSheetItems, reports, scenes, workLog, trackingScenes, stageProps, actionItems, cast, callingLines, callingCues, scriptVersionLabel }: Props) {
+export function RunLayout({ production, canManage, personId, today, todayEvents, runSheetItems, reports, scenes, workLog, trackingScenes, stageProps, actionItems, cast, callingLines, callingCues, scriptVersionLabel, weapons, custodyEntries, custodyRoster }: Props) {
   const [tab, setTab] = useState<typeof TABS[number]>("Today");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -108,7 +112,7 @@ export function RunLayout({ production, canManage, personId, today, todayEvents,
 
       {/* Tabs */}
       <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1">
-        {TABS.filter(t => t !== "Tracking" || canManage).map(t => (
+        {TABS.filter(t => (t !== "Tracking" && t !== "Weapons Log") || canManage).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-1 text-body-xs font-medium rounded-full whitespace-nowrap transition-colors ${
               tab === t ? "bg-ink text-paper" : "text-ash hover:text-ink"
@@ -255,6 +259,16 @@ export function RunLayout({ production, canManage, personId, today, todayEvents,
           scriptVersionLabel={scriptVersionLabel}
           lines={callingLines}
           cues={callingCues}
+        />
+      )}
+
+      {/* ═══ WEAPONS LOG ═══ */}
+      {tab === "Weapons Log" && canManage && (
+        <WeaponsLog
+          productionId={production.id}
+          weapons={weapons}
+          entries={custodyEntries}
+          roster={custodyRoster}
         />
       )}
 
