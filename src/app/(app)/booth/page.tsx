@@ -7,6 +7,8 @@ import { makeLightingConfig, makeSoundConfig } from "./design-configs";
 import { BoothTabs } from "./booth-tabs";
 import { PropsInventoryTab } from "./props-inventory-tab";
 import { MicPlot } from "./mic-plot";
+import { SoundOutputs } from "./sound-outputs";
+import { TechDocs } from "./tech-docs";
 import { VideoRoom } from "./video-room";
 import { DesignQA } from "./design-qa";
 import { RiderTab } from "./rider-tab";
@@ -429,6 +431,21 @@ export default async function BoothPage() {
     assignedPersonIds: micAssigneesByMic.get(m.id) || [],
   }));
 
+  // Sound outputs (PA sends, wedges, IEMs, feeds) for this production
+  const { data: soundOutputRows } = await supabase
+    .from("sound_outputs")
+    .select("*")
+    .eq("production_id", activeProduction.id)
+    .order("created_at", { ascending: true });
+
+  // Production-wide tech documents (department 'general'): rider, plots, paperwork
+  const { data: techDocRows } = await supabase
+    .from("design_references")
+    .select("id, title, description, image_url, category, created_at, file_name, mime_type")
+    .eq("production_id", activeProduction.id)
+    .eq("department", "general")
+    .order("created_at", { ascending: false });
+
   // Get designer names from production assignments
   const { data: designAssignments } = await supabase
     .from("production_assignments")
@@ -532,6 +549,12 @@ export default async function BoothPage() {
         </div>
       </div>
 
+      <TechDocs
+        productionId={activeProduction.id}
+        docs={(techDocRows || []) as any}
+        canManage={canManage}
+      />
+
       <BoothTabs
         tabs={[
           { key: "costume", label: "Costume", designer: costumeDesigner.name },
@@ -617,6 +640,11 @@ export default async function BoothPage() {
                 mics={mics as any}
                 cast={cast}
                 musicians={musicians}
+                canManage={canManage}
+              />
+              <SoundOutputs
+                productionId={activeProduction.id}
+                outputs={(soundOutputRows || []) as any}
                 canManage={canManage}
               />
             </div>
