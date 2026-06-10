@@ -116,6 +116,8 @@ export async function saveDesignReference(data: {
     description: data.description || null,
     image_url: urlData.publicUrl,
     category: data.category,
+    file_name: file.name,
+    mime_type: file.type || null,
   });
   if (error) return { error: error.message };
 

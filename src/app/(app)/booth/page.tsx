@@ -9,6 +9,8 @@ import { PropsInventoryTab } from "./props-inventory-tab";
 import { MicPlot } from "./mic-plot";
 import { VideoRoom } from "./video-room";
 import { DesignQA } from "./design-qa";
+import { RiderTab } from "./rider-tab";
+import { buildAutoBodies } from "./rider-data";
 import { getActiveProductionId } from "@/lib/active-production";
 
 export default async function BoothPage() {
@@ -324,7 +326,7 @@ export default async function BoothPage() {
   // Get set design references
   const { data: setReferences } = await supabase
     .from("design_references")
-    .select("id, title, description, image_url, category, created_at")
+    .select("id, title, description, image_url, category, created_at, file_name, mime_type")
     .eq("production_id", activeProduction.id)
     .eq("department", "set")
     .order("created_at", { ascending: false });
@@ -367,7 +369,7 @@ export default async function BoothPage() {
         .order("sort_order", { ascending: true }),
       supabase
         .from("design_references")
-        .select("id, title, description, image_url, category, created_at")
+        .select("id, title, description, image_url, category, created_at, file_name, mime_type")
         .eq("production_id", activeProduction!.id)
         .eq("department", dept)
         .order("created_at", { ascending: false }),
@@ -503,11 +505,20 @@ export default async function BoothPage() {
     supabase.from("video_deliverables").select("*").eq("production_id", activeProduction.id),
     supabase.from("video_releases").select("*").eq("production_id", activeProduction.id).order("created_at", { ascending: true }),
     supabase.from("design_references")
-      .select("id, title, description, image_url, category, created_at")
+      .select("id, title, description, image_url, category, created_at, file_name, mime_type")
       .eq("production_id", activeProduction.id)
       .eq("department", "video")
       .order("created_at", { ascending: false }),
   ]);
+
+  const [riderSectionsRes, riderAutoBodies] = await Promise.all([
+    supabase.from("rider_sections")
+      .select("id, sort_order, title, kind, source, body")
+      .eq("production_id", activeProduction.id)
+      .order("sort_order"),
+    buildAutoBodies(supabase, activeProduction.id),
+  ]);
+  const riderSections = riderSectionsRes.data || [];
 
   return (
     <div className="max-w-full mx-auto px-4 md:px-8 py-6 md:py-10">
@@ -529,6 +540,7 @@ export default async function BoothPage() {
           { key: "lights", label: "Lights", designer: lightDesigner.name },
           { key: "sound", label: "Sound", designer: soundDesigner.name },
           { key: "video", label: "Video" },
+          { key: "rider", label: "Rider" },
           { key: "qa", label: openQACount > 0 ? `Q&A (${openQACount})` : "Q&A" },
         ]}
         contents={{
@@ -619,6 +631,15 @@ export default async function BoothPage() {
               deliverables={(videoDelivRes.data || []) as any}
               releases={(videoReleasesRes.data || []) as any}
               references={(videoRefsRes.data || []) as any}
+              canManage={canManage}
+            />
+          ),
+          rider: (
+            <RiderTab
+              productionId={activeProduction.id}
+              productionTitle={activeProduction.title}
+              sections={riderSections as never}
+              autoBodies={riderAutoBodies}
               canManage={canManage}
             />
           ),

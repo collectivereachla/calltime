@@ -21,6 +21,7 @@ interface Element {
 interface Reference {
   id: string; title: string; description: string | null; image_url: string;
   category: string; created_at: string;
+  file_name?: string | null; mime_type?: string | null;
 }
 interface Milestone {
   id: string; milestone: string; sort_order: number; completed: boolean;
@@ -595,9 +596,11 @@ export function DesignRoom({ config, productionId, scenes, elements, references,
                 </div>
               </div>
               <div>
-                <label className="block text-body-xs text-ash mb-1">Image</label>
-                <input ref={refImageRef} type="file" accept="image/*,.pdf"
+                <label className="block text-body-xs text-ash mb-1">File (image or document)</label>
+                <input ref={refImageRef} type="file"
+                  accept="image/*,.pdf,.xlsx,.xls,.csv,.docx,.doc,.txt,.dwg,.vwx,.pptx,.zip"
                   className="text-body-sm text-ash file:mr-3 file:px-3 file:py-1.5 file:bg-bone/50 file:border-0 file:rounded-card file:text-body-xs file:text-ink file:cursor-pointer" />
+                <p className="text-body-xs text-muted mt-1">Plots, patch lists, drawings, paperwork. 10MB max.</p>
               </div>
               <div className="flex gap-2 pt-1">
                 <button onClick={handleAddRef} disabled={saving || !refTitle.trim()}
@@ -615,10 +618,25 @@ export function DesignRoom({ config, productionId, scenes, elements, references,
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {references.map((ref) => (
+              {references.map((ref) => {
+                const isImage = ref.mime_type
+                  ? ref.mime_type.startsWith("image/")
+                  : !/\.(pdf|xlsx|xls|csv|docx|doc|txt|dwg|vwx|pptx|zip)(\?|$)/i.test(ref.image_url);
+                return (
                 <div key={ref.id} className="bg-card border border-bone rounded-card overflow-hidden">
-                  <img src={ref.image_url} alt={ref.title} onClick={() => setLightbox(ref.image_url)}
-                    className="w-full aspect-[4/3] object-cover cursor-pointer" />
+                  {isImage ? (
+                    <img src={ref.image_url} alt={ref.title} onClick={() => setLightbox(ref.image_url)}
+                      className="w-full aspect-[4/3] object-cover cursor-pointer" />
+                  ) : (
+                    <a href={ref.image_url} target="_blank" rel="noreferrer"
+                      className="w-full aspect-[4/3] flex flex-col items-center justify-center gap-2 bg-bone/30 hover:bg-bone/50 transition-colors">
+                      <span className="text-3xl" aria-hidden>📄</span>
+                      <span className="text-body-xs text-ash px-3 text-center truncate max-w-full">
+                        {ref.file_name || "Open document"}
+                      </span>
+                      <span className="text-body-xs text-brick">Open</span>
+                    </a>
+                  )}
                   <div className="px-3 py-2">
                     <div className="flex items-center justify-between">
                       <h4 className="text-body-sm font-medium text-ink truncate">{ref.title}</h4>
@@ -630,7 +648,8 @@ export function DesignRoom({ config, productionId, scenes, elements, references,
                     <span className="text-body-xs text-muted">{config.referenceCategories.find(c => c.value === ref.category)?.label || ref.category}</span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
