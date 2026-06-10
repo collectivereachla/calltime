@@ -17,6 +17,7 @@ interface Props {
   mics: MicItem[];
   cast: Person[];
   musicians: Person[];
+  company: Person[];
   canManage: boolean;
 }
 
@@ -36,13 +37,17 @@ const GROUPS: { key: string; label: string; types: string[] }[] = [
 ];
 
 function micSort(a: MicItem, b: MicItem) {
-  const na = parseInt(a.pack_number, 10);
-  const nb = parseInt(b.pack_number, 10);
+  // Read the first number anywhere in the label ("Pack 2", "HH 1", "7"),
+  // so "Pack 2" sorts before "Pack 10" instead of alphabetically after it.
+  const ma = a.pack_number.match(/\d+/);
+  const mb = b.pack_number.match(/\d+/);
+  const na = ma ? parseInt(ma[0], 10) : NaN;
+  const nb = mb ? parseInt(mb[0], 10) : NaN;
   if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
   return a.pack_number.localeCompare(b.pack_number);
 }
 
-export function MicPlot({ productionId, mics, cast, musicians, canManage }: Props) {
+export function MicPlot({ productionId, mics, cast, musicians, company, canManage }: Props) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -53,13 +58,20 @@ export function MicPlot({ productionId, mics, cast, musicians, canManage }: Prop
   const [assignError, setAssignError] = useState<string | null>(null);
   const [assignOpen, setAssignOpen] = useState<string | null>(null);
 
-  // Display-name lookup spans cast and musicians.
+  // Display-name lookup spans the whole production roster.
   const nameOf = (pid: string) =>
+    company.find((p) => p.person_id === pid)?.name ||
     cast.find((c) => c.person_id === pid)?.name ||
     musicians.find((m) => m.person_id === pid)?.name ||
     null;
-  // Instrument inputs assign to musicians; mics assign to cast.
-  const peopleFor = (type: string) => (type === "instrument" ? musicians : cast);
+  // Instrument inputs assign to musicians; lavs assign to cast;
+  // handhelds and other inputs can go to anyone on the production
+  // (hosts and leadership welcome the audience, not just actors).
+  const peopleFor = (type: string) => {
+    if (type === "instrument") return musicians;
+    if (type === "lav") return cast;
+    return company.length > 0 ? company : cast;
+  };
 
   const assignedCount = new Set(mics.flatMap((m) => m.assignedPersonIds)).size;
 
@@ -112,7 +124,7 @@ export function MicPlot({ productionId, mics, cast, musicians, canManage }: Prop
     const panelOpen = assignOpen === m.id;
     const isLoading = loading === m.id;
     const people = peopleFor(m.input_type);
-    const assignVerb = m.input_type === "instrument" ? "Player" : "Worn by";
+    const assignVerb = m.input_type === "instrument" ? "Player" : m.input_type === "handheld" ? "Held by" : "Worn by";
     return (
       <div key={m.id} className="bg-card border border-bone rounded-card px-3 py-2">
         <div className="flex items-center gap-3">
@@ -158,7 +170,7 @@ export function MicPlot({ productionId, mics, cast, musicians, canManage }: Prop
           <div className="mt-2 border border-bone rounded p-1.5 bg-paper max-h-48 overflow-y-auto space-y-0.5">
             {people.length === 0 && (
               <p className="text-[10px] text-muted px-1 py-0.5">
-                {m.input_type === "instrument" ? "No musicians on this production yet." : "No cast on this production yet."}
+                {m.input_type === "instrument" ? "No musicians on this production yet." : m.input_type === "lav" ? "No cast on this production yet." : "No one on this production yet."}
               </p>
             )}
             {people.map((c) => {

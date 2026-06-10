@@ -185,6 +185,29 @@ export default async function BoothPage() {
     return { person_id: p.id, name: p.preferred_name || p.full_name, role_title: a.role_title };
   });
 
+  // Full production roster — handhelds can go to anyone on the show
+  // (hosts, leadership, crew), not just cast.
+  const { data: rosterData } = await supabase
+    .from("production_assignments")
+    .select("person_id, role_title, people(id, full_name, preferred_name)")
+    .eq("production_id", activeProduction.id)
+    .eq("active", true)
+    .order("role_title", { ascending: true });
+
+  const rosterSeen = new Set<string>();
+  const productionRoster = (rosterData || [])
+    .filter((a) => a.people != null)
+    .map((a) => {
+      const p = a.people as unknown as { id: string; full_name: string; preferred_name: string | null };
+      return { person_id: p.id, name: p.preferred_name || p.full_name, role_title: a.role_title };
+    })
+    .filter((p) => {
+      if (rosterSeen.has(p.person_id)) return false;
+      rosterSeen.add(p.person_id);
+      return true;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   // Get costume plot entries
   const { data: plotData } = await supabase.rpc("get_costume_plot", {
     p_production_id: activeProduction.id,
@@ -640,6 +663,7 @@ export default async function BoothPage() {
                 mics={mics as any}
                 cast={cast}
                 musicians={musicians}
+                company={productionRoster}
                 canManage={canManage}
               />
               <SoundOutputs

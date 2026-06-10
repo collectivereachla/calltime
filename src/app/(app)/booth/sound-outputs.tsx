@@ -38,8 +38,11 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 function outputSort(a: OutputItem, b: OutputItem) {
-  const na = parseInt(a.output_number, 10);
-  const nb = parseInt(b.output_number, 10);
+  // Read the first number anywhere in the label, so "Mix 2" sorts before "Mix 10".
+  const ma = a.output_number.match(/\d+/);
+  const mb = b.output_number.match(/\d+/);
+  const na = ma ? parseInt(ma[0], 10) : NaN;
+  const nb = mb ? parseInt(mb[0], 10) : NaN;
   if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
   return a.output_number.localeCompare(b.output_number);
 }
