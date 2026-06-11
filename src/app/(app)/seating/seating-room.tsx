@@ -1052,7 +1052,7 @@ const rowLetterOf = (cells: Cell[]): string | undefined => {
   return m ? m[1] : undefined;
 };
 
-function SeatDot({ cell, guest }: { cell: Cell; guest?: Guest }) {
+function SeatDot({ cell, guest, onPick, selected }: { cell: Cell; guest?: Guest; onPick?: (g: Guest) => void; selected?: boolean }) {
   const SIZE = 25;
   const base: React.CSSProperties = {
     width: SIZE, height: SIZE, borderRadius: "50%", display: "flex", alignItems: "center",
@@ -1062,6 +1062,7 @@ function SeatDot({ cell, guest }: { cell: Cell; guest?: Guest }) {
     return <div title="Accessible seating" style={{ ...base, background: C.paperDeep, color: C.ash, border: `1px solid ${C.line}` }}>♿</div>;
   }
   const occupied = !!guest;
+  const clickable = occupied && !!onPick;
   const bg = occupied ? (guest!.checked_in ? C.green : C.brick) : (cell.partial ? "#EFE7D8" : C.paper);
   const fg = occupied ? C.paper : C.ash;
   const ring = occupied ? bg : C.line;
@@ -1069,46 +1070,47 @@ function SeatDot({ cell, guest }: { cell: Cell; guest?: Guest }) {
     ? `${guest!.name || "Reserved"} — ${cell.seatLabel}${guest!.checked_in ? " (checked in)" : ""}`
     : `${cell.seatLabel} — open`;
   return (
-    <div title={tip} style={{
+    <div title={tip} onClick={clickable ? () => onPick!(guest!) : undefined} style={{
       ...base, background: bg, color: fg, fontWeight: occupied ? 600 : 500, border: `1.5px solid ${ring}`,
-      boxShadow: cell.partial && !occupied ? `inset -6px 0 0 ${C.line}` : "none", cursor: "default",
+      boxShadow: selected ? `0 0 0 2px ${C.paper}, 0 0 0 4px ${C.ink}` : (cell.partial && !occupied ? `inset -6px 0 0 ${C.line}` : "none"),
+      cursor: clickable ? "pointer" : "default", position: selected ? "relative" : undefined, zIndex: selected ? 1 : undefined,
     }}>{cell.label}</div>
   );
 }
 
-function SeatRow({ cells, occ, label }: { cells: Cell[]; occ: Map<string, Guest>; label?: string }) {
+function SeatRow({ cells, occ, label, onPick, selectedGuestId }: { cells: Cell[]; occ: Map<string, Guest>; label?: string; onPick?: (g: Guest) => void; selectedGuestId?: string }) {
   return (
     <div style={{ display: "flex", gap: 4, alignItems: "center", justifyContent: "center" }}>
       {label !== undefined && <span style={{ width: 14, textAlign: "right", fontSize: 11, color: C.ash, fontWeight: 700 }}>{label}</span>}
-      {cells.map((c) => <SeatDot key={c.key} cell={c} guest={c.id ? occ.get(c.id) : undefined} />)}
+      {cells.map((c) => { const g = c.id ? occ.get(c.id) : undefined; return <SeatDot key={c.key} cell={c} guest={g} onPick={onPick} selected={!!g && g.id === selectedGuestId} />; })}
       {label !== undefined && <span style={{ width: 14, textAlign: "left", fontSize: 11, color: C.ash, fontWeight: 700 }}>{label}</span>}
     </div>
   );
 }
 
-function SeatBlock({ rows, occ, rowLabels }: { rows: Cell[][]; occ: Map<string, Guest>; rowLabels?: boolean }) {
+function SeatBlock({ rows, occ, rowLabels, onPick, selectedGuestId }: { rows: Cell[][]; occ: Map<string, Guest>; rowLabels?: boolean; onPick?: (g: Guest) => void; selectedGuestId?: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      {rows.map((r, i) => <SeatRow key={i} cells={r} occ={occ} label={rowLabels ? rowLetterOf(r) : undefined} />)}
+      {rows.map((r, i) => <SeatRow key={i} cells={r} occ={occ} label={rowLabels ? rowLetterOf(r) : undefined} onPick={onPick} selectedGuestId={selectedGuestId} />)}
     </div>
   );
 }
 
-function ColumnBank({ title, rows, inboard, occ }: { title: string; rows: Cell[][]; inboard: "left" | "right"; occ: Map<string, Guest> }) {
+function ColumnBank({ title, rows, inboard, occ, onPick, selectedGuestId }: { title: string; rows: Cell[][]; inboard: "left" | "right"; occ: Map<string, Guest>; onPick?: (g: Guest) => void; selectedGuestId?: string }) {
   const ROW_W = 25 * 2 + 4; // two seats + gap
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: C.paperDeep, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 7px", alignSelf: "flex-start" }}>
       <div style={{ fontSize: 9, letterSpacing: ".04em", textTransform: "uppercase", color: C.ash, fontWeight: 700, marginBottom: 2, whiteSpace: "nowrap" }}>{title}</div>
       {rows.map((r, i) => (
         <div key={i} style={{ display: "flex", gap: 4, width: ROW_W, justifyContent: r.length > 1 ? "space-between" : (inboard === "right" ? "flex-end" : "flex-start") }}>
-          {r.map((c) => <SeatDot key={c.key} cell={c} guest={c.id ? occ.get(c.id) : undefined} />)}
+          {r.map((c) => { const g = c.id ? occ.get(c.id) : undefined; return <SeatDot key={c.key} cell={c} guest={g} onPick={onPick} selected={!!g && g.id === selectedGuestId} />; })}
         </div>
       ))}
     </div>
   );
 }
 
-function SeatMap({ occ, placed }: { occ: Map<string, Guest>; placed: number }) {
+function SeatMap({ occ, placed, onPick, selectedGuestId }: { occ: Map<string, Guest>; placed: number; onPick?: (g: Guest) => void; selectedGuestId?: string }) {
   const open = ALL_SEAT_IDS.size - placed;
   return (
     <div style={{ width: "100%" }}>
@@ -1118,19 +1120,19 @@ function SeatMap({ occ, placed }: { occ: Map<string, Guest>; placed: number }) {
             <span style={{ display: "inline-block", border: `1px dashed ${C.ash}`, color: C.ash, fontSize: 10, letterSpacing: ".24em", padding: "5px 64px", borderRadius: 4, textTransform: "uppercase" }}>Stage</span>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "flex-start", justifyContent: "center" }}>
-            <ColumnBank title="Mezz. Left" rows={MEZZ_LEFT_BANK} inboard="right" occ={occ} />
-            <div style={{ alignSelf: "flex-start" }}><SeatBlock rows={ORCH_LEFT} occ={occ} /></div>
+            <ColumnBank title="Mezz. Left" rows={MEZZ_LEFT_BANK} inboard="right" occ={occ} onPick={onPick} selectedGuestId={selectedGuestId} />
+            <div style={{ alignSelf: "flex-start" }}><SeatBlock rows={ORCH_LEFT} occ={occ} onPick={onPick} selectedGuestId={selectedGuestId} /></div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <SeatBlock rows={FRONT_ORCH} occ={occ} rowLabels />
+              <SeatBlock rows={FRONT_ORCH} occ={occ} rowLabels onPick={onPick} selectedGuestId={selectedGuestId} />
               <div style={{ height: 18 }} />
-              <SeatBlock rows={REAR_ORCH} occ={occ} rowLabels />
+              <SeatBlock rows={REAR_ORCH} occ={occ} rowLabels onPick={onPick} selectedGuestId={selectedGuestId} />
             </div>
-            <div style={{ alignSelf: "flex-start" }}><SeatBlock rows={ORCH_RIGHT} occ={occ} /></div>
-            <ColumnBank title="Mezz. Right" rows={MEZZ_RIGHT_BANK} inboard="left" occ={occ} />
+            <div style={{ alignSelf: "flex-start" }}><SeatBlock rows={ORCH_RIGHT} occ={occ} onPick={onPick} selectedGuestId={selectedGuestId} /></div>
+            <ColumnBank title="Mezz. Right" rows={MEZZ_RIGHT_BANK} inboard="left" occ={occ} onPick={onPick} selectedGuestId={selectedGuestId} />
           </div>
           <div style={{ marginTop: 18, background: C.paperDeep, border: `1px solid ${C.line}`, borderRadius: 8, padding: "12px 10px" }}>
             <div style={{ textAlign: "center", fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: C.ash, fontWeight: 700, marginBottom: 10 }}>Mezzanine / Balcony</div>
-            <SeatBlock rows={BALCONY} occ={occ} rowLabels />
+            <SeatBlock rows={BALCONY} occ={occ} rowLabels onPick={onPick} selectedGuestId={selectedGuestId} />
           </div>
         </div>
       </div>
@@ -1188,6 +1190,7 @@ function EventFloorPlan({ eventFilter, guests, performances, jubileeGuests }: {
   const countFor = (p: Performance) => guests.filter((g) => g.event_tag === perfTagOf(p)).length;
   const defaultPerf = performances.find((p) => countFor(p) > 0) || performances[0] || null;
   const [pickedPerfTag, setPickedPerfTag] = useState<string | null>(defaultPerf ? perfTagOf(defaultPerf) : null);
+  const [selected, setSelected] = useState<Guest | null>(null);
   const activePerfTag = filterIsPerf ? eventFilter : pickedPerfTag;
   const activePerf = performances.find((p) => perfTagOf(p) === activePerfTag) || null;
 
@@ -1197,6 +1200,7 @@ function EventFloorPlan({ eventFilter, guests, performances, jubileeGuests }: {
   const reserved = [...occ.keys()];
   const placed = reserved.filter((id) => ALL_SEAT_IDS.has(id));
   const unplaced = reserved.filter((id) => !ALL_SEAT_IDS.has(id));
+  const selectedGuest = selected && perfGuests.some((g) => g.id === selected.id) ? selected : null;
 
   const showMap = eventFilter !== "jubilee" && performances.length > 0;
   const showJub = !filterIsPerf && jubileeGuests.length > 0;
@@ -1212,7 +1216,7 @@ function EventFloorPlan({ eventFilter, guests, performances, jubileeGuests }: {
                   const tag = perfTagOf(p);
                   const active = tag === activePerfTag;
                   return (
-                    <button key={p.id} className="ct-btn" onClick={() => setPickedPerfTag(tag)}
+                    <button key={p.id} className="ct-btn" onClick={() => { setPickedPerfTag(tag); setSelected(null); }}
                       style={{
                         background: active ? C.ink : C.paper, color: active ? C.paper : C.ink,
                         border: `1px solid ${active ? C.ink : C.line}`, padding: "4px 10px", fontSize: 12,
@@ -1226,10 +1230,24 @@ function EventFloorPlan({ eventFilter, guests, performances, jubileeGuests }: {
             )}
             {activePerf && (
               <div style={{ fontSize: 12, color: C.ash, marginBottom: 8 }}>
-                {activePerf.title} · {perfShortLabel(activePerf)} — {perfGuests.length} part{perfGuests.length === 1 ? "y" : "ies"}, {placed.length} seat{placed.length === 1 ? "" : "s"} reserved
+                {activePerf.title} · {perfShortLabel(activePerf)} — {perfGuests.length} part{perfGuests.length === 1 ? "y" : "ies"}, {placed.length} seat{placed.length === 1 ? "" : "s"} reserved · tap a reserved seat for guest details
               </div>
             )}
-            <SeatMap occ={occ} placed={placed.length} />
+            {selectedGuest && (
+              <div style={{ position: "sticky", top: 8, zIndex: 5, marginBottom: 12, background: C.paper, border: `1.5px solid ${C.ink}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "flex-start", gap: 12, boxShadow: "0 4px 14px rgba(0,0,0,0.10)" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: C.ink }}>{selectedGuest.name || "Reserved"}</div>
+                  <div style={{ fontSize: 12.5, color: C.ash, marginTop: 3 }}>
+                    Party of {selectedGuest.party_size} · {(selectedGuest.notes || "").replace(/^\s*Show:\s*/i, "") || "no seats"}
+                  </div>
+                  <div style={{ fontSize: 12, marginTop: 4, color: selectedGuest.checked_in ? C.green : C.ash, fontWeight: selectedGuest.checked_in ? 600 : 400 }}>
+                    {selectedGuest.checked_in ? "✓ Checked in" : "Not checked in"}
+                  </div>
+                </div>
+                <button onClick={() => setSelected(null)} className="ct-btn no-print" aria-label="Close" style={{ background: "none", padding: 4, color: C.ash, fontSize: 14, lineHeight: 1, flexShrink: 0 }}>✕</button>
+              </div>
+            )}
+            <SeatMap occ={occ} placed={placed.length} onPick={setSelected} selectedGuestId={selectedGuest?.id} />
             {unplaced.length > 0 && (
               <div style={{ marginTop: 12, background: "#FBEEE8", border: `1px solid ${C.brick}33`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: C.brick }}>
                 {unplaced.length} reserved seat(s) didn’t match the map: {unplaced.map((s) => s.replace("|", " ")).join(", ")}
