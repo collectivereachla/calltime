@@ -31,7 +31,8 @@ const EMPTY: FormState = {
 };
 
 const GROUPS: { key: string; label: string; types: string[] }[] = [
-  { key: "mics", label: "Actor mics", types: ["lav", "handheld"] },
+  { key: "mics", label: "Actor mics", types: ["lav"] },
+  { key: "handhelds", label: "Handhelds", types: ["handheld"] },
   { key: "band", label: "Band & instruments", types: ["instrument"] },
   { key: "other", label: "Other inputs", types: ["other"] },
 ];
@@ -135,7 +136,6 @@ export function MicPlot({ productionId, mics, cast, musicians, company, canManag
             <div className="flex items-center gap-2 flex-wrap">
               {m.element && <span className="text-body-xs text-ink truncate">{m.element}</span>}
               {m.channel && <span className="font-mono text-[10px] text-ash">ch {m.channel}</span>}
-              {m.input_type === "handheld" && <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider bg-ash/10 text-ash">Handheld</span>}
               {m.connection === "di" && <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider bg-ink/10 text-ink">DI</span>}
               {m.connection === "wired" && <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider bg-ash/10 text-ash">Wired</span>}
               {m.is_backup && <span className="px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider bg-tentative/15 text-tentative">Backup</span>}
