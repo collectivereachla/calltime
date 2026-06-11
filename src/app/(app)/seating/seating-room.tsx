@@ -39,18 +39,35 @@ const CircleDollarSign = glyph("$");
 
 type Table = { id: string; number: number; name: string | null; capacity: number; x: number; y: number; amount: number | null; source: string | null; status: string };
 type Guest = { id: string; name: string; party_size: number; amount: number | null; source: string | null; status: string; table_id: string | null; notes: string | null; checked_in?: boolean; event_tag?: string | null };
+type Performance = { id: string; title: string; event_date: string; start_time: string | null };
 type Totals = { collected: number; heads: number; seated: number; bySource: Record<string, number>; outstanding: Guest[]; projected: number | null };
+
+const perfTagOf = (p: Performance) => `show:${p.id}`;
+
+function perfShortLabel(p: Performance) {
+  const d = new Date(`${p.event_date}T12:00:00`);
+  const date = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  let time = "";
+  if (p.start_time) {
+    const [h, m] = p.start_time.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const hr = h % 12 === 0 ? 12 : h % 12;
+    time = ` ${hr}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ampm}`;
+  }
+  return `${date}${time}`;
+}
 
 const persist = (p: Promise<unknown>) => { p.catch((e) => console.error("seating save failed:", e)); };
 
 export function SeatingRoom({
-  productionId, productionTitle, canEdit, initialTables, initialGuests, initialPrice,
+  productionId, productionTitle, canEdit, initialTables, initialGuests, initialPrice, performances,
 }: {
   productionId: string; productionTitle: string; canEdit: boolean;
   initialTables: Table[]; initialGuests: Guest[]; initialPrice: string;
+  performances: Performance[];
 }) {
   const [tab, setTab] = useState<"roster" | "floor" | "checkin">("roster");
-  const [eventFilter, setEventFilter] = useState<"both" | "jubilee" | "show">("both");
+  const [eventFilter, setEventFilter] = useState<string>("all");
   const [tables, setTables] = useState<Table[]>(initialTables);
   const [guests, setGuests] = useState<Guest[]>(initialGuests);
   const [price, setPrice] = useState(initialPrice);
@@ -70,19 +87,21 @@ export function SeatingRoom({
     [guests]
   );
 
-  // Event filter (Jubilee / Performance / Both). Drives the check-in tab,
-  // the guests list, and the floor plan. A production only has event tags if
-  // its guests were imported with one (TJS does); otherwise this is inert and
-  // every view shows the full roster, exactly as before.
-  const hasEventData = guests.some((g) => g.event_tag === "show" || g.event_tag === "jubilee");
+  // Event filter (Jubilee / per-performance / All). Drives the check-in tab,
+  // the guests list, and the floor plan. Performances come from the Callboard;
+  // each one gets its own seat map. Guests carry event_tag 'jubilee' or
+  // 'show:<schedule_event_id>'. Productions without tagged guests or
+  // performances see the legacy single-roster view, exactly as before.
+  const hasEventData =
+    performances.length > 0 || guests.some((g) => g.event_tag === "jubilee" || (g.event_tag || "").startsWith("show"));
   const jubileeGuests = guests.filter((g) => g.event_tag === "jubilee");
-  const showGuests = guests.filter((g) => g.event_tag === "show");
+  const guestsForPerf = (tag: string) => guests.filter((g) => g.event_tag === tag);
   const filteredGuests =
-    !hasEventData || eventFilter === "both"
+    !hasEventData || eventFilter === "all"
       ? guests
       : eventFilter === "jubilee"
       ? jubileeGuests
-      : showGuests;
+      : guestsForPerf(eventFilter);
 
   const totals = (() => {
     // Tables are sold as a unit; GA (unseated) is sold per seat. Seated guests
@@ -207,10 +226,12 @@ export function SeatingRoom({
           <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "16px 0 18px", flexWrap: "wrap" }} className="no-print">
             <span style={{ fontSize: 11, letterSpacing: ".12em", textTransform: "uppercase", color: C.ash, fontWeight: 600, marginRight: 4 }}>Event</span>
             {([
-              ["both", "Both", guests.length],
-              ["show", "Performance", showGuests.length],
-              ["jubilee", "Jubilee", jubileeGuests.length],
-            ] as const).map(([key, label, count]) => {
+              ["all", "All", guests.length] as [string, string, number],
+              ...performances.map((p): [string, string, number] => [
+                perfTagOf(p), perfShortLabel(p), guestsForPerf(perfTagOf(p)).length,
+              ]),
+              ...(jubileeGuests.length > 0 ? [["jubilee", "Jubilee", jubileeGuests.length] as [string, string, number]] : []),
+            ]).map(([key, label, count]) => {
               const active = eventFilter === key;
               return (
                 <button key={key} className="ct-btn" onClick={() => setEventFilter(key)}
@@ -252,7 +273,7 @@ export function SeatingRoom({
           addTable={addTable} updateTable={updateTable} removeTable={removeTable}
           updateGuest={updateGuest} addGuestToTable={addGuestToTable} occupancyOf={occupancyOf}
           selectedTable={selectedTable} setSelectedTable={setSelectedTable}
-          hasEventData={hasEventData} eventFilter={eventFilter} showGuests={showGuests} jubileeGuests={jubileeGuests}
+          hasEventData={hasEventData} eventFilter={eventFilter} performances={performances} jubileeGuests={jubileeGuests}
         />
       )}
     </div>
@@ -389,10 +410,10 @@ type FloorProps = {
   addTable: () => void; updateTable: (id: string, patch: Partial<Table>, save?: boolean) => void; removeTable: (id: string) => void;
   updateGuest: (id: string, patch: Partial<Guest>, save?: boolean) => void; addGuestToTable: (tableId: string, name: string, size: number) => void;
   occupancyOf: (id: string) => number; selectedTable: string | null; setSelectedTable: (id: string | null) => void;
-  hasEventData: boolean; eventFilter: "both" | "jubilee" | "show"; showGuests: Guest[]; jubileeGuests: Guest[];
+  hasEventData: boolean; eventFilter: string; performances: Performance[]; jubileeGuests: Guest[];
 };
 
-function FloorPlan({ tables, guests, canEdit, productionTitle, addTable, updateTable, removeTable, updateGuest, addGuestToTable, occupancyOf, selectedTable, setSelectedTable, hasEventData, eventFilter, showGuests, jubileeGuests }: FloorProps) {
+function FloorPlan({ tables, guests, canEdit, productionTitle, addTable, updateTable, removeTable, updateGuest, addGuestToTable, occupancyOf, selectedTable, setSelectedTable, hasEventData, eventFilter, performances, jubileeGuests }: FloorProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
   const [newName, setNewName] = useState("");
@@ -448,7 +469,8 @@ function FloorPlan({ tables, guests, canEdit, productionTitle, addTable, updateT
     return (
       <EventFloorPlan
         eventFilter={eventFilter}
-        showGuests={showGuests}
+        guests={guests}
+        performances={performances}
         jubileeGuests={jubileeGuests}
         productionTitle={productionTitle}
       />
@@ -1156,23 +1178,57 @@ function JubileeList({ guests }: { guests: Guest[] }) {
   );
 }
 
-function EventFloorPlan({ eventFilter, showGuests, jubileeGuests }: {
-  eventFilter: "both" | "jubilee" | "show"; showGuests: Guest[]; jubileeGuests: Guest[]; productionTitle: string;
+function EventFloorPlan({ eventFilter, guests, performances, jubileeGuests }: {
+  eventFilter: string; guests: Guest[]; performances: Performance[]; jubileeGuests: Guest[]; productionTitle: string;
 }) {
+  // Which performance's seats render: the filtered one, or a map-level pick
+  // when the filter is All / Jubilee. Defaults to the first performance with
+  // reserved seats, else the first performance.
+  const filterIsPerf = eventFilter.startsWith("show");
+  const countFor = (p: Performance) => guests.filter((g) => g.event_tag === perfTagOf(p)).length;
+  const defaultPerf = performances.find((p) => countFor(p) > 0) || performances[0] || null;
+  const [pickedPerfTag, setPickedPerfTag] = useState<string | null>(defaultPerf ? perfTagOf(defaultPerf) : null);
+  const activePerfTag = filterIsPerf ? eventFilter : pickedPerfTag;
+  const activePerf = performances.find((p) => perfTagOf(p) === activePerfTag) || null;
+
+  const perfGuests = activePerfTag ? guests.filter((g) => g.event_tag === activePerfTag) : [];
   const occ = new Map<string, Guest>();
-  for (const g of showGuests) for (const id of parseShowSeats(g.notes)) if (!occ.has(id)) occ.set(id, g);
+  for (const g of perfGuests) for (const id of parseShowSeats(g.notes)) if (!occ.has(id)) occ.set(id, g);
   const reserved = [...occ.keys()];
   const placed = reserved.filter((id) => ALL_SEAT_IDS.has(id));
   const unplaced = reserved.filter((id) => !ALL_SEAT_IDS.has(id));
 
-  const showMap = eventFilter !== "jubilee";
-  const showJub = eventFilter !== "show";
+  const showMap = eventFilter !== "jubilee" && performances.length > 0;
+  const showJub = !filterIsPerf && jubileeGuests.length > 0;
 
   return (
     <div style={{ padding: "20px 34px" }}>
       <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
         {showMap && (
           <div style={{ flex: "1 1 620px", minWidth: 0 }}>
+            {!filterIsPerf && performances.length > 1 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                {performances.map((p) => {
+                  const tag = perfTagOf(p);
+                  const active = tag === activePerfTag;
+                  return (
+                    <button key={p.id} className="ct-btn" onClick={() => setPickedPerfTag(tag)}
+                      style={{
+                        background: active ? C.ink : C.paper, color: active ? C.paper : C.ink,
+                        border: `1px solid ${active ? C.ink : C.line}`, padding: "4px 10px", fontSize: 12,
+                      }}>
+                      {p.title} · {perfShortLabel(p)}
+                      <span style={{ opacity: 0.7, marginLeft: 5, fontSize: 11 }}>{countFor(p)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {activePerf && (
+              <div style={{ fontSize: 12, color: C.ash, marginBottom: 8 }}>
+                {activePerf.title} · {perfShortLabel(activePerf)} — {perfGuests.length} part{perfGuests.length === 1 ? "y" : "ies"}, {placed.length} seat{placed.length === 1 ? "" : "s"} reserved
+              </div>
+            )}
             <SeatMap occ={occ} placed={placed.length} />
             {unplaced.length > 0 && (
               <div style={{ marginTop: 12, background: "#FBEEE8", border: `1px solid ${C.brick}33`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: C.brick }}>

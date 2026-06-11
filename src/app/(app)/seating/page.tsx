@@ -48,6 +48,15 @@ export default async function SeatingPage() {
     .eq("production_id", activeProductionId)
     .maybeSingle();
 
+  // Performances from the Callboard — each gets its own seat map.
+  const { data: performances } = await supabase
+    .from("schedule_events")
+    .select("id, title, event_date, start_time")
+    .eq("production_id", activeProductionId)
+    .eq("event_type", "performance")
+    .order("event_date")
+    .order("start_time");
+
   return (
     <SeatingRoom
       productionId={activeProductionId}
@@ -56,6 +65,7 @@ export default async function SeatingPage() {
       initialTables={tables || []}
       initialGuests={guests || []}
       initialPrice={settings?.price_per_seat != null ? String(settings.price_per_seat) : ""}
+      performances={(performances || []) as { id: string; title: string; event_date: string; start_time: string | null }[]}
     />
   );
 }
