@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   sendEmail,
   buildEventCallEmail,
@@ -15,7 +15,11 @@ const APP_URL =
  */
 export async function sendEventCallEmails(eventId: string) {
   try {
-    const supabase = await createClient();
+    // Service-role read: this is a system send. Under the cookie-scoped client
+    // RLS filters the embedded people/production/org rows to whatever the
+    // acting user can see, which empties or breaks the !inner embed when the
+    // SM saves a roster change. Admin client reads the full call list.
+    const supabase = createAdminClient();
 
     // Get event details + all called people with emails
     const { data: calls, error } = await supabase
@@ -145,7 +149,7 @@ export async function sendWelcomeEmail({
   department: string;
 }) {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
 
     const [personResult, prodResult] = await Promise.all([
       supabase

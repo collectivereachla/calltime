@@ -272,13 +272,17 @@ export async function updateEventCalls(
   await assertNotPreviewing();
   const supabase = await createClient();
 
-  // Snapshot who was called before, so we can tell genuine additions from
-  // people who were already on the call (and shouldn't be re-notified).
+  // Snapshot who was called before AND their current call times, so we can
+  // tell genuine additions from existing calls, and detect time changes for
+  // people who stay on the call.
   const { data: beforeCalls } = await supabase
     .from("event_calls")
-    .select("person_id")
+    .select("id, person_id, call_time")
     .eq("event_id", eventId);
   const beforeIds = new Set((beforeCalls || []).map((c) => c.person_id as string));
+  const beforeTimeByPerson = new Map<string, string | null>(
+    (beforeCalls || []).map((c) => [c.person_id as string, (c.call_time as string | null) ?? null])
+  );
   const addedIds = personIds.filter((id) => !beforeIds.has(id));
 
   const { error } = await supabase.rpc("update_event_calls", {
@@ -302,7 +306,7 @@ export async function updateEventCalls(
   // draft stay silent until it's published (publishWeek sends them then).
   const { data: ev } = await supabase
     .from("schedule_events")
-    .select("title, event_date, org_id, production_id, published")
+    .select("title, event_date, start_time, end_time, location, event_type, ics_sequence, org_id, production_id, published, productions(title), organizations(name)")
     .eq("id", eventId)
     .single();
 
@@ -352,6 +356,61 @@ export async function updateEventCalls(
         summary: `Added to ${ev.title} on ${dateStr}`, eventDate: ev.event_date,
       }))
     ).catch(() => {});
+  }
+
+  // Per-person call-time changes: anyone who stays on the call but whose
+  // individual time moved must be told, exactly like an event move. We compare
+  // the submitted times against the snapshot and notify only real changes,
+  // skipping people we already handled as fresh adds above.
+  if (ev?.published && times && times.length > 0) {
+    const addedSet = new Set(addedIds);
+    const norm = (t: string | null) => (t && t.length >= 5 ? t.slice(0, 5) : t || null);
+    const timeChanged = times.filter((t) => {
+      if (addedSet.has(t.person_id)) return false;
+      if (!beforeIds.has(t.person_id)) return false;
+      return norm(beforeTimeByPerson.get(t.person_id) ?? null) !== norm(t.call_time);
+    });
+
+    if (timeChanged.length > 0) {
+      const changedPersonIds = timeChanged.map((t) => t.person_id);
+      const { data: changedCalls } = await supabase
+        .from("event_calls")
+        .select("id, person_id")
+        .eq("event_id", eventId)
+        .in("person_id", changedPersonIds);
+      const changedCallIds = (changedCalls || []).map((c) => c.id as string);
+
+      const prod = ev.productions as unknown as { title: string } | null;
+      const org = ev.organizations as unknown as { name: string } | null;
+      const { notifyScheduleChange } = await import("@/lib/schedule-change");
+      // Treat each changed person's new call time as the event's "new start"
+      // for their notification. notifyScheduleChange re-opens their confirmation
+      // and sends push + email within 48h, digest otherwise.
+      for (const t of timeChanged) {
+        const call = (changedCalls || []).find((c) => c.person_id === t.person_id);
+        notifyScheduleChange({
+          orgId: ev.org_id,
+          productionId: ev.production_id,
+          eventId,
+          title: ev.title,
+          published: true,
+          kind: "moved",
+          oldDate: ev.event_date,
+          oldStart: beforeTimeByPerson.get(t.person_id) ?? ev.start_time,
+          newDate: ev.event_date,
+          newStart: t.call_time || ev.start_time,
+          newLocation: ev.location,
+          personIds: [t.person_id],
+          eventCallIds: call ? [call.id as string] : [],
+          productionTitle: prod?.title ?? null,
+          orgName: org?.name ?? null,
+          eventType: ev.event_type,
+          newEnd: ev.end_time,
+          icsSequence: (ev.ics_sequence as number) ?? 0,
+        }).catch(() => {});
+      }
+      void changedCallIds;
+    }
   }
 
   if (ev?.published) {
