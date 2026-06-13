@@ -272,6 +272,15 @@ export async function updateEventCalls(
   await assertNotPreviewing();
   const supabase = await createClient();
 
+  // Snapshot who was called before, so we can tell genuine additions from
+  // people who were already on the call (and shouldn't be re-notified).
+  const { data: beforeCalls } = await supabase
+    .from("event_calls")
+    .select("person_id")
+    .eq("event_id", eventId);
+  const beforeIds = new Set((beforeCalls || []).map((c) => c.person_id as string));
+  const addedIds = personIds.filter((id) => !beforeIds.has(id));
+
   const { error } = await supabase.rpc("update_event_calls", {
     p_event_id: eventId,
     p_person_ids: personIds,
@@ -289,10 +298,62 @@ export async function updateEventCalls(
     if (tErr) return { error: tErr.message };
   }
 
-  // Only notify newly-called people if the event is already published. Calls
-  // added while the week is still a draft stay silent until it's published.
+  // Only notify on a published event. Calls added while the week is still a
+  // draft stay silent until it's published (publishWeek sends them then).
   const { data: ev } = await supabase
-    .from("schedule_events").select("published").eq("id", eventId).single();
+    .from("schedule_events")
+    .select("title, event_date, org_id, production_id, published")
+    .eq("id", eventId)
+    .single();
+
+  if (ev?.published && addedIds.length > 0) {
+    // Fetch the fresh event_call rows for the people we just added, so we can
+    // force them back to pending: any prior confirmation is void because they
+    // were off this call and are now being asked again.
+    const { data: addedCalls } = await supabase
+      .from("event_calls")
+      .select("id, person_id")
+      .eq("event_id", eventId)
+      .in("person_id", addedIds);
+
+    const addedCallIds = (addedCalls || []).map((c) => c.id as string);
+    if (addedCallIds.length > 0) {
+      // Clear any lingering responses and reset nudge tracking so they must
+      // confirm again. email_sent_at stays null so sendEventCallEmails picks
+      // them up below.
+      await supabase.from("call_responses").delete().in("event_call_id", addedCallIds);
+      await supabase
+        .from("event_calls")
+        .update({ nudge_sent_at: null })
+        .in("id", addedCallIds);
+    }
+
+    // In-app + push for every newly-called person (the email goes out via
+    // sendEventCallEmails). This is the ping that was missing on re-add.
+    const dateStr = new Date(ev.event_date + "T00:00:00").toLocaleDateString("en-US", {
+      weekday: "short", month: "short", day: "numeric",
+    });
+    for (const pid of addedIds) {
+      createNotification({
+        personId: pid,
+        orgId: ev.org_id,
+        type: "event_call",
+        title: "You've been called",
+        body: `${ev.title} — ${dateStr}`,
+        link: "/callboard",
+      }).catch(() => {});
+    }
+
+    const { logScheduleChanges } = await import("@/lib/schedule-change");
+    logScheduleChanges(
+      addedIds.map((pid) => ({
+        orgId: ev.org_id, productionId: ev.production_id, personId: pid,
+        eventId, changeType: "called" as const,
+        summary: `Added to ${ev.title} on ${dateStr}`, eventDate: ev.event_date,
+      }))
+    ).catch(() => {});
+  }
+
   if (ev?.published) {
     sendEventCallEmails(eventId).catch(() => {});
   }

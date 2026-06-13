@@ -120,6 +120,21 @@ export async function notifyScheduleChange(opts: {
 
   const near =
     withinWindow(opts.oldDate, opts.oldStart) || withinWindow(opts.newDate, opts.newStart);
+
+  const supabase = await createClient();
+
+  // A move re-opens confirmation for this event's calls no matter how far out
+  // it is: the time people agreed to has changed, so their old "confirmed" is
+  // stale and they must be asked again. (The weekly digest carries the ask for
+  // far-out moves; near moves also get the real-time ping below.)
+  if (opts.kind === "moved" && opts.eventCallIds && opts.eventCallIds.length > 0) {
+    await supabase.from("call_responses").delete().in("event_call_id", opts.eventCallIds);
+    await supabase
+      .from("event_calls")
+      .update({ email_sent_at: new Date().toISOString(), nudge_sent_at: null })
+      .in("id", opts.eventCallIds);
+  }
+
   if (!near) return; // outside 48h — the weekly digest will carry it
 
   let title: string;
@@ -153,8 +168,6 @@ export async function notifyScheduleChange(opts: {
       link: "/callboard",
     }).catch(() => {});
   }
-
-  const supabase = await createClient();
 
   if (sendMail) {
     // Build the matching calendar invite once (REQUEST for a move, CANCEL for a
@@ -198,15 +211,5 @@ export async function notifyScheduleChange(opts: {
         : undefined;
       sendEmail({ to: p.email, subject: emailSubject, html, attachments }).catch(() => {});
     }
-  }
-
-  // A move re-opens confirmation for just this event's calls: clear their
-  // responses and reset nudge tracking so they're asked again.
-  if (opts.kind === "moved" && opts.eventCallIds && opts.eventCallIds.length > 0) {
-    await supabase.from("call_responses").delete().in("event_call_id", opts.eventCallIds);
-    await supabase
-      .from("event_calls")
-      .update({ email_sent_at: new Date().toISOString(), nudge_sent_at: null })
-      .in("id", opts.eventCallIds);
   }
 }
