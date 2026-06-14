@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { logWeaponCustody } from "./weapons-actions";
+import { SignaturePad } from "../ledger/signature-pad";
 
 export interface WeaponProp {
   id: string;
@@ -72,14 +73,29 @@ export function WeaponsLog({ productionId, weapons, entries, roster }: Props) {
   const isOut = latest?.action === "check_out";
   const nextAction = isOut ? "check_in" : "check_out";
 
+  // Drawn signatures, captured as PNG data URLs. Keyed so "Clear" + a fresh
+  // submit fully reset both pads between entries.
+  const [smSig, setSmSig] = useState<string | null>(null);
+  const [directorSig, setDirectorSig] = useState<string | null>(null);
+  const [padKey, setPadKey] = useState(0);
+
   async function handleSubmit(formData: FormData) {
+    if (!smSig || !directorSig) {
+      setError("Both Stage Manager and Director must sign before logging.");
+      return;
+    }
     setSaving(true);
     setError(null);
+    formData.set("sm_signature", smSig);
+    formData.set("director_signature", directorSig);
     const result = await logWeaponCustody(formData);
     setSaving(false);
     if (result?.error) {
       setError(result.error);
     } else {
+      setSmSig(null);
+      setDirectorSig(null);
+      setPadKey((k) => k + 1);
       router.refresh();
     }
   }
@@ -158,14 +174,14 @@ export function WeaponsLog({ productionId, weapons, entries, roster }: Props) {
             </span>
           </label>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-body-xs text-ash block mb-1">Stage Manager signature</label>
-              <input name="sm_signature" required placeholder="Type full name" className={inputClass} />
+              <SignaturePad key={`sm-${padKey}`} onChange={setSmSig} height={130} />
             </div>
             <div>
               <label className="text-body-xs text-ash block mb-1">Director signature</label>
-              <input name="director_signature" required placeholder="Type full name" className={inputClass} />
+              <SignaturePad key={`dir-${padKey}`} onChange={setDirectorSig} height={130} />
             </div>
           </div>
 
@@ -213,9 +229,37 @@ export function WeaponsLog({ productionId, weapons, entries, roster }: Props) {
                     : "Custodian not recorded"}
                   {e.chamber_verified ? " · chamber verified" : ""}
                 </p>
-                <p className="text-body-xs text-muted mt-1">
-                  SM: {e.sm_signature || "—"} · Director: {e.director_signature || "—"}
-                </p>
+                {(() => {
+                  const isImg = (s: string | null) => !!s && s.startsWith("data:image");
+                  const drawn = isImg(e.sm_signature) || isImg(e.director_signature);
+                  if (drawn) {
+                    return (
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        <div>
+                          <p className="text-body-xs text-muted mb-1">Stage Manager</p>
+                          {isImg(e.sm_signature) ? (
+                            <img src={e.sm_signature!} alt="SM signature" className="h-12 bg-white border border-bone rounded" />
+                          ) : (
+                            <p className="text-body-sm text-ink">{e.sm_signature || "—"}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-body-xs text-muted mb-1">Director</p>
+                          {isImg(e.director_signature) ? (
+                            <img src={e.director_signature!} alt="Director signature" className="h-12 bg-white border border-bone rounded" />
+                          ) : (
+                            <p className="text-body-sm text-ink">{e.director_signature || "—"}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <p className="text-body-xs text-muted mt-1">
+                      SM: {e.sm_signature || "—"} · Director: {e.director_signature || "—"}
+                    </p>
+                  );
+                })()}
                 {e.notes && <p className="text-body-xs text-ash mt-1">{e.notes}</p>}
               </div>
             ))}
