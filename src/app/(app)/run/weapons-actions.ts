@@ -24,6 +24,8 @@ export async function logWeaponCustody(formData: FormData) {
   const smSignature = ((formData.get("sm_signature") as string) || "").trim() || null;
   const directorPersonId = (formData.get("director_person_id") as string) || null;
   const directorSignature = ((formData.get("director_signature") as string) || "").trim() || null;
+  const actorPersonId = (formData.get("actor_person_id") as string) || null;
+  const actorSignature = ((formData.get("actor_signature") as string) || "").trim() || null;
   const notes = ((formData.get("notes") as string) || "").trim() || null;
 
   if (!productionId || !propId || !["check_out", "check_in"].includes(action)) {
@@ -34,6 +36,9 @@ export async function logWeaponCustody(formData: FormData) {
   }
   if (!smSignature || !directorSignature) {
     return { error: "Both Stage Manager and Director signatures are required." };
+  }
+  if (!actorSignature) {
+    return { error: "The actor handling the gun must sign." };
   }
 
   const { error } = await supabase.from("prop_custody_log").insert({
@@ -46,6 +51,8 @@ export async function logWeaponCustody(formData: FormData) {
     sm_signature: smSignature,
     director_person_id: directorPersonId,
     director_signature: directorSignature,
+    actor_person_id: actorPersonId,
+    actor_signature: actorSignature,
     notes,
     created_by: me.id,
   });

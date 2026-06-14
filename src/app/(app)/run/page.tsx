@@ -145,13 +145,13 @@ export default async function RunPage() {
     .filter(p => p.is_weapon)
     .map(p => ({ id: p.id, prop_name: p.prop_name, scenes: p.scenes, used_by: p.used_by }));
 
-  let custodyEntries: { id: string; prop_id: string; prop_name: string; action: string; custodian_name: string | null; chamber_verified: boolean; sm_signature: string | null; director_signature: string | null; occurred_at: string; notes: string | null }[] = [];
+  let custodyEntries: { id: string; prop_id: string; prop_name: string; action: string; custodian_name: string | null; chamber_verified: boolean; sm_signature: string | null; director_signature: string | null; actor_signature: string | null; occurred_at: string; notes: string | null }[] = [];
   let custodyRoster: { id: string; name: string }[] = [];
   if (canManage && weapons.length > 0) {
     const { data: custodyData } = await supabase
       .from("prop_custody_log")
       .select(`
-        id, prop_id, action, chamber_verified, sm_signature, director_signature, occurred_at, notes,
+        id, prop_id, action, chamber_verified, sm_signature, director_signature, actor_signature, occurred_at, notes,
         custodian:people!prop_custody_log_custodian_person_id_fkey(id, full_name, preferred_name)
       `)
       .eq("production_id", activeProductionId)
@@ -169,6 +169,7 @@ export default async function RunPage() {
         chamber_verified: e.chamber_verified,
         sm_signature: e.sm_signature,
         director_signature: e.director_signature,
+        actor_signature: e.actor_signature,
         occurred_at: e.occurred_at,
         notes: e.notes,
       };
