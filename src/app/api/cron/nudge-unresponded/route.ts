@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail, buildNudgeEmail } from "@/lib/email";
+import { sendEventCallEmails } from "@/lib/email-triggers";
 import { createNotification } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
@@ -43,9 +44,34 @@ export async function GET(request: Request) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://checkcalltime.art";
 
   const now = new Date();
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago" }).format(now); // YYYY-MM-DD
+
+  // --- Self-heal: send the proper first call email to anyone who was never
+  // emailed. A published call with email_sent_at null is a gap (it normally
+  // gets sent at publish time); send the real "you've been called" email with
+  // calendar invite + confirm buttons, which also stamps email_sent_at so the
+  // nudge loop below can take over on later cycles. This is what makes the
+  // whole thing automatic — no manual trigger anywhere.
+  const { data: unsentRows } = await supabase
+    .from("event_calls")
+    .select("event_id, schedule_events!inner ( event_date, published )")
+    .is("email_sent_at", null)
+    .eq("schedule_events.published", true)
+    .gte("schedule_events.event_date", today);
+  const eventsNeedingFirstSend = Array.from(new Set((unsentRows || []).map((r) => r.event_id)));
+  let firstSends = 0;
+  for (const eventId of eventsNeedingFirstSend) {
+    try {
+      await sendEventCallEmails(eventId);
+      firstSends++;
+    } catch (e) {
+      console.error("initial call email failed for", eventId, e);
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+
   const firstCutoff = new Date(now.getTime() - FIRST_NUDGE_AFTER_HOURS * 3600 * 1000).toISOString();
   const reCutoff = new Date(now.getTime() - RENUDGE_AFTER_HOURS * 3600 * 1000).toISOString();
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago" }).format(now); // YYYY-MM-DD
 
   // Candidate calls: published, email sent long enough ago, event not in the
   // past (date today or later), and either never nudged or last nudged > 6h ago.
@@ -198,6 +224,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     message: "Nudge run complete",
+    firstSends,
     people: byPerson.size,
     emailed, pushed, failed,
   });
