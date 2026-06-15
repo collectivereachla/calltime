@@ -256,3 +256,88 @@ export async function getPromoDownloadUrl(path: string, fileName: string) {
   if (error || !data) return { error: error?.message || "Couldn't open the file.", url: null };
   return { error: null, url: data.signedUrl };
 }
+
+// --- Headshots ---------------------------------------------------------------
+// Headshots live on people.headshot_url (portable across orgs and shows), stored
+// as a path in the promo-assets bucket. A person may set their own; production
+// leadership may set any roster member's, so the program can be assembled even
+// when a member hasn't uploaded their own.
+
+async function canManageHeadshot(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  meId: string,
+  targetPersonId: string,
+  productionId: string
+): Promise<boolean> {
+  if (meId === targetPersonId) return true;
+  const { data: prod } = await supabase
+    .from("productions").select("org_id").eq("id", productionId).maybeSingle();
+  if (!prod) return false;
+  return isProductionLeadership(supabase, meId, productionId, prod.org_id);
+}
+
+export async function setPersonHeadshot(input: {
+  personId: string;
+  productionId: string;
+  filePath: string;
+}) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "You're not signed in." };
+  const { data: me } = await supabase.from("people").select("id").eq("user_id", user.id).single();
+  if (!me) return { error: "We couldn't find your member profile." };
+
+  if (!(await canManageHeadshot(supabase, me.id, input.personId, input.productionId))) {
+    return { error: "You don't have permission to set this headshot." };
+  }
+
+  // Remove the previous headshot file from storage so we don't orphan it.
+  const admin = createAdminClient();
+  const { data: prev } = await admin
+    .from("people").select("headshot_url").eq("id", input.personId).maybeSingle();
+
+  const { error } = await admin
+    .from("people")
+    .update({ headshot_url: input.filePath })
+    .eq("id", input.personId);
+  if (error) return { error: error.message };
+
+  if (prev?.headshot_url && prev.headshot_url !== input.filePath) {
+    await admin.storage.from("promo-assets").remove([prev.headshot_url]).catch(() => {});
+  }
+
+  revalidatePath("/marquee");
+  return { error: null };
+}
+
+export async function clearPersonHeadshot(input: {
+  personId: string;
+  productionId: string;
+}) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "You're not signed in." };
+  const { data: me } = await supabase.from("people").select("id").eq("user_id", user.id).single();
+  if (!me) return { error: "We couldn't find your member profile." };
+
+  if (!(await canManageHeadshot(supabase, me.id, input.personId, input.productionId))) {
+    return { error: "You don't have permission to remove this headshot." };
+  }
+
+  const admin = createAdminClient();
+  const { data: prev } = await admin
+    .from("people").select("headshot_url").eq("id", input.personId).maybeSingle();
+
+  const { error } = await admin
+    .from("people").update({ headshot_url: null }).eq("id", input.personId);
+  if (error) return { error: error.message };
+
+  if (prev?.headshot_url) {
+    await admin.storage.from("promo-assets").remove([prev.headshot_url]).catch(() => {});
+  }
+
+  revalidatePath("/marquee");
+  return { error: null };
+}

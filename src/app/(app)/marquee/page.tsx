@@ -99,6 +99,11 @@ export default async function MarqueePage({
   };
   let assets: Asset[] = [];
   const roster: Person[] = [];
+  type HeadshotRow = {
+    personId: string; name: string; roleTitle: string | null;
+    department: string | null; headshotPath: string | null; previewUrl: string | null;
+  };
+  const headshots: HeadshotRow[] = [];
 
   if (pid) {
     const { data: prod } = await supabase.from("productions").select("title").eq("id", pid).single();
@@ -140,17 +145,43 @@ export default async function MarqueePage({
 
     const { data: rosterRows } = await supabase
       .from("production_assignments")
-      .select("person_id, people(full_name, preferred_name)")
+      .select("person_id, role_title, department, people(full_name, preferred_name, headshot_url)")
       .eq("production_id", pid)
       .eq("active", true);
     const seen = new Set<string>();
+    const headshotPaths: string[] = [];
     for (const a of rosterRows || []) {
       if (seen.has(a.person_id)) continue;
       seen.add(a.person_id);
-      const pp = a.people as unknown as { full_name: string; preferred_name: string | null } | null;
+      const pp = a.people as unknown as { full_name: string; preferred_name: string | null; headshot_url: string | null } | null;
+      if (pp?.headshot_url) headshotPaths.push(pp.headshot_url);
       roster.push({ id: a.person_id, name: pp ? pp.preferred_name || pp.full_name : "—" });
     }
     roster.sort((a, b) => a.name.localeCompare(b.name));
+
+    // Build the headshot roster grid: one row per person, signed preview if they
+    // have a headshot on their person record. Headshots live on people.headshot_url
+    // (portable across orgs/shows), stored as a promo-assets path.
+    const headSigned = new Map<string, string>();
+    if (headshotPaths.length > 0) {
+      const { data: hs } = await supabase.storage.from("promo-assets").createSignedUrls(headshotPaths, 3600);
+      for (const s of hs || []) if (s.path && s.signedUrl) headSigned.set(s.path, s.signedUrl);
+    }
+    const seenH = new Set<string>();
+    for (const a of rosterRows || []) {
+      if (seenH.has(a.person_id)) continue;
+      seenH.add(a.person_id);
+      const pp = a.people as unknown as { full_name: string; preferred_name: string | null; headshot_url: string | null } | null;
+      headshots.push({
+        personId: a.person_id,
+        name: pp ? pp.preferred_name || pp.full_name : "—",
+        roleTitle: (a.role_title as string) || null,
+        department: (a.department as string) || null,
+        headshotPath: pp?.headshot_url || null,
+        previewUrl: pp?.headshot_url ? headSigned.get(pp.headshot_url) || null : null,
+      });
+    }
+    headshots.sort((a, b) => a.name.localeCompare(b.name));
 
     assets = list.map((r) => {
       const p = r.people as unknown as { full_name: string; preferred_name: string | null } | null;
@@ -201,6 +232,7 @@ export default async function MarqueePage({
           canApprove={canApprove}
           assets={assets}
           roster={roster}
+          headshots={headshots}
         />
       )}
     </div>

@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { recordPromoAsset, deletePromoAsset, getPromoDownloadUrl, updatePromoAsset, setPromoOfficial, setPromoTags } from "./marquee-actions";
+import { recordPromoAsset, deletePromoAsset, getPromoDownloadUrl, updatePromoAsset, setPromoOfficial, setPromoTags, setPersonHeadshot, clearPersonHeadshot } from "./marquee-actions";
 
 interface Person { id: string; name: string }
 interface Asset {
@@ -11,6 +11,15 @@ interface Asset {
   caption: string | null; created_at: string; uploaded_by: string | null; file_path: string;
   uploaderName: string; isImage: boolean; previewUrl: string | null; isOfficial: boolean;
   isVideo: boolean; category: string; durationSeconds: number | null; tagged: Person[];
+}
+
+interface Headshot {
+  personId: string;
+  name: string;
+  roleTitle: string | null;
+  department: string | null;
+  headshotPath: string | null;
+  previewUrl: string | null;
 }
 
 interface Props {
@@ -21,6 +30,7 @@ interface Props {
   canApprove: boolean;
   assets: Asset[];
   roster: Person[];
+  headshots: Headshot[];
 }
 
 const MAX_BYTES = 100 * 1024 * 1024;
@@ -62,6 +72,89 @@ function PeoplePicker({ roster, selected, onToggle }: { roster: Person[]; select
   );
 }
 
+function HeadshotGrid({
+  headshots, busy, canEdit, onUpload, onClear, error,
+}: {
+  headshots: { personId: string; name: string; roleTitle: string | null; department: string | null; headshotPath: string | null; previewUrl: string | null }[];
+  busy: string | null;
+  canEdit: (personId: string) => boolean;
+  onUpload: (personId: string) => void;
+  onClear: (personId: string) => void;
+  error: string | null;
+}) {
+  const have = headshots.filter((h) => h.previewUrl);
+  const missing = headshots.filter((h) => !h.previewUrl);
+
+  if (headshots.length === 0) {
+    return <p className="text-body-sm text-ash">No one is assigned to this production yet.</p>;
+  }
+
+  const card = (h: typeof headshots[number]) => {
+    const editable = canEdit(h.personId);
+    const isBusy = busy === h.personId;
+    return (
+      <div key={h.personId} className="flex flex-col">
+        <div className="relative aspect-[4/5] rounded-card overflow-hidden bg-bone/40 border border-bone">
+          {h.previewUrl ? (
+            <img src={h.previewUrl} alt={h.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <span className="text-display-lg text-ash/50 font-display">
+                {h.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+              </span>
+            </div>
+          )}
+          {isBusy && (
+            <div className="absolute inset-0 bg-ink/40 flex items-center justify-center">
+              <span className="text-paper text-body-xs">Working…</span>
+            </div>
+          )}
+          {editable && !isBusy && (
+            <div className="absolute bottom-0 inset-x-0 flex">
+              <button
+                onClick={() => onUpload(h.personId)}
+                className="flex-1 bg-ink/80 text-paper text-body-xs py-1.5 hover:bg-ink transition-colors"
+              >
+                {h.previewUrl ? "Replace" : "Upload"}
+              </button>
+              {h.previewUrl && (
+                <button
+                  onClick={() => onClear(h.personId)}
+                  className="px-2 bg-ink/80 text-paper/80 text-body-xs py-1.5 hover:bg-brick hover:text-paper transition-colors border-l border-paper/20"
+                  title="Remove headshot"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <p className="text-body-sm text-ink mt-1.5 leading-tight">{h.name}</p>
+        {h.roleTitle && <p className="text-body-xs text-muted leading-tight">{h.roleTitle}</p>}
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <p className="text-body-sm text-ash mb-1">
+        One headshot per company member, portable across every show. {have.length} of {headshots.length} have one.
+      </p>
+      {error && <p className="text-body-xs text-brick mb-2">{error}</p>}
+
+      {missing.length > 0 && (
+        <p className="text-body-xs text-muted mb-4">
+          Still needed: {missing.map((m) => m.name).join(", ")}
+        </p>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {[...have, ...missing].map(card)}
+      </div>
+    </div>
+  );
+}
+
 function formatBytes(n: number | null) {
   if (!n) return "";
   if (n < 1024) return `${n} B`;
@@ -92,7 +185,7 @@ function getVideoDuration(file: File): Promise<number> {
   });
 }
 
-export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApprove, assets, roster }: Props) {
+export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApprove, assets, roster, headshots }: Props) {
   const router = useRouter();
   const supabase = createClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -113,6 +206,51 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
   const [savingEdit, setSavingEdit] = useState(false);
 
   const toggle = (arr: string[], id: string) => (arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
+
+  const [view, setView] = useState<"gallery" | "headshots">("gallery");
+  const [headshotBusy, setHeadshotBusy] = useState<string | null>(null);
+  const headshotInputRef = useRef<HTMLInputElement>(null);
+  const [headshotTarget, setHeadshotTarget] = useState<string | null>(null);
+  const headshotsWithCount = headshots.filter((h) => h.previewUrl).length;
+
+  function canEditHeadshot(personId: string) {
+    return canManage || personId === myPersonId;
+  }
+
+  async function handleHeadshotFile(file: File) {
+    const personId = headshotTarget;
+    if (!personId) return;
+    if (!file.type.startsWith("image/")) {
+      setError("A headshot must be an image.");
+      return;
+    }
+    if (file.size > 100 * 1024 * 1024) {
+      setError(`${file.name} is larger than 100 MB and was skipped.`);
+      return;
+    }
+    setHeadshotBusy(personId);
+    setError(null);
+    const path = `${orgId}/headshots/${personId}/${crypto.randomUUID()}-${safeName(file.name)}`;
+    const { error: upErr } = await supabase.storage
+      .from("promo-assets")
+      .upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
+    if (upErr) { setError(`${file.name}: ${upErr.message}`); setHeadshotBusy(null); return; }
+    const res = await setPersonHeadshot({ personId, productionId, filePath: path });
+    setHeadshotBusy(null);
+    setHeadshotTarget(null);
+    if (headshotInputRef.current) headshotInputRef.current.value = "";
+    if (res?.error) { setError(res.error); return; }
+    router.refresh();
+  }
+
+  async function handleClearHeadshot(personId: string) {
+    if (!confirm("Remove this headshot?")) return;
+    setHeadshotBusy(personId);
+    const res = await clearPersonHeadshot({ personId, productionId });
+    setHeadshotBusy(null);
+    if (res?.error) { setError(res.error); return; }
+    router.refresh();
+  }
 
   async function handleFiles(files: FileList) {
     setError(null);
@@ -301,6 +439,40 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
 
   return (
     <div>
+      {/* View tabs */}
+      <div className="flex gap-1 mb-6 border-b border-bone">
+        {([["gallery", `Gallery${assets.length ? ` (${assets.length})` : ""}`], ["headshots", `Headshots (${headshotsWithCount}/${headshots.length})`]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setView(key)}
+            className={`px-4 py-2 text-body-sm font-medium -mb-px border-b-2 transition-colors ${
+              view === key ? "border-brick text-ink" : "border-transparent text-ash hover:text-ink"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <input
+        ref={headshotInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => e.target.files && e.target.files[0] && handleHeadshotFile(e.target.files[0])}
+      />
+
+      {view === "headshots" ? (
+        <HeadshotGrid
+          headshots={headshots}
+          busy={headshotBusy}
+          canEdit={canEditHeadshot}
+          onUpload={(personId) => { setHeadshotTarget(personId); headshotInputRef.current?.click(); }}
+          onClear={handleClearHeadshot}
+          error={error}
+        />
+      ) : (
+      <div>
       {/* Upload */}
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <div>
@@ -391,6 +563,8 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
             )}
           </section>
         </div>
+      )}
+      </div>
       )}
     </div>
   );
