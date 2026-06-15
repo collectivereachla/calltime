@@ -330,7 +330,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
             href="/callboard/kiosk"
             className="inline-flex items-center gap-2 px-4 py-2 text-body-sm font-medium rounded-card bg-brick text-paper hover:bg-brick/90 transition-colors"
           >
-            Open Check-In kiosk
+            Open Check-In Kiosk
           </Link>
           <span className="ml-3 text-body-xs text-muted">Run this on the stage manager&rsquo;s device at the door.</span>
         </div>

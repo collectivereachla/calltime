@@ -122,7 +122,7 @@ export function KioskBoard({
             </span>
           )}
         </button>
-        <Link href="/callboard" className="ml-auto px-3 py-1.5 text-body-sm text-ash hover:text-ink">Exit kiosk</Link>
+        <Link href="/callboard" className="ml-auto px-3 py-1.5 text-body-sm text-ash hover:text-ink">Exit Kiosk</Link>
       </div>
 
       {flash && (

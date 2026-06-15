@@ -65,7 +65,7 @@ export default async function KioskPage() {
   if (eventIds.length > 0) {
     const { data: callRows } = await supabase
       .from("event_calls")
-      .select("id, event_id, person_id, call_time, checked_in_at, people!inner ( full_name, preferred_name )")
+      .select("id, event_id, person_id, call_time, checked_in_at, people!event_calls_person_id_fkey!inner ( full_name, preferred_name )")
       .in("event_id", eventIds);
 
     // Role titles for display, and to exclude leadership. Cast and crew check
