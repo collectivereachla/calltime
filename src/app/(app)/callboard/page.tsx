@@ -114,7 +114,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
           id,
           person_id,
           call_time,
-          people(id, full_name, preferred_name)
+          people!event_calls_person_id_fkey(id, full_name, preferred_name)
         )
       `
       )

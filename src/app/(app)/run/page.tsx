@@ -54,7 +54,7 @@ export default async function RunPage() {
       id, title, event_type, event_date, start_time, end_time, location, notes,
       event_calls(
         id, person_id,
-        people(id, full_name, preferred_name, phone)
+        people!event_calls_person_id_fkey(id, full_name, preferred_name, phone)
       )
     `)
     .eq("production_id", activeProductionId)
