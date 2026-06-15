@@ -5,12 +5,12 @@ import { createNotification } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
-// Runs frequently during the day. For any published call today whose effective
-// time was 5+ minutes ago, where the person hasn't checked in and we haven't
-// already sent a late reminder, ping the person (push + email) and alert the
-// org's production leadership. The "within 5-10 minutes" tolerance comes from
-// the cron cadence, not a precise per-call timer.
+// Runs frequently, but self-scopes to the actual schedule: it only does work
+// when at least one of today's call windows is open. A person's window runs
+// from their effective call time until STOP_AFTER_MIN past it; leadership/late
+// reminders stop then too. Outside every window the route exits immediately.
 const LATE_AFTER_MIN = 5;
+const STOP_AFTER_MIN = 45;
 
 function centralParts() {
   const now = new Date();
@@ -59,18 +59,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: "Nobody late", sent: 0 });
   }
 
-  // Keep only those whose effective call time is 5+ minutes in the past.
+  // Keep only those inside their late window: 5+ minutes past their effective
+  // call, but not more than 45 minutes past it. After 45 min we stop pinging.
   const lateCalls = calls.filter((c) => {
     const ev = eventById.get(c.event_id)!;
     const eff = (c.call_time as string | null) || (ev.start_time as string | null);
     if (!eff) return false;
     const [h, m] = eff.split(":").map(Number);
     const callMin = h * 60 + m;
-    return minutesNow - callMin >= LATE_AFTER_MIN;
+    const past = minutesNow - callMin;
+    return past >= LATE_AFTER_MIN && past <= STOP_AFTER_MIN;
   });
 
   if (lateCalls.length === 0) {
-    return NextResponse.json({ message: "Nobody past the late threshold", sent: 0 });
+    return NextResponse.json({ message: "No one in the late window", sent: 0 });
   }
 
   let personPings = 0;
