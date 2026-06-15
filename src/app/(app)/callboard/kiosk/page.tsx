@@ -106,6 +106,12 @@ export default async function KioskPage() {
       productionTitle={prod.title as string}
       orgId={prod.org_id as string}
       today={today}
+      nowMinutes={(() => {
+        const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(new Date());
+        const h = parseInt(p.find((x) => x.type === "hour")?.value ?? "0", 10) % 24;
+        const m = parseInt(p.find((x) => x.type === "minute")?.value ?? "0", 10);
+        return h * 60 + m;
+      })()}
       events={(events || []).map((e) => ({
         id: e.id, title: e.title as string, eventType: e.event_type as string,
         startTime: e.start_time as string | null, endTime: e.end_time as string | null,

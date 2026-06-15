@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { checkInWithPin, undoCheckIn } from "./kiosk-actions";
@@ -22,13 +22,30 @@ function fmtTime(t: string | null) {
   return `${hour}:${String(m).padStart(2, "0")} ${period}`;
 }
 
+// Check-in opens this many minutes before each person's effective call time.
+const OPEN_BEFORE_MIN = 60;
+
+function effMinutes(call_time: string | null, eventStart: string | null): number | null {
+  const t = call_time || eventStart;
+  if (!t) return null;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
 export function KioskBoard({
-  productionTitle, orgId, today, events, calls,
+  productionTitle, orgId, today, nowMinutes, events, calls,
 }: {
-  productionTitle: string; orgId: string; today: string;
+  productionTitle: string; orgId: string; today: string; nowMinutes: number;
   events: EventRow[]; calls: Call[];
 }) {
   const router = useRouter();
+  // Live clock so the window opens on its own without a reload. Starts from the
+  // server's Central minutes and ticks forward.
+  const [minutesNow, setMinutesNow] = useState(nowMinutes);
+  useEffect(() => {
+    const id = setInterval(() => setMinutesNow((m) => m + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
   const [activeCall, setActiveCall] = useState<Call | null>(null);
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +53,29 @@ export function KioskBoard({
   const [flash, setFlash] = useState<string | null>(null);
   const [showRoster, setShowRoster] = useState(false);
 
+  const eventStartById = (id: string) => events.find((e) => e.id === id)?.startTime || null;
+
+  // A call is "open" for check-in once we're within OPEN_BEFORE_MIN of its
+  // effective time (and stays open through the day). Calls further out are held
+  // back so the board shows only who's imminent.
+  const isOpen = (c: Call) => {
+    const eff = effMinutes(c.call_time, eventStartById(c.event_id));
+    if (eff === null) return true; // untimed: always show
+    return minutesNow >= eff - OPEN_BEFORE_MIN;
+  };
+  const openCalls = calls.filter(isOpen);
+
+  // Soonest upcoming opening, for the waiting state when nothing's open yet.
+  const upcomingOpenings = calls
+    .filter((c) => !isOpen(c))
+    .map((c) => (effMinutes(c.call_time, eventStartById(c.event_id)) ?? 0) - OPEN_BEFORE_MIN)
+    .filter((mins) => mins > minutesNow)
+    .sort((a, b) => a - b);
+  const nextOpenMin = upcomingOpenings[0] ?? null;
+  const nextCallEvent = events[0] || null;
+
   const callsByEvent = (eventId: string) =>
-    calls.filter((c) => c.event_id === eventId)
+    openCalls.filter((c) => c.event_id === eventId)
       .sort((a, b) => {
         // checked-in to the bottom, then by effective time, then name
         if (!!a.checked_in_at !== !!b.checked_in_at) return a.checked_in_at ? 1 : -1;
@@ -46,7 +84,7 @@ export function KioskBoard({
         return a.name.localeCompare(b.name);
       });
 
-  const notCheckedIn = calls.filter((c) => !c.checked_in_at);
+  const notCheckedIn = openCalls.filter((c) => !c.checked_in_at);
 
   function openPad(call: Call) {
     if (call.checked_in_at) return;
@@ -86,7 +124,7 @@ export function KioskBoard({
     router.refresh();
   }
 
-  const checkedCount = calls.filter((c) => c.checked_in_at).length;
+  const checkedCount = openCalls.filter((c) => c.checked_in_at).length;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -99,7 +137,7 @@ export function KioskBoard({
           </p>
         </div>
         <div className="text-right">
-          <p className="text-display-sm text-ink">{checkedCount}/{calls.length}</p>
+          <p className="text-display-sm text-ink">{checkedCount}/{openCalls.length}</p>
           <p className="text-body-xs text-muted">checked in</p>
         </div>
       </div>
@@ -133,6 +171,19 @@ export function KioskBoard({
 
       {events.length === 0 ? (
         <p className="text-body-md text-ash text-center py-12">No calls scheduled today.</p>
+      ) : openCalls.length === 0 ? (
+        <div className="text-center py-16">
+          <p className="text-display-sm text-ink mb-2">Check-in not open yet</p>
+          {nextOpenMin !== null && nextCallEvent ? (
+            <p className="text-body-md text-ash">
+              Opens at {fmtTime(`${String(Math.floor(nextOpenMin / 60)).padStart(2, "0")}:${String(nextOpenMin % 60).padStart(2, "0")}`)}
+              {" "}for <span className="font-display italic">{nextCallEvent.title}</span>
+              {fmtTime(nextCallEvent.startTime) ? ` (call ${fmtTime(nextCallEvent.startTime)})` : ""}.
+            </p>
+          ) : (
+            <p className="text-body-md text-ash">Names appear an hour before each call.</p>
+          )}
+        </div>
       ) : showRoster ? (
         <div>
           {notCheckedIn.length === 0 ? (
