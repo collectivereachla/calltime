@@ -307,6 +307,25 @@ export async function setPersonHeadshot(input: {
     await admin.storage.from("promo-assets").remove([prev.headshot_url]).catch(() => {});
   }
 
+  // Notify the member when someone OTHER than themselves sets their headshot,
+  // so they're never surprised by their own face on the program and can
+  // replace it. Push + in-app only, matching tag notifications. Silent when
+  // a person sets their own.
+  if (input.personId !== me.id) {
+    const { data: prod } = await admin
+      .from("productions").select("org_id, title").eq("id", input.productionId).maybeSingle();
+    if (prod) {
+      createNotification({
+        personId: input.personId,
+        orgId: prod.org_id,
+        type: "headshot",
+        title: "A headshot was added to your profile",
+        body: `${prod.title || "A production"} leadership set your headshot. You can view or replace it in Marquee.`,
+        link: "/marquee",
+      }).catch(() => {});
+    }
+  }
+
   revalidatePath("/marquee");
   return { error: null };
 }
