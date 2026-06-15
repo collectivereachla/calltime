@@ -222,6 +222,38 @@ export async function GET(request: Request) {
     }
   }
 
+  // Send-report: email the production owner(s) a summary of this run so the SM
+  // has a record of who was contacted and who is still outstanding.
+  try {
+    const reportLines: string[] = [];
+    if (firstSends > 0) reportLines.push(`${firstSends} event(s) got first-time call emails sent.`);
+    reportLines.push(`${byPerson.size} ${byPerson.size === 1 ? "person" : "people"} nudged this cycle (${emailed} emailed, ${pushed} pushed, ${failed} failed).`);
+    const stillOut = [...byPerson.values()].map((p) => `${p.name} — ${p.events.length} call(s)`);
+    const reportHtml = `
+      <div style="font-family:Inter,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:#1A1A1B">
+        <h2 style="font-family:Newsreader,Georgia,serif;color:#C4522D;font-weight:600">Call reminder report</h2>
+        <p>${reportLines.join("<br>")}</p>
+        ${stillOut.length ? `<p style="margin-top:12px"><strong>Still unconfirmed:</strong></p><ul>${stillOut.map((s) => `<li>${s}</li>`).join("")}</ul>` : "<p>Everyone due has confirmed.</p>"}
+        <p style="margin-top:16px"><a href="${appUrl}/callboard" style="color:#C4522D">Open Callboard</a></p>
+      </div>`;
+
+    // Report goes to org owners across the orgs touched this run.
+    const orgIds = Array.from(new Set([...byPerson.values()].map((p) => p.orgId)));
+    for (const orgId of orgIds) {
+      const { data: owners } = await supabase
+        .from("org_memberships")
+        .select("people!inner ( email )")
+        .eq("org_id", orgId)
+        .eq("role", "owner");
+      const emails = Array.from(new Set((owners || []).map((o) => (o.people as unknown as { email: string | null }).email).filter(Boolean) as string[]));
+      for (const to of emails) {
+        await sendEmail({ to, subject: `Call reminders sent — ${byPerson.size} outstanding`, html: reportHtml });
+      }
+    }
+  } catch (e) {
+    console.error("send-report failed:", e);
+  }
+
   return NextResponse.json({
     message: "Nudge run complete",
     firstSends,

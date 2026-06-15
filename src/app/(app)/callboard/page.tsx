@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 import { getViewer } from "@/lib/viewer";
 import { NewEventForm } from "./new-event-form";
 import { EventCard } from "./event-card";
@@ -322,6 +323,18 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
         </div>
         {events.length > 0 && <PrintButton />}
       </div>
+
+      {canManage && (
+        <div className="mb-6 print:hidden">
+          <Link
+            href="/callboard/kiosk"
+            className="inline-flex items-center gap-2 px-4 py-2 text-body-sm font-medium rounded-card bg-brick text-paper hover:bg-brick/90 transition-colors"
+          >
+            Open Check-In kiosk
+          </Link>
+          <span className="ml-3 text-body-xs text-muted">Run this on the stage manager&rsquo;s device at the door.</span>
+        </div>
+      )}
 
       {/* Person filter */}
       {canManage && companyMembers.length > 0 && (
