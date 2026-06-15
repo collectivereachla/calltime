@@ -59,9 +59,29 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: "Nobody late", sent: 0 });
   }
 
+  // Leadership (directing, production, stage management) doesn't check in, so
+  // never remind them. Drop their calls before the late-window filter.
+  const LEADERSHIP_DEPTS = ["directing", "production", "stage_management"];
+  const personIdsForRole = Array.from(new Set(calls.map((c) => c.person_id)));
+  const leadershipSet = new Set<string>();
+  const prodIds = Array.from(new Set(events.map((e) => e.production_id as string)));
+  const { data: leadAssigns } = await supabase
+    .from("production_assignments")
+    .select("person_id, department")
+    .in("production_id", prodIds)
+    .eq("active", true)
+    .in("person_id", personIdsForRole);
+  for (const a of leadAssigns || []) {
+    if (LEADERSHIP_DEPTS.includes(a.department as string)) leadershipSet.add(a.person_id);
+  }
+  const eligibleCalls = calls.filter((c) => !leadershipSet.has(c.person_id));
+  if (eligibleCalls.length === 0) {
+    return NextResponse.json({ message: "No eligible (non-leadership) calls", sent: 0 });
+  }
+
   // Keep only those inside their late window: 5+ minutes past their effective
   // call, but not more than 45 minutes past it. After 45 min we stop pinging.
-  const lateCalls = calls.filter((c) => {
+  const lateCalls = eligibleCalls.filter((c) => {
     const ev = eventById.get(c.event_id)!;
     const eff = (c.call_time as string | null) || (ev.start_time as string | null);
     if (!eff) return false;

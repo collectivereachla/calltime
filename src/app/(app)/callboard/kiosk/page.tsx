@@ -68,30 +68,37 @@ export default async function KioskPage() {
       .select("id, event_id, person_id, call_time, checked_in_at, people!inner ( full_name, preferred_name )")
       .in("event_id", eventIds);
 
-    // Role titles for display.
+    // Role titles for display, and to exclude leadership. Cast and crew check
+    // in; the leadership departments (directing, production, stage management)
+    // run the show and don't check themselves in.
+    const LEADERSHIP_DEPTS = ["directing", "production", "stage_management"];
     const personIds = Array.from(new Set((callRows || []).map((c) => c.person_id)));
     const roleByPerson = new Map<string, string>();
+    const leadershipPersonIds = new Set<string>();
     if (personIds.length > 0) {
       const { data: assigns } = await supabase
         .from("production_assignments")
-        .select("person_id, role_title")
+        .select("person_id, role_title, department")
         .eq("production_id", activeProductionId)
         .eq("active", true)
         .in("person_id", personIds);
       for (const a of assigns || []) {
         if (a.role_title && !roleByPerson.has(a.person_id)) roleByPerson.set(a.person_id, a.role_title as string);
+        if (LEADERSHIP_DEPTS.includes(a.department as string)) leadershipPersonIds.add(a.person_id);
       }
     }
 
-    calls = (callRows || []).map((c) => {
-      const p = c.people as unknown as { full_name: string; preferred_name: string | null };
-      return {
-        id: c.id, event_id: c.event_id, person_id: c.person_id,
-        call_time: c.call_time, checked_in_at: c.checked_in_at,
-        name: p.preferred_name || p.full_name,
-        role: roleByPerson.get(c.person_id) || null,
-      };
-    });
+    calls = (callRows || [])
+      .filter((c) => !leadershipPersonIds.has(c.person_id))
+      .map((c) => {
+        const p = c.people as unknown as { full_name: string; preferred_name: string | null };
+        return {
+          id: c.id, event_id: c.event_id, person_id: c.person_id,
+          call_time: c.call_time, checked_in_at: c.checked_in_at,
+          name: p.preferred_name || p.full_name,
+          role: roleByPerson.get(c.person_id) || null,
+        };
+      });
   }
 
   return (
