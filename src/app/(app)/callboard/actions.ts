@@ -551,18 +551,35 @@ export async function addEventCall(eventId: string, personId: string) {
   await assertNotPreviewing();
   const supabase = await createClient();
 
-  const { error } = await supabase
+  const { data: inserted, error } = await supabase
     .from("event_calls")
-    .insert({ event_id: eventId, person_id: personId });
+    .insert({ event_id: eventId, person_id: personId })
+    .select("id")
+    .single();
 
   if (error) return { error: error.message };
 
   // Notify the person they've been added — but only if the event is published.
   const { data: event } = await supabase
     .from("schedule_events")
-    .select("title, event_date, org_id, production_id, published")
+    .select("title, event_date, org_id, production_id, published, mandatory")
     .eq("id", eventId)
     .single();
+
+  // Mandatory events auto-confirm everyone called. A person added after the
+  // event was flagged mandatory must be auto-confirmed too, or they get stuck:
+  // the UI shows a static "Confirmed" label with no button, while their actual
+  // response stays empty. Write the confirmation here.
+  if (event?.mandatory && inserted?.id) {
+    const { data: pers } = await supabase
+      .from("people").select("user_id").eq("id", personId).maybeSingle();
+    if (pers?.user_id) {
+      await supabase.from("call_responses").upsert(
+        { event_call_id: inserted.id, status: "confirmed", responded_at: new Date().toISOString(), responded_by: pers.user_id },
+        { onConflict: "event_call_id" }
+      );
+    }
+  }
 
   if (event?.published) {
     const dateStr = new Date(event.event_date + "T00:00:00").toLocaleDateString("en-US", {

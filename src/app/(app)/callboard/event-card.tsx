@@ -160,12 +160,23 @@ export function EventCard({ eventId, eventCallId, currentStatus, calls, canManag
       {/* Response buttons (if user is called) */}
       {eventCallId && (
         <div className="mt-3 pt-3 border-t border-bone print:hidden">
-          {mandatory ? (
+          {mandatory && activeStatus === "confirmed" ? (
             <div className="flex items-center gap-2">
               <span className="px-3 py-1.5 text-body-xs font-medium rounded-full border border-confirmed bg-confirmed/10 text-confirmed">
                 Confirmed ✓
               </span>
               <span className="text-body-xs text-ash font-medium uppercase tracking-wider">Mandatory call</span>
+            </div>
+          ) : mandatory ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-body-xs text-ash font-medium uppercase tracking-wider mr-1">Mandatory call</span>
+              <button
+                onClick={() => handleRespond("confirmed")}
+                disabled={loading}
+                className="px-3 py-1.5 text-body-xs font-medium rounded-full border border-bone text-ash active:border-confirmed active:text-confirmed transition-colors disabled:opacity-50"
+              >
+                Confirm
+              </button>
             </div>
           ) : (
             <>
