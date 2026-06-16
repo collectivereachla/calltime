@@ -59,9 +59,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: "Nobody late", sent: 0 });
   }
 
-  // Leadership (directing, production, stage management) doesn't check in, so
-  // never remind them. Drop their calls before the late-window filter.
-  const LEADERSHIP_DEPTS = ["directing", "production", "stage_management"];
+  // These departments don't check in: leadership (directing, production, stage
+  // management) plus designers and musicians. Never remind them. Drop their
+  // calls before the late-window filter.
+  const NO_CHECKIN_DEPTS = ["directing", "production", "stage_management", "design", "music"];
   const personIdsForRole = Array.from(new Set(calls.map((c) => c.person_id)));
   const leadershipSet = new Set<string>();
   const prodIds = Array.from(new Set(events.map((e) => e.production_id as string)));
@@ -72,7 +73,7 @@ export async function GET(request: Request) {
     .eq("active", true)
     .in("person_id", personIdsForRole);
   for (const a of leadAssigns || []) {
-    if (LEADERSHIP_DEPTS.includes(a.department as string)) leadershipSet.add(a.person_id);
+    if (NO_CHECKIN_DEPTS.includes(a.department as string)) leadershipSet.add(a.person_id);
   }
   const eligibleCalls = calls.filter((c) => !leadershipSet.has(c.person_id));
   if (eligibleCalls.length === 0) {

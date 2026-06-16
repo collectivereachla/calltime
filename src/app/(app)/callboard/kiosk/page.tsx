@@ -68,10 +68,10 @@ export default async function KioskPage() {
       .select("id, event_id, person_id, call_time, checked_in_at, people!event_calls_person_id_fkey!inner ( full_name, preferred_name )")
       .in("event_id", eventIds);
 
-    // Role titles for display, and to exclude leadership. Cast and crew check
-    // in; the leadership departments (directing, production, stage management)
-    // run the show and don't check themselves in.
-    const LEADERSHIP_DEPTS = ["directing", "production", "stage_management"];
+    // These departments don't check in: leadership (directing, production,
+    // stage management) plus designers and musicians. Cast and running crew
+    // (crew, video, marketing) check in.
+    const NO_CHECKIN_DEPTS = ["directing", "production", "stage_management", "design", "music"];
     const personIds = Array.from(new Set((callRows || []).map((c) => c.person_id)));
     const roleByPerson = new Map<string, string>();
     const leadershipPersonIds = new Set<string>();
@@ -84,7 +84,7 @@ export default async function KioskPage() {
         .in("person_id", personIds);
       for (const a of assigns || []) {
         if (a.role_title && !roleByPerson.has(a.person_id)) roleByPerson.set(a.person_id, a.role_title as string);
-        if (LEADERSHIP_DEPTS.includes(a.department as string)) leadershipPersonIds.add(a.person_id);
+        if (NO_CHECKIN_DEPTS.includes(a.department as string)) leadershipPersonIds.add(a.person_id);
       }
     }
 
