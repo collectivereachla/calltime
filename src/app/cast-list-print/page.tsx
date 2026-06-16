@@ -60,7 +60,7 @@ export default async function CastListPrintPage({
   for (const r of rows || []) {
     const p = r.people as unknown as { full_name: string; preferred_name: string | null; headshot_url: string | null } | null;
     if (!p) continue;
-    const name = p.preferred_name || p.full_name;
+    const name = p.full_name;
     if (!byPerson.has(r.person_id)) {
       byPerson.set(r.person_id, { name, characters: [], headshotPath: p.headshot_url });
     }
