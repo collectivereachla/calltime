@@ -79,8 +79,32 @@ export async function resolveActingOrgId(
   const supabase = await createClient();
   const { data } = await supabase
     .from("org_memberships")
-    .select("org_id")
+    .select("org_id, role")
     .eq("person_id", personId);
-  if (data && data.length === 1) return data[0].org_id as string;
-  return null;
+
+  if (!data || data.length === 0) return null;
+  if (data.length === 1) return data[0].org_id as string;
+
+  // Multi-org: don't give up. Prefer an org where this person has an active
+  // production assignment (the show they're actually working in), then an org
+  // they own, then the first membership — always deterministic, never null.
+  const orgIds = data.map((m) => m.org_id as string);
+  const { data: assigns } = await supabase
+    .from("production_assignments")
+    .select("productions!inner(org_id)")
+    .eq("person_id", personId)
+    .eq("active", true);
+  const workedOrgIds = new Set(
+    (assigns || [])
+      .map((a) => (a.productions as unknown as { org_id: string } | null)?.org_id)
+      .filter((id): id is string => !!id && orgIds.includes(id))
+  );
+  if (workedOrgIds.size > 0) {
+    // Keep a stable choice: first membership row that's in the worked set.
+    const hit = data.find((m) => workedOrgIds.has(m.org_id as string));
+    if (hit) return hit.org_id as string;
+  }
+  const owned = data.find((m) => m.role === "owner");
+  if (owned) return owned.org_id as string;
+  return data[0].org_id as string;
 }
