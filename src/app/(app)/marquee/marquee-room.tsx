@@ -140,6 +140,9 @@ function HeadshotGrid({
       <p className="text-body-sm text-ash mb-1">
         One headshot per company member, portable across every show. {have.length} of {headshots.length} have one.
       </p>
+      <a href="/cast-list-print" target="_blank" rel="noopener noreferrer" className="inline-block mb-3 text-body-sm text-brick underline hover:no-underline">
+        Print cast list (headshots + characters)
+      </a>
       {error && <p className="text-body-xs text-brick mb-2">{error}</p>}
 
       {missing.length > 0 && (
