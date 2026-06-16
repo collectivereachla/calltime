@@ -86,6 +86,21 @@ function HeadshotGrid({
   const have = headshots.filter((h) => h.previewUrl);
   const missing = headshots.filter((h) => !h.previewUrl);
 
+  async function downloadHeadshot(h: { name: string; headshotPath: string | null }) {
+    if (!h.headshotPath) return;
+    const ext = h.headshotPath.split(".").pop() || "jpg";
+    const fileName = `${h.name.replace(/[^a-zA-Z0-9]+/g, "_")}_headshot.${ext}`;
+    const res = await getPromoDownloadUrl(h.headshotPath, fileName);
+    if (res?.url) {
+      const a = document.createElement("a");
+      a.href = res.url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  }
+
   if (headshots.length === 0) {
     return <p className="text-body-sm text-ash">No one is assigned to this production yet.</p>;
   }
@@ -132,6 +147,14 @@ function HeadshotGrid({
         </div>
         <p className="text-body-sm text-ink mt-1.5 leading-tight">{h.name}</p>
         {h.roleTitle && <p className="text-body-xs text-muted leading-tight">{h.roleTitle}</p>}
+        {h.previewUrl && (
+          <button
+            onClick={() => downloadHeadshot(h)}
+            className="text-body-xs text-brick hover:underline mt-0.5 self-start"
+          >
+            Download
+          </button>
+        )}
       </div>
     );
   };
