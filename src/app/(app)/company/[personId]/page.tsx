@@ -61,6 +61,15 @@ export default async function MemberDetailPage({
 
   if (!person) return notFound();
 
+  // Sign the headshot path so the image loads (private bucket).
+  let signedHeadshot: string | null = null;
+  if (person.headshot_url) {
+    const { data: s } = await supabase.storage
+      .from("promo-assets")
+      .createSignedUrl(person.headshot_url, 3600);
+    signedHeadshot = s?.signedUrl || null;
+  }
+
   // Minor gating on contact info
   const hideContact = person.is_minor && !isStaff && !isSelf;
   const displayEmail = hideContact ? null : person.email;
@@ -136,8 +145,8 @@ export default async function MemberDetailPage({
 
       {/* Header */}
       <div className="flex items-start gap-4 mb-8">
-        {person.headshot_url ? (
-          <img src={person.headshot_url} alt="" className="w-16 h-16 rounded-full object-cover shrink-0" />
+        {signedHeadshot ? (
+          <img src={signedHeadshot} alt="" className="w-16 h-16 rounded-full object-cover shrink-0" />
         ) : (
           <div className="w-16 h-16 rounded-full bg-brick/10 text-brick flex items-center justify-center text-body-md font-semibold shrink-0">
             {initials}

@@ -121,6 +121,19 @@ export default async function CompanyPage() {
     }
   }
 
+  // Headshots are stored as private-bucket paths; sign them so the <img> tags
+  // actually load (otherwise the browser shows a broken-image placeholder).
+  const headshotPaths = (rawMembers || [])
+    .map((m) => (m.people as unknown as { headshot_url: string | null })?.headshot_url)
+    .filter((p): p is string => !!p);
+  const signedHeadshots = new Map<string, string>();
+  if (headshotPaths.length > 0) {
+    const { data: signed } = await supabase.storage
+      .from("promo-assets")
+      .createSignedUrls(headshotPaths, 3600);
+    for (const s of signed || []) if (s.path && s.signedUrl) signedHeadshots.set(s.path, s.signedUrl);
+  }
+
   // Minor gating: null out email/phone for minors unless viewer is staff or self
   const members = (rawMembers || []).map((m) => {
     const p = m.people as unknown as {
@@ -137,6 +150,7 @@ export default async function CompanyPage() {
         ...p,
         email: hideContact ? null : p.email,
         phone: hideContact ? null : p.phone,
+        headshot_url: p.headshot_url ? (signedHeadshots.get(p.headshot_url) || null) : null,
       },
     };
   });
