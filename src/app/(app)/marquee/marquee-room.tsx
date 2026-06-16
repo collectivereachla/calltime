@@ -147,7 +147,7 @@ function HeadshotGrid({
         </div>
         <p className="text-body-sm text-ink mt-1.5 leading-tight">{h.name}</p>
         {h.roleTitle && <p className="text-body-xs text-muted leading-tight">{h.roleTitle}</p>}
-        {h.previewUrl && (
+        {h.previewUrl && canEdit(h.personId) && (
           <button
             onClick={() => downloadHeadshot(h)}
             className="text-body-xs text-brick hover:underline mt-0.5 self-start"
