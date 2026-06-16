@@ -1,16 +1,42 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getActiveProductionId } from "@/lib/active-production";
+import { getViewer } from "@/lib/viewer";
 import { PrintButton } from "./print-button";
 
 export const dynamic = "force-dynamic";
 
-export default async function CastListPrintPage() {
+const ACTIVE_STATUSES = ["pre_production", "rehearsal", "tech", "in_run"];
+
+export default async function CastListPrintPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ p?: string }>;
+}) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  const { personId } = await getViewer(supabase);
+  const sp = (await searchParams) || {};
+  const requested = typeof sp.p === "string" ? sp.p : null;
 
-  const pid = await getActiveProductionId();
+  // Resolve the production: an explicit ?p= wins, then the active cookie if
+  // valid, otherwise the person's most relevant active production. Don't bounce
+  // just because the cookie is empty.
+  let pid = requested || (await getActiveProductionId());
+  const { data: visible } = await supabase
+    .from("production_assignments")
+    .select("production_id, productions!inner(id, status, opening_date)")
+    .eq("person_id", personId!)
+    .eq("active", true)
+    .in("productions.status", ACTIVE_STATUSES);
+  const validIds = new Set((visible || []).map((v) => v.production_id as string));
+  if (!pid || !validIds.has(pid)) {
+    const sorted = (visible || [])
+      .map((v) => v.productions as unknown as { id: string; opening_date: string | null })
+      .sort((a, b) => (a.opening_date || "9999").localeCompare(b.opening_date || "9999"));
+    pid = sorted[0]?.id || null;
+  }
   if (!pid) redirect("/company");
 
   const { data: prod } = await supabase

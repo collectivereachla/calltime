@@ -73,7 +73,7 @@ function PeoplePicker({ roster, selected, onToggle }: { roster: Person[]; select
 }
 
 function HeadshotGrid({
-  headshots, busy, canEdit, onUpload, onClear, error,
+  headshots, busy, canEdit, onUpload, onClear, error, productionId,
 }: {
   headshots: { personId: string; name: string; roleTitle: string | null; department: string | null; headshotPath: string | null; previewUrl: string | null }[];
   busy: string | null;
@@ -81,6 +81,7 @@ function HeadshotGrid({
   onUpload: (personId: string) => void;
   onClear: (personId: string) => void;
   error: string | null;
+  productionId: string;
 }) {
   const have = headshots.filter((h) => h.previewUrl);
   const missing = headshots.filter((h) => !h.previewUrl);
@@ -140,7 +141,7 @@ function HeadshotGrid({
       <p className="text-body-sm text-ash mb-1">
         One headshot per company member, portable across every show. {have.length} of {headshots.length} have one.
       </p>
-      <a href="/cast-list-print" target="_blank" rel="noopener noreferrer" className="inline-block mb-3 text-body-sm text-brick underline hover:no-underline">
+      <a href={`/cast-list-print?p=${productionId}`} target="_blank" rel="noopener noreferrer" className="inline-block mb-3 text-body-sm text-brick underline hover:no-underline">
         Print cast list (headshots + characters)
       </a>
       {error && <p className="text-body-xs text-brick mb-2">{error}</p>}
@@ -473,6 +474,7 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
           onUpload={(personId) => { setHeadshotTarget(personId); headshotInputRef.current?.click(); }}
           onClear={handleClearHeadshot}
           error={error}
+          productionId={productionId}
         />
       ) : (
       <div>
