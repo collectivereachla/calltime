@@ -30,9 +30,40 @@ export async function ensurePlaybill(productionId: string, orgId: string) {
     .from("playbills").select("*").eq("production_id", productionId).maybeSingle();
   if (existing) return { error: null, playbill: existing };
 
+  // Pre-fill a brand-new playbill from what Calltime already knows, so it opens
+  // as a draft instead of a blank page. Only used at creation; never overwrites.
+  const { data: prod } = await admin
+    .from("productions")
+    .select("title, playwright, venue, opening_date")
+    .eq("id", productionId).maybeSingle();
+
+  // Show-info blurb: pull the rider OVERVIEW (run time / acts / setting) if present.
+  const { data: overview } = await admin
+    .from("rider_sections")
+    .select("body")
+    .eq("production_id", productionId)
+    .ilike("title", "%overview%")
+    .limit(1).maybeSingle();
+
+  const showInfoParts: string[] = [];
+  if (prod?.venue) showInfoParts.push(prod.venue as string);
+  if (prod?.opening_date) {
+    const d = new Date((prod.opening_date as string) + "T12:00:00");
+    showInfoParts.push(d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+  }
+  if (overview?.body) showInfoParts.push((overview.body as string).trim());
+
+  const seed = {
+    production_id: productionId,
+    org_id: orgId,
+    cover_title: (prod?.title as string) || null,
+    cover_subtitle: prod?.playwright ? `Written by ${prod.playwright}` : null,
+    show_info: showInfoParts.length ? showInfoParts.join("\n\n") : null,
+  };
+
   const { data: created, error } = await admin
     .from("playbills")
-    .insert({ production_id: productionId, org_id: orgId })
+    .insert(seed)
     .select("*")
     .single();
   if (error) return { error: error.message, playbill: null };
