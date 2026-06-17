@@ -164,3 +164,33 @@ export async function updateOrganization(orgId: string, formData: FormData) {
   revalidatePath("/org");
   return { success: true };
 }
+
+// Set or change your own check-in PIN, for the org you're acting in. A PIN is a
+// personal credential, so each member sets their own (4-6 digits).
+export async function setMyCheckinPin(pin: string) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+  const { data: me } = await supabase.from("people").select("id").eq("user_id", user.id).maybeSingle();
+  if (!me) return { error: "No member profile." };
+
+  const clean = (pin || "").trim();
+  if (!/^\d{4,6}$/.test(clean)) return { error: "PIN must be 4 to 6 digits." };
+
+  const { resolveActingOrgId } = await import("@/lib/membership");
+  const orgId = await resolveActingOrgId(me.id);
+  if (!orgId) return { error: "No organization found." };
+
+  const { data: existing } = await supabase
+    .from("member_details").select("id").eq("person_id", me.id).eq("org_id", orgId).maybeSingle();
+  if (existing) {
+    const { error } = await supabase.from("member_details").update({ checkin_pin: clean }).eq("id", existing.id);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from("member_details").insert({ person_id: me.id, org_id: orgId, checkin_pin: clean });
+    if (error) return { error: error.message };
+  }
+  revalidatePath("/settings");
+  return { error: null };
+}

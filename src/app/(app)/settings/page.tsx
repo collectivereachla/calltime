@@ -8,6 +8,7 @@ import { OrgSettings } from "./org-settings";
 import { ConflictsForm } from "./conflicts-form";
 import { NotificationSettings } from "./notification-settings";
 import { W9Card } from "./w9-card";
+import { CheckinPinCard } from "./checkin-pin-card";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -85,6 +86,18 @@ export default async function SettingsPage() {
     w9SubmittedAt = w9row?.w9_submitted_at ?? null;
   }
 
+  // Does this member already have a check-in PIN in their acting org?
+  let hasPin = false;
+  if (w9OrgId) {
+    const { data: pinRow } = await supabase
+      .from("member_details")
+      .select("checkin_pin")
+      .eq("person_id", person.id)
+      .eq("org_id", w9OrgId)
+      .maybeSingle();
+    hasPin = !!(pinRow?.checkin_pin && pinRow.checkin_pin.trim());
+  }
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 md:px-0">
       <h1 className="font-display text-display-lg text-ink mb-1">Settings</h1>
@@ -99,6 +112,8 @@ export default async function SettingsPage() {
       </div>
 
       <W9Card w9TaxYear={w9TaxYear} submittedAt={w9SubmittedAt} />
+
+      <CheckinPinCard hasPin={hasPin} />
 
       <div className="mt-10 pt-8 border-t border-bone">
         <NotificationSettings personId={person.id} />
