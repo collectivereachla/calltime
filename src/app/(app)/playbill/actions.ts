@@ -19,6 +19,93 @@ async function requireLeadership(orgId: string) {
   return { ok: true as const, meId: me.id };
 }
 
+type SongSceneList = { act: string; items: { title: string; detail?: string }[] }[];
+
+const ACT_LABEL: Record<number, string> = { 1: "Act I", 2: "Act II", 3: "Act III", 4: "Act IV" };
+const actLabel = (n: number) => ACT_LABEL[n] || `Act ${n}`;
+
+// Drop the "Song:" label a script line carries, but keep the title verbatim —
+// curly quotes, apostrophes, and punctuation are published text, never normalized.
+const songTitleFromLine = (raw: string) => raw.replace(/^\s*song\s*:\s*/i, "").trim();
+
+// Build the playbill's Songs & Scenes section from what the rooms already hold:
+// the production scene breakdown (rich titles + setting) overlaid with the active
+// script's musical numbers, each slotted into its scene by act + scene number.
+// The active script mirrors Spine: prefer the working (unlocked) version, else the most recent.
+async function buildSongSceneList(
+  admin: ReturnType<typeof createAdminClient>,
+  productionId: string,
+): Promise<SongSceneList> {
+  const { data: scenes } = await admin
+    .from("scenes")
+    .select("act, scene_number, title, location, time_period, sort_order")
+    .eq("production_id", productionId)
+    .order("sort_order", { ascending: true });
+
+  // Resolve which script the musical numbers come from.
+  const { data: scripts } = await admin
+    .from("scripts")
+    .select("id, is_locked, created_at")
+    .eq("production_id", productionId)
+    .order("created_at", { ascending: false });
+  const activeScriptId =
+    scripts?.find((s) => !s.is_locked)?.id ?? scripts?.[0]?.id ?? null;
+
+  type Song = { act: number | null; scene: number | null; content: string };
+  let songs: Song[] = [];
+  if (activeScriptId) {
+    const { data: songRows } = await admin
+      .from("script_lines")
+      .select("act, scene, content, line_number")
+      .eq("script_id", activeScriptId)
+      .eq("line_type", "song_title")
+      .order("line_number", { ascending: true });
+    songs = (songRows ?? []) as Song[];
+  }
+
+  const list: SongSceneList = [];
+
+  if (scenes && scenes.length) {
+    const byAct = new Map<number, typeof scenes>();
+    for (const sc of scenes) {
+      const a = (sc.act as number) ?? 1;
+      if (!byAct.has(a)) byAct.set(a, []);
+      byAct.get(a)!.push(sc);
+    }
+    for (const [actNum, actScenes] of [...byAct.entries()].sort((x, y) => x[0] - y[0])) {
+      const items: { title: string; detail?: string }[] = [];
+      for (const sc of actScenes) {
+        const setting = [sc.location, sc.time_period].filter(Boolean) as string[];
+        items.push({
+          title: (sc.title as string) || `Scene ${sc.scene_number}`,
+          detail: setting.length ? setting.join(" · ") : undefined,
+        });
+        // Musical numbers that fall inside this scene, in script order.
+        for (const song of songs.filter((s) => s.act === actNum && s.scene === sc.scene_number)) {
+          items.push({ title: songTitleFromLine(song.content as string) });
+        }
+      }
+      list.push({ act: actLabel(actNum), items });
+    }
+  } else if (songs.length) {
+    // No scene breakdown built yet — at least surface the musical numbers by act.
+    const byAct = new Map<number, Song[]>();
+    for (const s of songs) {
+      const a = s.act ?? 1;
+      if (!byAct.has(a)) byAct.set(a, []);
+      byAct.get(a)!.push(s);
+    }
+    for (const [actNum, actSongs] of [...byAct.entries()].sort((x, y) => x[0] - y[0])) {
+      list.push({
+        act: actLabel(actNum),
+        items: actSongs.map((s) => ({ title: songTitleFromLine(s.content as string) })),
+      });
+    }
+  }
+
+  return list;
+}
+
 // Get the playbill for a production, creating an empty one on first open.
 export async function ensurePlaybill(productionId: string, orgId: string) {
   await assertNotPreviewing();
@@ -53,12 +140,15 @@ export async function ensurePlaybill(productionId: string, orgId: string) {
   }
   if (overview?.body) showInfoParts.push((overview.body as string).trim());
 
+  const songSceneList = await buildSongSceneList(admin, productionId);
+
   const seed = {
     production_id: productionId,
     org_id: orgId,
     cover_title: (prod?.title as string) || null,
     cover_subtitle: prod?.playwright ? `Written by ${prod.playwright}` : null,
     show_info: showInfoParts.length ? showInfoParts.join("\n\n") : null,
+    song_scene_list: songSceneList,
   };
 
   const { data: created, error } = await admin
@@ -83,6 +173,18 @@ type PlaybillFields = {
   include_creative_team?: boolean;
   cover_image_path?: string | null;
 };
+
+// Recompute the Songs & Scenes section from the rooms on demand (for playbills that
+// already exist and so never ran the creation-time prefill). Returns the list for the
+// editor to load into the form; it does NOT save — leadership reviews, then saves.
+export async function pullSongsScenes(productionId: string, orgId: string) {
+  await assertNotPreviewing();
+  const guard = await requireLeadership(orgId);
+  if (!guard.ok) return { error: guard.error, list: null };
+  const admin = createAdminClient();
+  const list = await buildSongSceneList(admin, productionId);
+  return { error: null, list };
+}
 
 export async function savePlaybill(playbillId: string, orgId: string, fields: PlaybillFields) {
   await assertNotPreviewing();

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { savePlaybill, addCredit, deleteCredit } from "./actions";
+import { savePlaybill, addCredit, deleteCredit, pullSongsScenes } from "./actions";
 
 interface Playbill {
   id: string;
@@ -82,6 +82,19 @@ export function PlaybillEditor({
   }
 
   // Song/scene list editing
+  const [pulling, setPulling] = useState(false);
+  async function handlePull() {
+    if (form.song_scene_list.length > 0 &&
+        !window.confirm("Replace the current Songs & Scenes list with what's built in the scene breakdown and script? Your other playbill sections stay untouched, and nothing is published until you Save.")) {
+      return;
+    }
+    setPulling(true);
+    setError(null);
+    const res = await pullSongsScenes(productionId, orgId);
+    setPulling(false);
+    if (res?.error) { setError(res.error); return; }
+    set("song_scene_list", res.list ?? []);
+  }
   function addAct() {
     set("song_scene_list", [...form.song_scene_list, { act: `Act ${form.song_scene_list.length + 1}`, items: [] }]);
   }
@@ -196,8 +209,17 @@ export function PlaybillEditor({
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-body-md font-medium text-brick">Songs &amp; scenes</h2>
-          <button onClick={addAct} className="text-body-sm text-brick hover:underline">+ Add act</button>
+          <div className="flex items-center gap-3">
+            <button onClick={handlePull} disabled={pulling} className="text-body-sm text-brick hover:underline disabled:opacity-50">
+              {pulling ? "Pulling…" : "Pull from Spine & scenes"}
+            </button>
+            <button onClick={addAct} className="text-body-sm text-brick hover:underline">+ Add act</button>
+          </div>
         </div>
+        <p className="text-body-xs text-muted mb-3">
+          Pull fills this from your scene breakdown and the script&rsquo;s musical numbers. Scene titles come from the
+          stage-management breakdown; trim or rename anything you don&rsquo;t want front-of-house, then Save.
+        </p>
         {form.song_scene_list.length === 0 && <p className="text-body-xs text-muted">No acts yet. Add one to list musical numbers or scenes.</p>}
         {form.song_scene_list.map((act, ai) => (
           <div key={ai} className="border border-bone rounded-card p-3 mb-3">
