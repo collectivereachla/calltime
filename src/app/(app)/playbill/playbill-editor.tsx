@@ -82,16 +82,16 @@ export function PlaybillEditor({
   }
 
   // Song/scene list editing
-  const [pulling, setPulling] = useState(false);
-  async function handlePull() {
+  const [pulling, setPulling] = useState<"full" | "audience" | null>(null);
+  async function handlePull(mode: "full" | "audience") {
     if (form.song_scene_list.length > 0 &&
-        !window.confirm("Replace the current Songs & Scenes list with what's built in the scene breakdown and script? Your other playbill sections stay untouched, and nothing is published until you Save.")) {
+        !window.confirm("Replace the current Songs & Scenes list with a fresh pull from the rooms? Your other playbill sections stay untouched, and nothing is published until you Save.")) {
       return;
     }
-    setPulling(true);
+    setPulling(mode);
     setError(null);
-    const res = await pullSongsScenes(productionId, orgId);
-    setPulling(false);
+    const res = await pullSongsScenes(productionId, orgId, mode);
+    setPulling(null);
     if (res?.error) { setError(res.error); return; }
     set("song_scene_list", res.list ?? []);
   }
@@ -210,15 +210,20 @@ export function PlaybillEditor({
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-body-md font-medium text-brick">Songs &amp; scenes</h2>
           <div className="flex items-center gap-3">
-            <button onClick={handlePull} disabled={pulling} className="text-body-sm text-brick hover:underline disabled:opacity-50">
-              {pulling ? "Pulling…" : "Pull from Spine & scenes"}
+            <button onClick={() => handlePull("audience")} disabled={!!pulling} className="text-body-sm text-brick hover:underline disabled:opacity-50">
+              {pulling === "audience" ? "Pulling…" : "Pull acts & numbers"}
+            </button>
+            <button onClick={() => handlePull("full")} disabled={!!pulling} className="text-body-sm text-brick hover:underline disabled:opacity-50">
+              {pulling === "full" ? "Pulling…" : "Pull full breakdown"}
             </button>
             <button onClick={addAct} className="text-body-sm text-brick hover:underline">+ Add act</button>
           </div>
         </div>
         <p className="text-body-xs text-muted mb-3">
-          Pull fills this from your scene breakdown and the script&rsquo;s musical numbers. Scene titles come from the
-          stage-management breakdown; trim or rename anything you don&rsquo;t want front-of-house, then Save.
+          <span className="font-medium">Acts &amp; numbers</span> gives the front-of-house version: each act headed by its
+          setting, with the musical numbers underneath. <span className="font-medium">Full breakdown</span> pulls every
+          scene from your stage-management breakdown — trim or rename anything you don&rsquo;t want the audience to see.
+          Either way, review and Save.
         </p>
         {form.song_scene_list.length === 0 && <p className="text-body-xs text-muted">No acts yet. Add one to list musical numbers or scenes.</p>}
         {form.song_scene_list.map((act, ai) => (
