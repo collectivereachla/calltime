@@ -30,6 +30,27 @@ export default async function SeatingPage() {
   const role = personId ? await getRoleInOrg(personId, production.org_id as string) : null;
   const canEdit = isLeadershipRole(role);
 
+  // Front-of-house room: owner/production org role, or a production/staff-tier
+  // assignment on this show (Stage Management, TD, House Manager, FOH staff).
+  // Cast (member tier) is kept out so the guest/comp list isn't exposed. This
+  // mirrors the nav's seatingAccess gate so the page can't be reached by URL
+  // when the link is hidden.
+  let canAccess = canEdit;
+  if (!canAccess && personId) {
+    const { data: assigns } = await supabase
+      .from("production_assignments")
+      .select("access_tier")
+      .eq("person_id", personId)
+      .eq("production_id", activeProductionId)
+      .eq("active", true);
+    canAccess = (assigns || []).some((a) =>
+      ["admin", "owner", "production", "staff"].includes(a.access_tier as string)
+    );
+  }
+  if (!canAccess) {
+    return empty("Seating is run by the front-of-house and production team.");
+  }
+
   const { data: tables } = await supabase
     .from("seating_tables")
     .select("id, number, name, capacity, x, y, amount, source, status")

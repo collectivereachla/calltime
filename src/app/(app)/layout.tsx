@@ -144,6 +144,26 @@ export default async function AppLayout({
     );
   }
 
+  // Seating / front-of-house is run by production-tier leadership — owner,
+  // production, stage management (SM/ASM), TD, and the House Manager — plus any
+  // staff-tier FOH assignment on the active show. Cast (member tier) is excluded
+  // so the guest/comp list isn't exposed. (The Seating page enforces the same
+  // check server-side.)
+  let seatingAccess = memberships.some(
+    (m) => m.role === "owner" || m.role === "production" || m.role === "admin"
+  );
+  if (!seatingAccess && activeProductionId) {
+    const { data: seatingAssignments } = await supabase
+      .from("production_assignments")
+      .select("access_tier")
+      .eq("person_id", personId)
+      .eq("production_id", activeProductionId)
+      .eq("active", true);
+    seatingAccess = (seatingAssignments || []).some((a) =>
+      ["admin", "owner", "production", "staff"].includes(a.access_tier)
+    );
+  }
+
   if (isOwner) {
     const ownerOrgIds = memberships
       .filter((m) => m.role === "owner")
@@ -194,6 +214,7 @@ export default async function AppLayout({
         lockedRooms={lockedRooms}
         isOwner={isOwner}
         boothAccess={boothAccess}
+        seatingAccess={seatingAccess}
       />
       <main className="flex-1 min-w-0 pt-14 pb-16 md:pt-0 md:pb-0">
         <PreviewBar
