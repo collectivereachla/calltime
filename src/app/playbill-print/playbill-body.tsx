@@ -54,8 +54,8 @@ export async function PlaybillBody({
   // Director (for the headshot beside the note).
   const director = teamList.find((t) => t.department === "directing");
 
-  // Sign cast + director headshots.
-  const paths = [...castList.map((c) => c.headshotPath), director?.headshotPath ?? null].filter((p): p is string => !!p);
+  // Sign cast + team headshots.
+  const paths = [...castList, ...teamList].map((x) => x.headshotPath).filter((p): p is string => !!p);
   const signed = new Map<string, string>();
   if (paths.length > 0) {
     const { data: s } = await supabase.storage.from("promo-assets").createSignedUrls(paths, 3600);
@@ -183,16 +183,33 @@ export async function PlaybillBody({
         {(playbill.include_creative_team as boolean) && teamList.length > 0 && (
           <section className="mb-12 break-inside-avoid">
             <h2 className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Creative &amp; Production Team</h2>
-            <div className="space-y-3">
+            <div className="space-y-6">
               {orderedDepts.map((dept) => (
-                <div key={dept}>
-                  <p className="text-body-xs uppercase tracking-wider text-ash mb-1">{DEPT_LABEL[dept] || dept}</p>
-                  {teamByDept.get(dept)!.map((t, i) => (
-                    <p key={i} className="text-body-sm flex justify-between gap-4">
-                      <span className="text-ash">{t.roles.join(", ")}</span>
-                      <span className="text-ink text-right">{t.name}</span>
-                    </p>
-                  ))}
+                <div key={dept} className="break-inside-avoid">
+                  <p className="text-body-xs uppercase tracking-wider text-ash mb-2">{DEPT_LABEL[dept] || dept}</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-4">
+                    {teamByDept.get(dept)!.map((t, i) => {
+                      const url = t.headshotPath ? signed.get(t.headshotPath) || null : null;
+                      return (
+                        <div key={i} className="flex items-center gap-2.5">
+                          <div className="w-12 h-14 shrink-0 rounded-card overflow-hidden bg-bone/40 border border-bone">
+                            {url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={url} alt={t.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <span className="text-body-xs font-display text-ash/50">{t.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-body-sm font-medium leading-tight">{t.name}</p>
+                            <p className="text-[11px] text-ash leading-tight">{t.roles.join(", ")}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               ))}
             </div>
