@@ -262,3 +262,19 @@ export async function deleteCredit(creditId: string, orgId: string) {
   revalidatePath("/playbill");
   return { error: null };
 }
+
+// Attach (or clear, with null) a sponsor/partner logo. The image itself is
+// uploaded client-side to the promo-assets bucket; this stores its path.
+export async function setCreditImage(creditId: string, orgId: string, imagePath: string | null) {
+  await assertNotPreviewing();
+  const guard = await requireLeadership(orgId);
+  if (!guard.ok) return { error: guard.error };
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("playbill_credits")
+    .update({ image_path: imagePath })
+    .eq("id", creditId);
+  if (error) return { error: error.message };
+  revalidatePath("/playbill");
+  return { error: null };
+}

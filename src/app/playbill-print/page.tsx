@@ -72,6 +72,13 @@ export default async function PlaybillPrintPage({
   const ads = (credits || []).filter((c) => c.credit_type === "ad");
   const acks = (credits || []).filter((c) => c.credit_type === "acknowledgment");
 
+  // Sign sponsor/ad logos (also in promo-assets).
+  const logoPaths = (credits || []).map((c) => c.image_path).filter((p): p is string => !!p);
+  if (logoPaths.length > 0) {
+    const { data: ls } = await supabase.storage.from("promo-assets").createSignedUrls(logoPaths, 3600);
+    for (const row of ls || []) if (row.path && row.signedUrl) signed.set(row.path, row.signedUrl);
+  }
+
   const songList = Array.isArray(playbill.song_scene_list) ? playbill.song_scene_list as { act: string; items: { title: string; detail?: string }[] }[] : [];
 
   // Group team by department for the credits page.
@@ -200,12 +207,16 @@ export default async function PlaybillPrintPage({
           <section className="mb-12 break-inside-avoid">
             <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Our Sponsors &amp; Partners</h2>
             <div className="grid grid-cols-2 gap-4">
-              {sponsors.map((s) => (
-                <div key={s.id} className="border border-bone rounded-card p-3 text-center">
-                  <p className="font-display text-lg text-ink">{s.name}</p>
-                  {s.detail && <p className="text-body-xs text-ash">{s.detail}</p>}
-                </div>
-              ))}
+              {sponsors.map((s) => {
+                const logo = s.image_path ? signed.get(s.image_path) || null : null;
+                return (
+                  <div key={s.id} className="border border-bone rounded-card p-3 text-center flex flex-col items-center justify-center gap-1.5">
+                    {logo && <img src={logo} alt={s.name} className="max-h-16 max-w-full object-contain" />}
+                    <p className="font-display text-lg text-ink">{s.name}</p>
+                    {s.detail && <p className="text-body-xs text-ash">{s.detail}</p>}
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}

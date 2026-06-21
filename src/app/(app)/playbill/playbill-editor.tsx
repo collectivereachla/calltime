@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { savePlaybill, addCredit, deleteCredit, pullSongsScenes } from "./actions";
+import { createClient } from "@/lib/supabase/client";
+import { savePlaybill, addCredit, deleteCredit, pullSongsScenes, setCreditImage } from "./actions";
 
 interface Playbill {
   id: string;
@@ -40,6 +41,66 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 const inputCls = "w-full px-3 py-2 text-body-sm border border-bone rounded-card bg-paper focus:border-brick focus:outline-none";
+
+// Per-sponsor logo: uploads to promo-assets (private), stores the path on the
+// credit, and shows a signed preview. PNG/SVG keep transparency for clean logos.
+function CreditLogo({ credit, orgId, playbillId }: { credit: Credit; orgId: string; playbillId: string }) {
+  const [path, setPath] = useState<string | null>(credit.image_path);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!path) { setPreview(null); return; }
+    (async () => {
+      const { data } = await createClient().storage.from("promo-assets").createSignedUrl(path, 3600);
+      if (active && data?.signedUrl) setPreview(data.signedUrl);
+    })();
+    return () => { active = false; };
+  }, [path]);
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setErr("Pick an image. PNG or SVG with a transparent background looks best."); return; }
+    if (file.size > 5 * 1024 * 1024) { setErr("Logo must be under 5MB."); return; }
+    setErr(null); setBusy(true);
+    const supabase = createClient();
+    const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+    const newPath = `${orgId}/playbill-logos/${playbillId}/${credit.id}-${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("promo-assets").upload(newPath, file, { contentType: file.type, upsert: true });
+    if (upErr) { setErr(upErr.message); setBusy(false); return; }
+    const res = await setCreditImage(credit.id, orgId, newPath);
+    if (res?.error) { setErr(res.error); setBusy(false); return; }
+    if (path && path !== newPath) { await supabase.storage.from("promo-assets").remove([path]); }
+    setPath(newPath); setBusy(false);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  async function removeLogo() {
+    setBusy(true); setErr(null);
+    const res = await setCreditImage(credit.id, orgId, null);
+    if (res?.error) { setErr(res.error); setBusy(false); return; }
+    if (path) await createClient().storage.from("promo-assets").remove([path]);
+    setPath(null); setPreview(null); setBusy(false);
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {preview
+        ? <img src={preview} alt="" className="h-8 max-w-[88px] object-contain" />
+        : <span className="text-body-xs text-muted">No logo</span>}
+      <button onClick={() => fileRef.current?.click()} disabled={busy} className="text-body-xs text-brick hover:underline disabled:opacity-50">
+        {busy ? "…" : path ? "Replace" : "Add logo"}
+      </button>
+      {path && <button onClick={removeLogo} disabled={busy} className="text-body-xs text-ash hover:text-brick">Clear</button>}
+      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={onFile} className="hidden" />
+      {err && <span className="text-body-xs text-brick">{err}</span>}
+    </div>
+  );
+}
 
 export function PlaybillEditor({
   productionId, productionTitle, orgId, playbill, credits, castCount, teamCount,
@@ -256,13 +317,16 @@ export function PlaybillEditor({
         {credits.length > 0 && (
           <div className="mb-4 space-y-2">
             {credits.map((c) => (
-              <div key={c.id} className="flex items-center justify-between border border-bone rounded-card px-3 py-2">
-                <div>
+              <div key={c.id} className="flex items-center justify-between border border-bone rounded-card px-3 py-2 gap-3">
+                <div className="min-w-0">
                   <span className="text-body-xs uppercase tracking-wider text-ash mr-2">{c.credit_type}</span>
                   <span className="text-body-sm text-ink">{c.name}</span>
                   {c.detail && <span className="text-body-xs text-muted ml-2">{c.detail}</span>}
                 </div>
-                <button onClick={() => handleDeleteCredit(c.id)} className="text-ash hover:text-brick text-body-sm">Remove</button>
+                <div className="flex items-center gap-3 shrink-0">
+                  <CreditLogo credit={c} orgId={orgId} playbillId={playbill.id} />
+                  <button onClick={() => handleDeleteCredit(c.id)} className="text-ash hover:text-brick text-body-sm">Remove</button>
+                </div>
               </div>
             ))}
           </div>
@@ -283,7 +347,7 @@ export function PlaybillEditor({
             className="px-3 py-1.5 text-body-sm bg-ink text-paper rounded-card disabled:opacity-50">
             {creditBusy ? "Adding…" : "Add"}
           </button>
-          <p className="text-body-xs text-muted mt-2">Logo / ad artwork upload comes in the next pass; for now add the name and detail.</p>
+          <p className="text-body-xs text-muted mt-2">Add the sponsor, then attach its logo with &ldquo;Add logo&rdquo; on its row. PNG or SVG with a transparent background prints cleanest.</p>
         </div>
       </section>
 
