@@ -145,37 +145,10 @@ export default async function PlaybillPrintPage({
         {playbill.include_cast && castList.length > 0 && (
           <section className="mb-12 break-before-page">
             <h2 className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Cast</h2>
-            <div className="grid grid-cols-3 gap-x-5 gap-y-6 print:grid-cols-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
               {castList.map((c, i) => {
                 const url = c.headshotPath ? signed.get(c.headshotPath) || null : null;
-                return (
-                  <div key={i} className="break-inside-avoid text-center">
-                    <div className="aspect-[4/5] w-full rounded-card overflow-hidden bg-bone/40 border border-bone mb-1.5">
-                      {url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={url} alt={c.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-xl font-display text-ash/50">{c.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-body-xs font-semibold leading-tight">{c.name}</p>
-                    <p className="text-[10px] text-ash leading-tight">{c.characters.join(" / ")}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* Who's Who in the Cast — headshot + bio */}
-        {playbill.include_cast && castList.some((c) => c.bio && c.bio.trim()) && (
-          <section className="mb-12 break-before-page">
-            <h2 className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Who&rsquo;s Who in the Cast</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
-              {castList.filter((c) => c.bio && c.bio.trim()).map((c, i) => {
-                const url = c.headshotPath ? signed.get(c.headshotPath) || null : null;
+                const bio = c.bio && c.bio.trim() ? c.bio.trim() : null;
                 return (
                   <div key={i} className="break-inside-avoid flex gap-3">
                     <div className="w-20 shrink-0 aspect-[4/5] rounded-card overflow-hidden bg-bone/40 border border-bone">
@@ -191,7 +164,7 @@ export default async function PlaybillPrintPage({
                     <div className="min-w-0">
                       <p className="text-body-sm font-semibold leading-tight">{c.name}</p>
                       {c.characters.length > 0 && <p className="text-[11px] text-ash mb-1">{c.characters.join(" / ")}</p>}
-                      <p className="text-body-xs text-ink/90 leading-snug whitespace-pre-line">{c.bio!.trim()}</p>
+                      {bio && <p className="text-body-xs text-ink/90 leading-snug whitespace-pre-line">{bio}</p>}
                     </div>
                   </div>
                 );
