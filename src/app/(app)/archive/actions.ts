@@ -45,9 +45,19 @@ export async function reopenProduction(productionId: string) {
   await assertNotPreviewing();
   const supabase = await createClient();
 
+  // A show that has already opened reopens into its run; one that never opened
+  // goes back to pre-production. Either way it returns to the active switcher.
+  const { data: prod } = await supabase
+    .from("productions")
+    .select("opening_date")
+    .eq("id", productionId)
+    .maybeSingle();
+  const opened = !!prod?.opening_date && prod.opening_date <= new Date().toISOString().slice(0, 10);
+  const target = opened ? "in_run" : "pre_production";
+
   const { error } = await supabase.rpc("update_production_safe", {
     p_production_id: productionId,
-    p_status: "pre_production",
+    p_status: target,
   });
 
   if (error) return { error: error.message };

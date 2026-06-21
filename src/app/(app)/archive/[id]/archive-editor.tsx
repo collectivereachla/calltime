@@ -59,13 +59,17 @@ export function ArchiveEditor({ production }: Props) {
 
   async function handleReopen() {
     if (!confirm(`Reopen "${production.title}"? It will appear in the production switcher and become active.`)) return;
-    await reopenProduction(production.id);
+    setStatus(null);
+    const res = await reopenProduction(production.id);
+    if (res?.error) { setStatus(`Couldn't reopen: ${res.error}`); return; }
     router.refresh();
   }
 
   async function handleClose() {
     if (!confirm(`Close "${production.title}"? It will move to the archive.`)) return;
-    await closeProduction(production.id);
+    setStatus(null);
+    const res = await closeProduction(production.id);
+    if (res?.error) { setStatus(`Couldn't close: ${res.error}`); return; }
     router.refresh();
   }
 
@@ -179,6 +183,7 @@ export function ArchiveEditor({ production }: Props) {
             Close this production
           </button>
         )}
+        {status && <p className="text-body-sm text-conflict mt-2">{status}</p>}
       </div>
     </div>
   );
