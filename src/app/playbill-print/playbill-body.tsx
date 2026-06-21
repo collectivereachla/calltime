@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PrintButton } from "./print-button";
 
-const DEPT_ORDER = ["directing", "production", "music", "design", "stage_management", "marketing", "video", "crew"];
+const DEPT_ORDER = ["directing", "playwright", "production", "music", "design", "stage_management", "marketing", "video", "crew"];
 const DEPT_LABEL: Record<string, string> = {
-  directing: "Direction", production: "Production", music: "Music",
+  directing: "Direction", playwright: "Playwright", production: "Production", music: "Music",
   design: "Design", stage_management: "Stage Management", marketing: "Marketing",
   video: "Video", crew: "Crew",
 };
@@ -51,8 +51,8 @@ export async function PlaybillBody({
     return a.name.localeCompare(b.name);
   });
 
-  // Director (for the headshot beside the note).
-  const director = teamList.find((t) => t.department === "directing");
+  // Director (for the headshot beside the note) — the directing-dept member who directs, not the playwright.
+  const director = teamList.find((t) => t.department === "directing" && t.roles.some((r) => /director/i.test(r))) || teamList.find((t) => t.department === "directing" && !t.roles.some((r) => /writer|playwright/i.test(r)));
 
   // Sign cast + team headshots.
   const paths = [...castList, ...teamList].map((x) => x.headshotPath).filter((p): p is string => !!p);
@@ -76,11 +76,15 @@ export async function PlaybillBody({
   }
 
   const songList = Array.isArray(playbill.song_scene_list) ? playbill.song_scene_list as { act: string; items: { title: string; detail?: string }[] }[] : [];
+  const gallery = Array.isArray(playbill.gallery_paths) ? playbill.gallery_paths as string[] : [];
 
+  // The playwright gets its own section, broken out of the directing department.
+  const sectionKey = (t: P) => (t.department === "directing" && t.roles.some((r) => /writer|playwright/i.test(r))) ? "playwright" : t.department;
   const teamByDept = new Map<string, P[]>();
   for (const t of teamList) {
-    if (!teamByDept.has(t.department)) teamByDept.set(t.department, []);
-    teamByDept.get(t.department)!.push(t);
+    const k = sectionKey(t);
+    if (!teamByDept.has(k)) teamByDept.set(k, []);
+    teamByDept.get(k)!.push(t);
   }
   const orderedDepts = Array.from(teamByDept.keys()).sort((a, b) => {
     const da = DEPT_ORDER.indexOf(a), db = DEPT_ORDER.indexOf(b);
@@ -204,7 +208,7 @@ export async function PlaybillBody({
                           </div>
                           <div className="min-w-0">
                             <p className="text-body-sm font-medium leading-tight">{t.name}</p>
-                            <p className="text-[11px] text-ash leading-tight">{t.roles.join(", ")}</p>
+                            {dept !== "playwright" && <p className="text-[11px] text-ash leading-tight">{t.roles.join(", ")}</p>}
                           </div>
                         </div>
                       );
@@ -260,6 +264,18 @@ export async function PlaybillBody({
                   {a.detail && <p className="text-body-sm text-ash mt-1">{a.detail}</p>}
                   {a.link_url && <p className="text-body-xs text-brick mt-1">{a.link_url}</p>}
                 </div>
+              ))}
+            </div>
+          </section>
+        )}
+        {/* Gallery */}
+        {gallery.length > 0 && (
+          <section className="mb-12 break-before-page">
+            <h2 className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Gallery</h2>
+            <div className="columns-2 md:columns-3 gap-3">
+              {gallery.map((src, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src={src} alt={`${title} — photo ${i + 1}`} className="w-full mb-3 rounded-card border border-bone break-inside-avoid" />
               ))}
             </div>
           </section>
