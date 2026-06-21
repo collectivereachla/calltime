@@ -77,6 +77,7 @@ export async function PlaybillBody({
 
   const songList = Array.isArray(playbill.song_scene_list) ? playbill.song_scene_list as { act: string; items: { title: string; detail?: string }[] }[] : [];
   const gallery = Array.isArray(playbill.gallery_paths) ? playbill.gallery_paths as string[] : [];
+  const posterPath = (playbill.poster_path as string) || null;
 
   // The playwright gets its own section, broken out of the directing department.
   const sectionKey = (t: P) => (t.department === "directing" && t.roles.some((r) => /writer|playwright/i.test(r))) ? "playwright" : t.department;
@@ -103,6 +104,12 @@ export async function PlaybillBody({
       )}
 
       <div className="max-w-3xl mx-auto px-10 py-12 print:px-0 print:py-0 print:max-w-none">
+
+        {/* Flyer / poster */}
+        {posterPath && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={posterPath} alt={`${title} poster`} className="w-full max-w-xl mx-auto rounded-card mb-10 print:mb-6" />
+        )}
 
         {/* Cover */}
         <section className="text-center py-20 print:py-32 break-after-page">
@@ -191,25 +198,23 @@ export async function PlaybillBody({
               {orderedDepts.map((dept) => (
                 <div key={dept} className="break-inside-avoid">
                   <p className="text-body-xs uppercase tracking-wider text-ash mb-2">{DEPT_LABEL[dept] || dept}</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-6">
                     {teamByDept.get(dept)!.map((t, i) => {
                       const url = t.headshotPath ? signed.get(t.headshotPath) || null : null;
                       return (
-                        <div key={i} className="flex items-center gap-2.5">
-                          <div className="w-12 h-14 shrink-0 rounded-card overflow-hidden bg-bone/40 border border-bone">
+                        <div key={i} className="text-center">
+                          <div className="w-24 h-32 mx-auto mb-2 rounded-card overflow-hidden bg-bone/40 border border-bone">
                             {url ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={url} alt={t.name} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
-                                <span className="text-body-xs font-display text-ash/50">{t.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
+                                <span className="text-xl font-display text-ash/50">{t.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
                               </div>
                             )}
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-body-sm font-medium leading-tight">{t.name}</p>
-                            {dept !== "playwright" && <p className="text-[11px] text-ash leading-tight">{t.roles.join(", ")}</p>}
-                          </div>
+                          <p className="text-body-sm font-medium leading-tight">{t.name}</p>
+                          {dept !== "playwright" && <p className="text-[11px] text-ash leading-tight mt-0.5">{t.roles.join(", ")}</p>}
                         </div>
                       );
                     })}
