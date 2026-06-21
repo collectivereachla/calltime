@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
 
 // ---------------------------------------------------------------------------
 // Owner "Preview as" — see the app exactly as another person sees it.
@@ -146,11 +147,25 @@ export async function isPreviewing(): Promise<boolean> {
 /**
  * Hard-stop a user-initiated write while previewing. Called at the top of
  * mutation server actions. Preview is read-only; the owner must exit to act.
+ *
+ * Only a GENUINELY ACTIVE preview blocks writes: the cookie must resolve to a
+ * real person inside one of the owner's orgs (the same test getViewer uses).
+ * A stale or invalid cookie — e.g. one left over from a since-deleted preview
+ * account — must never silently brick writes, so we clear it and proceed.
  */
 export async function assertNotPreviewing(): Promise<void> {
-  if (await isPreviewing()) {
+  const jar = await cookies();
+  if (!jar.get(PREVIEW_COOKIE)?.value) return; // common case: no cookie at all
+
+  const supabase = await createClient();
+  const viewer = await getViewer(supabase);
+  if (viewer.isPreview) {
     throw new Error("Preview is read-only. Exit preview to make changes.");
   }
+
+  // Cookie present but not a valid preview (deleted target, not an owner, or
+  // points at self). Clear it so it can't keep blocking writes invisibly.
+  try { jar.delete(PREVIEW_COOKIE); } catch { /* immutable cookie context */ }
 }
 
 /** People the owner may preview: everyone in their owned orgs (members + assignees). */

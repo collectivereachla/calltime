@@ -60,17 +60,25 @@ export function ArchiveEditor({ production }: Props) {
   async function handleReopen() {
     if (!confirm(`Reopen "${production.title}"? It will appear in the production switcher and become active.`)) return;
     setStatus(null);
-    const res = await reopenProduction(production.id);
-    if (res?.error) { setStatus(`Couldn't reopen: ${res.error}`); return; }
-    router.refresh();
+    try {
+      const res = await reopenProduction(production.id);
+      if (res?.error) { setStatus(`Couldn't reopen: ${res.error}`); return; }
+      router.refresh();
+    } catch (e) {
+      setStatus(`Couldn't reopen: ${e instanceof Error ? e.message : "something went wrong"}`);
+    }
   }
 
   async function handleClose() {
     if (!confirm(`Close "${production.title}"? It will move to the archive.`)) return;
     setStatus(null);
-    const res = await closeProduction(production.id);
-    if (res?.error) { setStatus(`Couldn't close: ${res.error}`); return; }
-    router.refresh();
+    try {
+      const res = await closeProduction(production.id);
+      if (res?.error) { setStatus(`Couldn't close: ${res.error}`); return; }
+      router.refresh();
+    } catch (e) {
+      setStatus(`Couldn't close: ${e instanceof Error ? e.message : "something went wrong"}`);
+    }
   }
 
   return (
