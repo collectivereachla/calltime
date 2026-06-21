@@ -8,6 +8,17 @@ const DEPT_LABEL: Record<string, string> = {
   video: "Video", crew: "Crew",
 };
 
+function externalHref(url?: string | null): string | null {
+  if (!url) return null;
+  const t = url.trim();
+  if (!t) return null;
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(t)) return t;
+  return `https://${t}`;
+}
+function displayUrl(url: string): string {
+  return url.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+}
+
 type Prod = { id: string; title: string; org_id: string };
 // playbill is the full row; kept loose since columns evolve.
 type Playbill = Record<string, unknown> & { id: string };
@@ -245,13 +256,19 @@ export async function PlaybillBody({
             <div className="grid grid-cols-2 gap-4">
               {sponsors.map((s) => {
                 const logo = s.image_path ? signed.get(s.image_path) || null : null;
-                return (
-                  <div key={s.id} className="border border-bone rounded-card p-3 text-center flex flex-col items-center justify-center gap-1.5">
+                const href = externalHref(s.link_url);
+                const card = (
+                  <div className="border border-bone rounded-card p-3 text-center flex flex-col items-center justify-center gap-1.5 h-full">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     {logo && <img src={logo} alt={s.name} className="max-h-16 max-w-full object-contain" />}
                     <p className="font-display text-lg text-ink">{s.name}</p>
                     {s.detail && <p className="text-body-xs text-ash">{s.detail}</p>}
                   </div>
+                );
+                return href ? (
+                  <a key={s.id} href={href} target="_blank" rel="noopener noreferrer" className="block no-underline transition-opacity hover:opacity-80">{card}</a>
+                ) : (
+                  <div key={s.id}>{card}</div>
                 );
               })}
             </div>
@@ -263,13 +280,16 @@ export async function PlaybillBody({
           <section className="break-before-page">
             <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">With Support From</h2>
             <div className="grid grid-cols-2 gap-4">
-              {ads.map((a) => (
-                <div key={a.id} className="border border-bone rounded-card p-4 text-center">
-                  <p className="font-display text-lg text-ink">{a.name}</p>
-                  {a.detail && <p className="text-body-sm text-ash mt-1">{a.detail}</p>}
-                  {a.link_url && <p className="text-body-xs text-brick mt-1">{a.link_url}</p>}
-                </div>
-              ))}
+              {ads.map((a) => {
+                const href = externalHref(a.link_url);
+                return (
+                  <div key={a.id} className="border border-bone rounded-card p-4 text-center">
+                    <p className="font-display text-lg text-ink">{a.name}</p>
+                    {a.detail && <p className="text-body-sm text-ash mt-1">{a.detail}</p>}
+                    {href && <a href={href} target="_blank" rel="noopener noreferrer" className="text-body-xs text-brick mt-1 inline-block hover:underline break-all">{displayUrl(a.link_url!)}</a>}
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}
