@@ -51,8 +51,11 @@ export async function PlaybillBody({
     return a.name.localeCompare(b.name);
   });
 
-  // Sign cast headshots.
-  const paths = castList.map((c) => c.headshotPath).filter((p): p is string => !!p);
+  // Director (for the headshot beside the note).
+  const director = teamList.find((t) => t.department === "directing");
+
+  // Sign cast + director headshots.
+  const paths = [...castList.map((c) => c.headshotPath), director?.headshotPath ?? null].filter((p): p is string => !!p);
   const signed = new Map<string, string>();
   if (paths.length > 0) {
     const { data: s } = await supabase.storage.from("promo-assets").createSignedUrls(paths, 3600);
@@ -99,7 +102,11 @@ export async function PlaybillBody({
 
         {/* Cover */}
         <section className="text-center py-20 print:py-32 break-after-page">
-          {orgName && <p className="text-body-sm uppercase tracking-[0.3em] text-ash mb-6">{orgName} presents</p>}
+          {((playbill.presented_by as string) || orgName) && (
+            <p className="text-body-sm uppercase tracking-[0.3em] text-ash mb-6">
+              {(playbill.presented_by as string) || `${orgName} presents`}
+            </p>
+          )}
           <h1 className="font-display text-5xl leading-tight text-brick mb-4">{title}</h1>
           {(playbill.cover_subtitle as string) && <p className="font-display text-xl italic text-ink mb-6">{playbill.cover_subtitle as string}</p>}
           {(playbill.show_info as string) && <p className="text-body-sm text-ash max-w-md mx-auto whitespace-pre-line">{playbill.show_info as string}</p>}
@@ -110,7 +117,13 @@ export async function PlaybillBody({
         {(playbill.directors_note as string) && (
           <section className="mb-12 break-inside-avoid">
             <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Director&rsquo;s Note</h2>
-            <div className="text-body-md leading-relaxed whitespace-pre-line">{playbill.directors_note as string}</div>
+            <div className="text-body-md leading-relaxed whitespace-pre-line">
+              {director?.headshotPath && signed.get(director.headshotPath) && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={signed.get(director.headshotPath)!} alt={director.name} className="float-left w-32 h-40 mr-5 mb-3 rounded-card object-cover border border-bone" />
+              )}
+              {playbill.directors_note as string}
+            </div>
           </section>
         )}
 
@@ -144,7 +157,7 @@ export async function PlaybillBody({
                 const bio = c.bio && c.bio.trim() ? c.bio.trim() : null;
                 return (
                   <div key={i} className="break-inside-avoid flex gap-3">
-                    <div className="w-20 shrink-0 aspect-[4/5] rounded-card overflow-hidden bg-bone/40 border border-bone">
+                    <div className="w-24 h-32 shrink-0 self-start rounded-card overflow-hidden bg-bone/40 border border-bone">
                       {url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={url} alt={c.name} className="w-full h-full object-cover" />
