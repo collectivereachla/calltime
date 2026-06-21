@@ -32,21 +32,21 @@ export default async function PlaybillPrintPage({
     .from("playbills").select("*").eq("production_id", pid).maybeSingle();
   if (!playbill) redirect("/playbill");
 
-  // Cast: person + characters + headshot.
+  // Cast: person + characters + headshot + bio.
   const { data: rows } = await supabase
     .from("production_assignments")
-    .select("person_id, role_title, department, people!production_assignments_person_id_fkey(full_name, headshot_url)")
+    .select("person_id, role_title, department, people!production_assignments_person_id_fkey(full_name, headshot_url, bio)")
     .eq("production_id", pid).eq("active", true);
 
-  type P = { name: string; characters: string[]; headshotPath: string | null; department: string; roles: string[] };
+  type P = { name: string; characters: string[]; headshotPath: string | null; bio: string | null; department: string; roles: string[] };
   const cast = new Map<string, P>();
   const team = new Map<string, P>();
   for (const r of rows || []) {
-    const p = r.people as unknown as { full_name: string; headshot_url: string | null } | null;
+    const p = r.people as unknown as { full_name: string; headshot_url: string | null; bio: string | null } | null;
     if (!p || /test/i.test(p.full_name)) continue;
     const dept = r.department as string;
     const target = dept === "cast" ? cast : team;
-    if (!target.has(r.person_id)) target.set(r.person_id, { name: p.full_name, characters: [], headshotPath: p.headshot_url, department: dept, roles: [] });
+    if (!target.has(r.person_id)) target.set(r.person_id, { name: p.full_name, characters: [], headshotPath: p.headshot_url, bio: p.bio, department: dept, roles: [] });
     const e = target.get(r.person_id)!;
     if (dept === "cast" && r.role_title && !e.characters.includes(r.role_title as string)) e.characters.push(r.role_title as string);
     if (dept !== "cast" && r.role_title && !e.roles.includes(r.role_title as string)) e.roles.push(r.role_title as string);
@@ -162,6 +162,37 @@ export default async function PlaybillPrintPage({
                     </div>
                     <p className="text-body-xs font-semibold leading-tight">{c.name}</p>
                     <p className="text-[10px] text-ash leading-tight">{c.characters.join(" / ")}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Who's Who in the Cast — headshot + bio */}
+        {playbill.include_cast && castList.some((c) => c.bio && c.bio.trim()) && (
+          <section className="mb-12 break-before-page">
+            <h2 className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Who&rsquo;s Who in the Cast</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
+              {castList.filter((c) => c.bio && c.bio.trim()).map((c, i) => {
+                const url = c.headshotPath ? signed.get(c.headshotPath) || null : null;
+                return (
+                  <div key={i} className="break-inside-avoid flex gap-3">
+                    <div className="w-20 shrink-0 aspect-[4/5] rounded-card overflow-hidden bg-bone/40 border border-bone">
+                      {url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={url} alt={c.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="text-lg font-display text-ash/50">{c.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-body-sm font-semibold leading-tight">{c.name}</p>
+                      {c.characters.length > 0 && <p className="text-[11px] text-ash mb-1">{c.characters.join(" / ")}</p>}
+                      <p className="text-body-xs text-ink/90 leading-snug whitespace-pre-line">{c.bio!.trim()}</p>
+                    </div>
                   </div>
                 );
               })}
