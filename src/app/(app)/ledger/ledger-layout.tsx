@@ -4,7 +4,7 @@ import { useState } from "react";
 import { LedgerView } from "./ledger-view";
 import { BudgetView } from "./budget-view";
 import { TemplatesView } from "./templates-view";
-import { InvoicesView, type InvoiceRow } from "./invoices-view";
+import { InvoicesView, type InvoiceRow, type ReceiptRow } from "./invoices-view";
 
 interface Contract {
   id: string;
@@ -116,10 +116,14 @@ interface Props {
   invoiceDefaultPayerId: string | null;
   invoiceFinancePayers: { id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; address: string | null }[];
   invoiceFinanceMethods: { id: string; method: string; label: string | null; production_id: string | null; enabled: boolean }[];
+  receipts: ReceiptRow[];
+  canSubmitReceipts: boolean;
 }
 
 export function LedgerLayout(props: Props) {
-  const [tab, setTab] = useState<Tab>("contracts");
+  const [tab, setTab] = useState<Tab>(
+    props.contracts.length === 0 && !props.canManage ? "invoices" : "contracts"
+  );
 
   const showBudget = props.canManage;
   const showTemplates = props.canSeeContent;
@@ -187,6 +191,8 @@ export function LedgerLayout(props: Props) {
           defaultPayerId={props.invoiceDefaultPayerId}
           financePayers={props.invoiceFinancePayers}
           financeMethods={props.invoiceFinanceMethods}
+          receipts={props.receipts}
+          canSubmitReceipts={props.canSubmitReceipts}
         />
       )}
 

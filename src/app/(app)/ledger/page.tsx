@@ -370,6 +370,56 @@ export default async function LedgerPage() {
     });
   }
 
+  // ---- Receipts (reimbursement requests) ----
+  type ReceiptRow = {
+    id: string; person_id: string; person_name: string; description: string;
+    category: string | null; amount: number; expense_date: string | null;
+    status: string; receipt_path: string | null; review_note: string | null; created_at: string;
+  };
+  let receipts: ReceiptRow[] = [];
+  let hasActiveAssignment = false;
+
+  if (activePid) {
+    const { data: myPa } = await supabase
+      .from("production_assignments")
+      .select("id")
+      .eq("production_id", activePid)
+      .eq("person_id", person!.id)
+      .eq("active", true)
+      .maybeSingle();
+    hasActiveAssignment = !!myPa;
+
+    let rq = supabase
+      .from("expense_receipts")
+      .select("id, person_id, description, category, amount, expense_date, status, receipt_path, review_note, created_at")
+      .eq("production_id", activePid)
+      .order("created_at", { ascending: false });
+    if (!canManage) rq = rq.eq("person_id", person!.id);
+    const { data: rRows } = await rq;
+
+    // Names fetched separately: expense_receipts has two FKs to people
+    // (person_id + reviewed_by), so a bare embed would return HTTP 300.
+    const rPersonIds = [...new Set((rRows || []).map((r) => r.person_id))];
+    const { data: rPpl } = rPersonIds.length
+      ? await supabase.from("people").select("id, full_name, preferred_name").in("id", rPersonIds)
+      : { data: [] as { id: string; full_name: string; preferred_name: string | null }[] };
+    const rNameMap = new Map((rPpl || []).map((p) => [p.id, p.preferred_name || p.full_name]));
+
+    receipts = (rRows || []).map((r) => ({
+      id: r.id,
+      person_id: r.person_id,
+      person_name: rNameMap.get(r.person_id) || "—",
+      description: r.description,
+      category: r.category,
+      amount: Number(r.amount),
+      expense_date: r.expense_date,
+      status: r.status,
+      receipt_path: r.receipt_path,
+      review_note: r.review_note,
+      created_at: r.created_at,
+    }));
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="mb-8 flex items-start justify-between gap-4">
@@ -394,7 +444,7 @@ export default async function LedgerPage() {
         )}
       </div>
 
-      {contracts.length === 0 && !canManage ? (
+      {contracts.length === 0 && !canManage && !hasActiveAssignment ? (
         <div className="bg-card border border-bone rounded-card px-6 py-10 text-center">
           <p className="text-body-md text-ash">No contracts found for active productions.</p>
         </div>
@@ -428,6 +478,8 @@ export default async function LedgerPage() {
           invoiceDefaultPayerId={invoiceDefaultPayerId}
           invoiceFinancePayers={invoiceFinancePayers}
           invoiceFinanceMethods={invoiceFinanceMethods}
+          receipts={receipts}
+          canSubmitReceipts={hasActiveAssignment}
         />
       )}
     </div>

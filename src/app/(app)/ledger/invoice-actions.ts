@@ -79,51 +79,82 @@ export async function submitInvoice(input: {
     }
   }
 
-  // One active invoice per contract.
-  const { data: existing } = await supabase
-    .from("invoices")
-    .select("id")
-    .eq("contract_id", contract.id)
-    .neq("status", "void");
-  if (existing && existing.length > 0) {
-    return { error: "You've already submitted an invoice for this contract." };
-  }
-
-  // Invoice number: INV-{year}-{running count for this org}
-  const year = new Date().getFullYear();
-  const { count } = await supabase
-    .from("invoices")
-    .select("id", { count: "exact", head: true })
-    .eq("org_id", production.org_id);
-  const invoiceNumber = `INV-${year}-${String((count || 0) + 1).padStart(4, "0")}`;
-
   const payeeAddress = input.payeeAddress?.trim() || null;
 
-  const { data: inv, error: invErr } = await supabase
+  // A member has at most one live invoice per production. If a reimbursement-only
+  // invoice was already opened for them (approved receipts, no contract behind it),
+  // upgrade it in place instead of creating a second one. If a contract invoice
+  // already exists, they've submitted.
+  const { data: existing } = await supabase
     .from("invoices")
-    .insert({
-      org_id: production.org_id,
-      production_id: contract.production_id,
-      person_id: me.id,
-      contract_id: contract.id,
-      payer_id: payerId,
-      base_amount: baseAmount,
-      payment_method: input.paymentMethod || null,
-      payment_details: input.paymentDetails?.trim() || null,
-      w9_required: w9Required,
-      status: "submitted",
-      invoice_number: invoiceNumber,
-      payee_name: me.preferred_name || me.full_name,
-      payee_address: payeeAddress,
-      payee_email: me.email,
-      payee_phone: me.phone,
-    })
-    .select("id")
-    .single();
+    .select("id, contract_id")
+    .eq("production_id", contract.production_id)
+    .eq("person_id", me.id)
+    .neq("status", "void")
+    .maybeSingle();
 
-  if (invErr) return { error: invErr.message };
-  if (!inv) {
-    return { error: "The invoice didn't save. Refresh and try again, or contact your manager." };
+  let invoiceId: string;
+
+  if (existing) {
+    if (existing.contract_id) {
+      return { error: "You've already submitted an invoice for this production." };
+    }
+    const { data: upg, error: upgErr } = await supabase
+      .from("invoices")
+      .update({
+        contract_id: contract.id,
+        payer_id: payerId,
+        base_amount: baseAmount,
+        payment_method: input.paymentMethod || null,
+        payment_details: input.paymentDetails?.trim() || null,
+        w9_required: w9Required,
+        payee_name: me.preferred_name || me.full_name,
+        payee_address: payeeAddress,
+        payee_email: me.email,
+        payee_phone: me.phone,
+      })
+      .eq("id", existing.id)
+      .select("id")
+      .single();
+    if (upgErr) return { error: upgErr.message };
+    if (!upg) return { error: "The invoice didn't save. Refresh and try again, or contact your manager." };
+    invoiceId = upg.id;
+  } else {
+    // Invoice number: INV-{year}-{running count for this org}
+    const year = new Date().getFullYear();
+    const { count } = await supabase
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", production.org_id);
+    const invoiceNumber = `INV-${year}-${String((count || 0) + 1).padStart(4, "0")}`;
+
+    const { data: inv, error: invErr } = await supabase
+      .from("invoices")
+      .insert({
+        org_id: production.org_id,
+        production_id: contract.production_id,
+        person_id: me.id,
+        contract_id: contract.id,
+        payer_id: payerId,
+        base_amount: baseAmount,
+        payment_method: input.paymentMethod || null,
+        payment_details: input.paymentDetails?.trim() || null,
+        w9_required: w9Required,
+        status: "submitted",
+        invoice_number: invoiceNumber,
+        payee_name: me.preferred_name || me.full_name,
+        payee_address: payeeAddress,
+        payee_email: me.email,
+        payee_phone: me.phone,
+      })
+      .select("id")
+      .single();
+
+    if (invErr) return { error: invErr.message };
+    if (!inv) {
+      return { error: "The invoice didn't save. Refresh and try again, or contact your manager." };
+    }
+    invoiceId = inv.id;
   }
 
   // Remember the mailing address on the member's profile for next time.
@@ -138,7 +169,7 @@ export async function submitInvoice(input: {
   }
 
   const { error: lineErr } = await supabase.from("invoice_line_items").insert({
-    invoice_id: inv.id,
+    invoice_id: invoiceId,
     description: "Contracted fee",
     amount: baseAmount,
     is_base: true,

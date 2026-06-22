@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { submitInvoice, setInvoiceStatus, addInvoiceLine, deleteInvoiceLine } from "./invoice-actions";
+import { submitReceipt, reviewReceipt, deleteReceipt, getReceiptSignedUrl } from "./receipt-actions";
 import { PaymentSettings } from "./payment-settings";
 
 interface PaymentMethod { method: string; label: string | null; details: string | null }
@@ -15,6 +16,12 @@ export interface InvoiceRow {
   payment_details: string | null; status: string; w9_required: boolean; submitted_at: string;
   person_name: string; payer_name: string | null; total: number;
   lines: { id?: string; description: string; amount: number; is_base: boolean }[];
+}
+
+export interface ReceiptRow {
+  id: string; person_id: string; person_name: string; description: string;
+  category: string | null; amount: number; expense_date: string | null;
+  status: string; receipt_path: string | null; review_note: string | null; created_at: string;
 }
 
 interface Props {
@@ -32,6 +39,8 @@ interface Props {
   defaultPayerId: string | null;
   financePayers: { id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; address: string | null }[];
   financeMethods: { id: string; method: string; label: string | null; production_id: string | null; enabled: boolean }[];
+  receipts: ReceiptRow[];
+  canSubmitReceipts: boolean;
 }
 
 const money = (n: number) =>
@@ -131,6 +140,238 @@ function InvoiceCard({ inv, canManage }: { inv: InvoiceRow; canManage: boolean }
         </div>
       )}
       {err && <p className="text-body-xs text-brick mt-1">{err}</p>}
+    </div>
+  );
+}
+
+const RECEIPT_STATUS_STYLE: Record<string, string> = {
+  pending: "bg-tentative/15 text-tentative",
+  approved: "bg-confirmed/15 text-confirmed",
+  rejected: "bg-brick/10 text-brick",
+  paid: "bg-confirmed/15 text-confirmed",
+};
+
+function ReceiptViewLink({ path }: { path: string | null }) {
+  const [busy, setBusy] = useState(false);
+  if (!path) return <span className="text-body-xs text-muted">No file</span>;
+  return (
+    <button
+      onClick={async () => {
+        setBusy(true);
+        const r = await getReceiptSignedUrl(path);
+        setBusy(false);
+        if (r.url) window.open(r.url, "_blank", "noopener");
+      }}
+      disabled={busy}
+      className="text-body-xs text-brick hover:underline disabled:opacity-50"
+    >
+      {busy ? "Opening…" : "View receipt"}
+    </button>
+  );
+}
+
+function ReceiptReviewCard({ r }: { r: ReceiptRow }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+
+  async function decide(decision: "approve" | "reject") {
+    setBusy(true); setErr(null);
+    const res = await reviewReceipt(r.id, decision, note);
+    setBusy(false);
+    if (res?.error) { setErr(res.error); return; }
+    router.refresh();
+  }
+
+  return (
+    <div className="bg-card border border-bone rounded-card px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className="text-body-sm font-medium text-ink">{r.person_name}</span>
+          <p className="text-body-sm text-ink mt-0.5">{r.description}</p>
+          <p className="text-body-xs text-muted mt-0.5">
+            {r.category ? `${r.category} · ` : ""}
+            {r.expense_date ? new Date(r.expense_date + "T00:00:00").toLocaleDateString() : "no date"}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-body-md font-semibold text-ink">{money(r.amount)}</p>
+          <ReceiptViewLink path={r.receipt_path} />
+        </div>
+      </div>
+      <div className="mt-3 pt-2 border-t border-bone/60 flex items-center gap-2 flex-wrap">
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Note (optional)"
+          className="px-2 py-1 text-body-xs rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick flex-1 min-w-[8rem]"
+        />
+        <button onClick={() => decide("approve")} disabled={busy} className="px-2.5 py-1 text-body-xs font-medium rounded bg-ink text-paper hover:bg-ink/90 disabled:opacity-50">
+          Approve → add to invoice
+        </button>
+        <button onClick={() => decide("reject")} disabled={busy} className="px-2.5 py-1 text-body-xs font-medium rounded border border-bone text-ash hover:text-brick hover:border-brick disabled:opacity-50">
+          Reject
+        </button>
+      </div>
+      {err && <p className="text-body-xs text-brick mt-1">{err}</p>}
+    </div>
+  );
+}
+
+function ReceiptRowItem({ r, showWho }: { r: ReceiptRow; showWho?: boolean }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <div className="bg-card border border-bone rounded-card px-4 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            {showWho && <span className="text-body-sm font-medium text-ink">{r.person_name}</span>}
+            <span className="text-body-sm text-ink truncate">{r.description}</span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider ${RECEIPT_STATUS_STYLE[r.status] || "bg-ash/10 text-ash"}`}>{r.status}</span>
+          </div>
+          <p className="text-body-xs text-muted mt-0.5">
+            {r.category ? `${r.category} · ` : ""}
+            {r.expense_date ? new Date(r.expense_date + "T00:00:00").toLocaleDateString() : "no date"}
+            {(r.status === "rejected" || r.status === "approved") && r.review_note ? ` · ${r.review_note}` : ""}
+          </p>
+        </div>
+        <div className="text-right shrink-0 flex items-center gap-3">
+          <span className="text-body-sm font-semibold text-ink">{money(r.amount)}</span>
+          <ReceiptViewLink path={r.receipt_path} />
+          {r.status === "pending" && (
+            <button
+              onClick={async () => {
+                setBusy(true); setErr(null);
+                const res = await deleteReceipt(r.id);
+                setBusy(false);
+                if (res?.error) { setErr(res.error); return; }
+                router.refresh();
+              }}
+              disabled={busy}
+              className="text-ash hover:text-brick disabled:opacity-50"
+              title="Withdraw"
+            >✕</button>
+          )}
+        </div>
+      </div>
+      {err && <p className="text-body-xs text-brick mt-1">{err}</p>}
+    </div>
+  );
+}
+
+function SubmitReceiptCard({ productionId }: { productionId: string }) {
+  const router = useRouter();
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
+  const [expenseDate, setExpenseDate] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  function fileToBase64(f: File): Promise<string> {
+    return new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result as string);
+      reader.onerror = () => rej(new Error("Couldn't read the file."));
+      reader.readAsDataURL(f);
+    });
+  }
+
+  async function submit() {
+    const n = parseFloat(amount.replace(/[^0-9.]/g, ""));
+    if (!(n > 0)) { setErr("Enter an amount."); return; }
+    if (!description.trim()) { setErr("Add a short note of what this was for."); return; }
+    if (file && file.size > 10 * 1024 * 1024) { setErr("File is too large (max 10 MB)."); return; }
+    setBusy(true); setErr(null); setDone(false);
+    let base64File = ""; let contentType = "";
+    if (file) { base64File = await fileToBase64(file); contentType = file.type; }
+    const res = await submitReceipt({ base64File, contentType, amount: n, description, category, expenseDate, productionId });
+    setBusy(false);
+    if (res?.error) { setErr(res.error); return; }
+    setAmount(""); setDescription(""); setCategory(""); setExpenseDate(""); setFile(null);
+    setDone(true);
+    router.refresh();
+  }
+
+  return (
+    <div className="bg-card border border-bone rounded-card p-5">
+      <h3 className="text-body-md font-medium text-ink mb-1">Submit a receipt</h3>
+      <p className="text-body-xs text-muted mb-4">
+        For something you paid out of pocket. Once your manager approves it, the amount is added to your invoice.
+      </p>
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label className="text-body-xs text-muted block mb-1">Amount</label>
+          <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="$0.00" className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick" />
+        </div>
+        <div>
+          <label className="text-body-xs text-muted block mb-1">Date of purchase</label>
+          <input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick" />
+        </div>
+      </div>
+      <div className="mb-3">
+        <label className="text-body-xs text-muted block mb-1">What was it for?</label>
+        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Fabric for Act 2 costumes" className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick" />
+      </div>
+      <div className="mb-3">
+        <label className="text-body-xs text-muted block mb-1">Category (optional)</label>
+        <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Props, Costumes, Travel…" className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick" />
+      </div>
+      <div className="mb-4">
+        <label className="text-body-xs text-muted block mb-1">Receipt photo or PDF (optional but recommended)</label>
+        <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} className="block w-full text-body-xs text-ash file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-ink file:text-paper file:text-body-xs hover:file:bg-ink/90" />
+      </div>
+      {err && <p className="text-body-sm text-brick mb-3">{err}</p>}
+      {done && <p className="text-body-sm text-confirmed mb-3">Receipt submitted for review.</p>}
+      <button onClick={submit} disabled={busy} className="px-4 py-2 text-body-sm font-medium rounded-card bg-ink text-paper hover:bg-ink/90 transition-colors disabled:opacity-50">
+        {busy ? "Submitting…" : "Submit receipt"}
+      </button>
+    </div>
+  );
+}
+
+function ReceiptsSection({ receipts, canManage, canSubmit, productionId, personId }: {
+  receipts: ReceiptRow[]; canManage: boolean; canSubmit: boolean; productionId: string; personId: string;
+}) {
+  const pending = receipts.filter((r) => r.status === "pending");
+  const reviewed = receipts.filter((r) => r.status !== "pending");
+  const mine = receipts.filter((r) => r.person_id === personId);
+
+  return (
+    <div className="space-y-6 border-t border-bone pt-8">
+      <p className="text-body-xs text-muted uppercase tracking-wider">Receipts &amp; reimbursements</p>
+
+      {canSubmit && <SubmitReceiptCard productionId={productionId} />}
+
+      {canManage && pending.length > 0 && (
+        <div>
+          <p className="text-body-sm font-medium text-ink mb-2">Awaiting review ({pending.length})</p>
+          <div className="space-y-2">{pending.map((r) => <ReceiptReviewCard key={r.id} r={r} />)}</div>
+        </div>
+      )}
+
+      {canManage && reviewed.length > 0 && (
+        <div>
+          <p className="text-body-sm font-medium text-ink mb-2">Reviewed</p>
+          <div className="space-y-2">{reviewed.map((r) => <ReceiptRowItem key={r.id} r={r} showWho />)}</div>
+        </div>
+      )}
+
+      {!canManage && mine.length > 0 && (
+        <div>
+          <p className="text-body-sm font-medium text-ink mb-2">Your receipts</p>
+          <div className="space-y-2">{mine.map((r) => <ReceiptRowItem key={r.id} r={r} />)}</div>
+        </div>
+      )}
+
+      {canManage && pending.length === 0 && reviewed.length === 0 && (
+        <p className="text-body-sm text-ash">No receipts submitted yet.</p>
+      )}
     </div>
   );
 }
@@ -263,6 +504,14 @@ export function InvoicesView(props: Props) {
           </div>
         </div>
       )}
+
+      <ReceiptsSection
+        receipts={props.receipts}
+        canManage={canManage}
+        canSubmit={props.canSubmitReceipts}
+        productionId={props.productionId}
+        personId={personId}
+      />
 
       {canManage && (
         <PaymentSettings
