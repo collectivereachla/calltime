@@ -117,7 +117,7 @@ export async function submitInvoice(input: {
       .select("id")
       .single();
     if (upgErr) return { error: upgErr.message };
-    if (!upg) return { error: "The invoice didn't save. Refresh and try again, or contact your manager." };
+    if (!upg) return { error: "The invoice didn't save. Refresh and try again, or reach out to production." };
     invoiceId = upg.id;
   } else {
     // Invoice number: INV-{year}-{running count for this org}
@@ -152,7 +152,7 @@ export async function submitInvoice(input: {
 
     if (invErr) return { error: invErr.message };
     if (!inv) {
-      return { error: "The invoice didn't save. Refresh and try again, or contact your manager." };
+      return { error: "The invoice didn't save. Refresh and try again, or reach out to production." };
     }
     invoiceId = inv.id;
   }

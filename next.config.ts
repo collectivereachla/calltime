@@ -41,6 +41,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "16mb",
+    },
+  },
   async headers() {
     return [
       {

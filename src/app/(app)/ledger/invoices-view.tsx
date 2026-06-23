@@ -273,7 +273,7 @@ function SubmitReceiptCard({ productionId }: { productionId: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  function fileToBase64(f: File): Promise<string> {
+  function fileToDataUrl(f: File): Promise<string> {
     return new Promise((res, rej) => {
       const reader = new FileReader();
       reader.onload = () => res(reader.result as string);
@@ -282,27 +282,64 @@ function SubmitReceiptCard({ productionId }: { productionId: string }) {
     });
   }
 
+  // Downscale photos in the browser so a big phone image doesn't blow past the
+  // upload limit. PDFs and anything we can't draw pass through untouched.
+  const CANVAS_TYPES = ["image/jpeg", "image/png", "image/webp"];
+  async function processFile(f: File): Promise<{ base64: string; contentType: string }> {
+    const dataUrl = await fileToDataUrl(f);
+    if (!CANVAS_TYPES.includes(f.type)) {
+      return { base64: dataUrl, contentType: f.type || "application/octet-stream" };
+    }
+    try {
+      const img = document.createElement("img");
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("decode"));
+        img.src = dataUrl;
+      });
+      const maxEdge = 2000;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (Math.max(w, h) > maxEdge) {
+        const s = maxEdge / Math.max(w, h);
+        w = Math.round(w * s); h = Math.round(h * s);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return { base64: dataUrl, contentType: f.type };
+      ctx.drawImage(img, 0, 0, w, h);
+      return { base64: canvas.toDataURL("image/jpeg", 0.82), contentType: "image/jpeg" };
+    } catch {
+      return { base64: dataUrl, contentType: f.type };
+    }
+  }
+
   async function submit() {
     const n = parseFloat(amount.replace(/[^0-9.]/g, ""));
     if (!(n > 0)) { setErr("Enter an amount."); return; }
     if (!description.trim()) { setErr("Add a short note of what this was for."); return; }
     if (file && file.size > 10 * 1024 * 1024) { setErr("File is too large (max 10 MB)."); return; }
     setBusy(true); setErr(null); setDone(false);
-    let base64File = ""; let contentType = "";
-    if (file) { base64File = await fileToBase64(file); contentType = file.type; }
-    const res = await submitReceipt({ base64File, contentType, amount: n, description, category, expenseDate, productionId });
-    setBusy(false);
-    if (res?.error) { setErr(res.error); return; }
-    setAmount(""); setDescription(""); setCategory(""); setExpenseDate(""); setFile(null);
-    setDone(true);
-    router.refresh();
+    try {
+      let base64File = ""; let contentType = "";
+      if (file) { const p = await processFile(file); base64File = p.base64; contentType = p.contentType; }
+      const res = await submitReceipt({ base64File, contentType, amount: n, description, category, expenseDate, productionId });
+      if (res?.error) { setErr(res.error); setBusy(false); return; }
+      setAmount(""); setDescription(""); setCategory(""); setExpenseDate(""); setFile(null);
+      setDone(true);
+      setBusy(false);
+      router.refresh();
+    } catch {
+      setBusy(false);
+      setErr("That didn't go through. The file may be too large or the connection dropped, try a smaller photo or a PDF.");
+    }
   }
 
   return (
     <div className="bg-card border border-bone rounded-card p-5">
       <h3 className="text-body-md font-medium text-ink mb-1">Submit a receipt</h3>
       <p className="text-body-xs text-muted mb-4">
-        For something you paid out of pocket. Once your manager approves it, the amount is added to your invoice.
+        For something you paid out of pocket. Once approved, the amount is added to your invoice.
       </p>
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
@@ -478,7 +515,7 @@ export function InvoicesView(props: Props) {
               <button onClick={handleSubmit} disabled={submitting || paymentMethods.length === 0 || !method} className="px-4 py-2 text-body-sm font-medium rounded-card bg-ink text-paper hover:bg-ink/90 transition-colors disabled:opacity-50">
                 {submitting ? "Submitting…" : `Submit invoice for ${base !== null ? money(base) : ""}`}
               </button>
-              <p className="text-body-xs text-muted mt-2">The amount is locked to your signed contract. Any approved stipend is added by your manager as a separate line.</p>
+              <p className="text-body-xs text-muted mt-2">The amount is locked to your signed contract. Any approved stipend is added as a separate line.</p>
             </>
           )}
         </div>
