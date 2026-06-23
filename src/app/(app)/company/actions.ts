@@ -125,6 +125,52 @@ export async function removeMember(orgId: string, personId: string) {
   return { success: true };
 }
 
+export async function banMember(orgId: string, personId: string, reason?: string) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("ban_org_member", {
+    p_org_id: orgId,
+    p_person_id: personId,
+    p_reason: reason || null,
+  });
+
+  if (error) return { error: error.message };
+
+  logAudit({
+    action: "ban_member",
+    entityType: "org_membership",
+    targetPersonId: personId,
+    orgId,
+    metadata: reason ? { reason } : undefined,
+  }).catch(() => {});
+
+  revalidatePath("/company");
+  return { success: true };
+}
+
+export async function unbanMember(orgId: string, personId: string) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("unban_org_member", {
+    p_org_id: orgId,
+    p_person_id: personId,
+  });
+
+  if (error) return { error: error.message };
+
+  logAudit({
+    action: "unban_member",
+    entityType: "org_membership",
+    targetPersonId: personId,
+    orgId,
+  }).catch(() => {});
+
+  revalidatePath("/company");
+  return { success: true };
+}
+
 export async function removeFromProduction(
   productionId: string,
   personId: string

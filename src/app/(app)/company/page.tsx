@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
 import { EditMemberButton } from "./edit-member";
 import { CompanyScopeToggle } from "./company-scope-toggle";
+import { UnbanButton } from "./unban-button";
 import { getActiveProductionId } from "@/lib/active-production";
 import Link from "next/link";
 
@@ -76,6 +77,23 @@ export default async function CompanyPage() {
   const org = { id: orgId, name: orgRecord?.name || "Company" };
   const myRole = roleByOrg.get(orgId) || "member";
   const canManage = myRole === "owner" || myRole === "production";
+
+  // Banned people (managers only) — org-local bans. Embed names the FK because
+  // org_bans has two paths to people (person_id and banned_by_person_id).
+  let bannedList: { person_id: string; full_name: string; reason: string | null }[] = [];
+  if (canManage) {
+    const { data: bans } = await supabase
+      .from("org_bans")
+      .select("person_id, reason, people!org_bans_person_id_fkey ( full_name, preferred_name )")
+      .eq("org_id", org.id)
+      .order("created_at", { ascending: false });
+    bannedList = (bans || [])
+      .filter((b) => (b.people as unknown as { full_name: string } | null) != null)
+      .map((b) => {
+        const pp = b.people as unknown as { full_name: string; preferred_name: string | null };
+        return { person_id: b.person_id, full_name: pp.preferred_name || pp.full_name, reason: b.reason };
+      });
+  }
 
   // Get all members with their org role
   const { data: rawMembers } = await supabase
@@ -419,6 +437,26 @@ export default async function CompanyPage() {
           })}
         </div>
         </CompanyScopeToggle>
+      )}
+
+      {canManage && bannedList.length > 0 && (
+        <div className="mt-10 pt-6 border-t border-bone">
+          <p className="text-body-xs text-muted uppercase tracking-wider mb-3">
+            Banned from {org.name} &middot; {bannedList.length}
+          </p>
+          <div className="space-y-2">
+            {bannedList.map((b) => (
+              <div key={b.person_id}
+                className="flex items-center justify-between gap-3 bg-card border border-bone rounded-card px-4 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-body-sm text-ink truncate">{b.full_name}</p>
+                  {b.reason && <p className="text-body-xs text-muted truncate">{b.reason}</p>}
+                </div>
+                <UnbanButton orgId={org.id} personId={b.person_id} />
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

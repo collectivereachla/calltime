@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateMember, updateMemberRole, updateAssignment, addAssignment, removeMember, removeFromProduction } from "./actions";
+import { updateMember, updateMemberRole, updateAssignment, addAssignment, removeMember, banMember, removeFromProduction } from "./actions";
 import { useRouter } from "next/navigation";
 import { PhotoUpload } from "@/components/photo-upload";
 
@@ -83,6 +83,8 @@ export function EditMemberButton({ person, orgId, orgRole, assignments, producti
   const [error, setError] = useState<string | null>(null);
   const [currentRole, setCurrentRole] = useState(orgRole);
   const [confirming, setConfirming] = useState(false);
+  const [banning, setBanning] = useState(false);
+  const [banReason, setBanReason] = useState("");
   const router = useRouter();
 
   async function handleProfileSave(formData: FormData) {
@@ -129,6 +131,13 @@ export function EditMemberButton({ person, orgId, orgRole, assignments, producti
   async function handleRemove() {
     setLoading(true);
     const result = await removeMember(orgId, person.id);
+    if (result?.error) { setError(result.error); setLoading(false); return; }
+    router.refresh();
+  }
+
+  async function handleBan() {
+    setLoading(true);
+    const result = await banMember(orgId, person.id, banReason.trim() || undefined);
     if (result?.error) { setError(result.error); setLoading(false); return; }
     router.refresh();
   }
@@ -286,6 +295,41 @@ export function EditMemberButton({ person, orgId, orgRole, assignments, producti
                     className="text-body-xs text-muted hover:text-ink transition-colors">
                     Cancel
                   </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Ban member — org-local. Removes from THIS org only; person + other orgs untouched. */}
+          {!isCurrentUser && (
+            <div className="pt-3 border-t border-bone">
+              {!banning ? (
+                <button onClick={() => setBanning(true)}
+                  className="text-body-xs text-muted hover:text-brick transition-colors">
+                  Ban from organization
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-body-xs text-brick">
+                    Ban {person.preferred_name || person.full_name} from this company? They lose access here and cannot be re-added until unbanned. Their account and any other companies are untouched.
+                  </p>
+                  <input
+                    type="text"
+                    value={banReason}
+                    onChange={(e) => setBanReason(e.target.value)}
+                    placeholder="Reason (optional, visible to your staff)"
+                    className="w-full px-3 py-1.5 bg-card border border-bone rounded-card text-body-xs text-ink placeholder:text-muted focus:border-brick focus:outline-none"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button onClick={handleBan} disabled={loading}
+                      className="px-3 py-1 text-body-xs font-medium text-paper bg-brick rounded-card hover:bg-brick/90 disabled:opacity-50">
+                      Ban
+                    </button>
+                    <button onClick={() => { setBanning(false); setBanReason(""); }}
+                      className="text-body-xs text-muted hover:text-ink transition-colors">
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
