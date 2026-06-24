@@ -68,15 +68,23 @@ export default async function SettingsPage() {
     }
   }
 
-  // Fetch org details for org settings
+  // Fetch org details for org settings — for the org the owner is ACTING in
+  // (cookie-driven), not just their first owned org. A multi-org owner must see
+  // the settings for the org they're currently working in.
   let orgData: { id: string; name: string; slug: string; description: string | null; city: string | null; state: string | null; website: string | null; logo_url: string | null } | null = null;
-  if (isOwner && ownership.length > 0) {
-    const { data } = await supabase
-      .from("organizations")
-      .select("id, name, slug, description, city, state, website, logo_url")
-      .eq("id", ownership[0].org_id)
-      .single();
-    orgData = data;
+  if (isOwner) {
+    const ownedIds = ownership.map((o) => o.org_id);
+    const actingOrgId = await resolveActingOrgId(person.id);
+    const settingsOrgId =
+      actingOrgId && ownedIds.includes(actingOrgId) ? actingOrgId : (ownedIds[0] ?? null);
+    if (settingsOrgId) {
+      const { data } = await supabase
+        .from("organizations")
+        .select("id, name, slug, description, city, state, website, logo_url")
+        .eq("id", settingsOrgId)
+        .single();
+      orgData = data;
+    }
   }
 
   // Fetch user's conflicts

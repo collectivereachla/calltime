@@ -184,13 +184,22 @@ export async function removeFromProduction(
     .from("people").select("id").eq("user_id", user.id).single();
   if (!person) return { error: "No person record" };
 
+  // Authorize against the production's OWN org (not "any org I manage"), and use
+  // maybeSingle — a person can be owner/production in several orgs.
+  const { data: prod } = await supabase
+    .from("productions")
+    .select("org_id")
+    .eq("id", productionId)
+    .maybeSingle();
+  if (!prod) return { error: "Production not found" };
+
   const { data: membership } = await supabase
     .from("org_memberships")
     .select("role")
     .eq("person_id", person.id)
+    .eq("org_id", prod.org_id)
     .in("role", ["owner", "production"])
-    .limit(1)
-    .single();
+    .maybeSingle();
 
   if (!membership) return { error: "Not authorized" };
 
