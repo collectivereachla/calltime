@@ -105,6 +105,22 @@ export async function PlaybillBody({
 
   const title = (playbill.cover_title as string) || prod.title;
 
+  // Section show/hide + reorder, config-driven (CSS order). Cover + poster stay on top.
+  const SECTION_KEYS = ["directors_note","songs_scenes","cast","creative_team","special_thanks","sponsors","ads","gallery"] as const;
+  type SectionKey = typeof SECTION_KEYS[number];
+  const savedCfg = (Array.isArray(playbill.section_config) ? playbill.section_config : []) as { key: string; visible?: boolean }[];
+  const cfg = savedCfg.filter((c) => (SECTION_KEYS as readonly string[]).includes(c.key));
+  const orderedKeys: string[] = cfg.length ? cfg.map((c) => c.key) : [...SECTION_KEYS];
+  for (const k of SECTION_KEYS) if (!orderedKeys.includes(k)) orderedKeys.push(k);
+  const orderIndex = (k: SectionKey) => { const i = orderedKeys.indexOf(k); return i < 0 ? 99 : i + 1; };
+  const isVisible = (k: SectionKey): boolean => {
+    const c = cfg.find((x) => x.key === k);
+    if (c) return c.visible !== false;
+    if (k === "cast") return playbill.include_cast as boolean;
+    if (k === "creative_team") return playbill.include_creative_team as boolean;
+    return true;
+  };
+
   return (
     <div className="min-h-screen bg-paper text-ink">
       {chrome && (
@@ -114,7 +130,7 @@ export async function PlaybillBody({
         </div>
       )}
 
-      <div className="max-w-3xl mx-auto px-10 py-12 print:px-0 print:py-0 print:max-w-none">
+      <div className="max-w-3xl mx-auto px-10 py-12 print:px-0 print:py-0 print:max-w-none flex flex-col">
 
         {/* Flyer / poster */}
         {posterPath && (
@@ -136,8 +152,8 @@ export async function PlaybillBody({
         </section>
 
         {/* Director's note */}
-        {(playbill.directors_note as string) && (
-          <section className="mb-12 break-inside-avoid">
+        {isVisible("directors_note") && (playbill.directors_note as string) && (
+          <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("directors_note") }}>
             <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Director&rsquo;s Note</h2>
             <div className="text-body-md leading-relaxed whitespace-pre-line">
               {director?.headshotPath && signed.get(director.headshotPath) && (
@@ -150,8 +166,8 @@ export async function PlaybillBody({
         )}
 
         {/* Songs & scenes */}
-        {songList.length > 0 && (
-          <section className="mb-12 break-inside-avoid">
+        {isVisible("songs_scenes") && songList.length > 0 && (
+          <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("songs_scenes") }}>
             <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Musical Numbers &amp; Scenes</h2>
             {songList.map((act, i) => (
               <div key={i} className="mb-4">
@@ -170,8 +186,8 @@ export async function PlaybillBody({
         )}
 
         {/* Cast */}
-        {(playbill.include_cast as boolean) && castList.length > 0 && (
-          <section className="mb-12 break-before-page">
+        {isVisible("cast") && castList.length > 0 && (
+          <section className="mb-12 break-before-page" style={{ order: orderIndex("cast") }}>
             <h2 className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Cast</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
               {castList.map((c, i) => {
@@ -202,8 +218,8 @@ export async function PlaybillBody({
         )}
 
         {/* Creative & production team */}
-        {(playbill.include_creative_team as boolean) && teamList.length > 0 && (
-          <section className="mb-12 break-inside-avoid">
+        {isVisible("creative_team") && teamList.length > 0 && (
+          <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("creative_team") }}>
             <h2 className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Creative &amp; Production Team</h2>
             <div className="space-y-6">
               {orderedDepts.map((dept) => (
@@ -237,8 +253,8 @@ export async function PlaybillBody({
         )}
 
         {/* Special thanks */}
-        {(playbill.special_thanks as string) && (
-          <section className="mb-12 break-inside-avoid">
+        {isVisible("special_thanks") && (playbill.special_thanks as string) && (
+          <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("special_thanks") }}>
             <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Special Thanks</h2>
             <div className="text-body-md leading-relaxed whitespace-pre-line">{playbill.special_thanks as string}</div>
             {acks.length > 0 && (
@@ -250,8 +266,8 @@ export async function PlaybillBody({
         )}
 
         {/* Sponsors & partners */}
-        {sponsors.length > 0 && (
-          <section className="mb-12 break-inside-avoid">
+        {isVisible("sponsors") && sponsors.length > 0 && (
+          <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("sponsors") }}>
             <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Our Sponsors &amp; Partners</h2>
             <div className="grid grid-cols-2 gap-4">
               {sponsors.map((s) => {
@@ -276,8 +292,8 @@ export async function PlaybillBody({
         )}
 
         {/* Ads */}
-        {ads.length > 0 && (
-          <section className="break-before-page">
+        {isVisible("ads") && ads.length > 0 && (
+          <section className="break-before-page" style={{ order: orderIndex("ads") }}>
             <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">With Support From</h2>
             <div className="grid grid-cols-2 gap-4">
               {ads.map((a) => {
@@ -294,8 +310,8 @@ export async function PlaybillBody({
           </section>
         )}
         {/* Gallery */}
-        {gallery.length > 0 && (
-          <section className="mb-12 break-before-page">
+        {isVisible("gallery") && gallery.length > 0 && (
+          <section className="mb-12 break-before-page" style={{ order: orderIndex("gallery") }}>
             <h2 className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Gallery</h2>
             <div className="columns-2 md:columns-3 gap-3">
               {gallery.map((src, i) => (

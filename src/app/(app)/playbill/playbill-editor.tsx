@@ -17,6 +17,7 @@ interface Playbill {
   special_thanks: string | null;
   include_cast: boolean;
   include_creative_team: boolean;
+  section_config?: { key: string; visible?: boolean }[];
 }
 interface Credit {
   id: string; credit_type: string; name: string; detail: string | null;
@@ -102,6 +103,34 @@ function CreditLogo({ credit, orgId, playbillId }: { credit: Credit; orgId: stri
   );
 }
 
+type SectionRow = { key: string; label: string; visible: boolean };
+const SECTION_DEFS: { key: string; label: string }[] = [
+  { key: "directors_note", label: "Director\u2019s Note" },
+  { key: "songs_scenes", label: "Musical Numbers & Scenes" },
+  { key: "cast", label: "Cast" },
+  { key: "creative_team", label: "Creative & Production Team" },
+  { key: "special_thanks", label: "Special Thanks" },
+  { key: "sponsors", label: "Sponsors & Partners" },
+  { key: "ads", label: "With Support From (ads)" },
+  { key: "gallery", label: "Gallery" },
+];
+function buildSections(pb: Playbill): SectionRow[] {
+  const saved = Array.isArray(pb.section_config) ? pb.section_config : [];
+  const byKey = new Map(saved.map((x) => [x.key, x]));
+  const order = saved.length
+    ? saved.map((x) => x.key).filter((k) => SECTION_DEFS.some((d) => d.key === k))
+    : SECTION_DEFS.map((d) => d.key);
+  for (const d of SECTION_DEFS) if (!order.includes(d.key)) order.push(d.key);
+  return order.map((key) => {
+    const def = SECTION_DEFS.find((d) => d.key === key)!;
+    const sv = byKey.get(key);
+    let visible = sv ? sv.visible !== false : true;
+    if (!sv && key === "cast") visible = pb.include_cast;
+    if (!sv && key === "creative_team") visible = pb.include_creative_team;
+    return { key, label: def.label, visible };
+  });
+}
+
 export function PlaybillEditor({
   productionId, productionTitle, orgId, playbill, credits, castCount, teamCount,
 }: {
@@ -116,6 +145,22 @@ export function PlaybillEditor({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sections, setSections] = useState<SectionRow[]>(() => buildSections(playbill));
+
+  function moveSection(i: number, dir: -1 | 1) {
+    setSections((prev) => {
+      const next = [...prev];
+      const j = i + dir;
+      if (j < 0 || j >= next.length) return prev;
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+    setSaved(false);
+  }
+  function toggleSection(i: number) {
+    setSections((prev) => prev.map((s, idx) => (idx === i ? { ...s, visible: !s.visible } : s)));
+    setSaved(false);
+  }
 
   const set = <K extends keyof Playbill>(k: K, v: Playbill[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -133,8 +178,9 @@ export function PlaybillEditor({
       directors_note: form.directors_note,
       song_scene_list: form.song_scene_list,
       special_thanks: form.special_thanks,
-      include_cast: form.include_cast,
-      include_creative_team: form.include_creative_team,
+      include_cast: sections.find((x) => x.key === "cast")?.visible ?? form.include_cast,
+      include_creative_team: sections.find((x) => x.key === "creative_team")?.visible ?? form.include_creative_team,
+      section_config: sections.map(({ key, visible }) => ({ key, visible })),
     });
     setSaving(false);
     if (res?.error) { setError(res.error); return; }
@@ -247,17 +293,38 @@ export function PlaybillEditor({
         </Field>
       </section>
 
-      {/* Auto sections toggles */}
+      {/* Sections: show/hide + reorder */}
       <section className="mb-8">
-        <h2 className="text-body-md font-medium text-brick mb-3">Cast &amp; team</h2>
-        <label className="flex items-center gap-2 mb-2 text-body-sm text-ink">
-          <input type="checkbox" checked={form.include_cast} onChange={(e) => set("include_cast", e.target.checked)} />
-          Include cast page (headshots, names, characters) — {castCount} people
-        </label>
-        <label className="flex items-center gap-2 text-body-sm text-ink">
-          <input type="checkbox" checked={form.include_creative_team} onChange={(e) => set("include_creative_team", e.target.checked)} />
-          Include creative &amp; production team — {teamCount} people
-        </label>
+        <h2 className="text-body-md font-medium text-brick mb-1">Sections</h2>
+        <p className="text-body-xs text-ash mb-3">
+          Turn program sections on or off and set their order. The cover stays first.
+          Empty sections won&rsquo;t print even if left on.
+        </p>
+        <div className="border border-bone rounded-card divide-y divide-bone">
+          {sections.map((sec, i) => {
+            const count = sec.key === "cast" ? castCount : sec.key === "creative_team" ? teamCount : null;
+            return (
+              <div key={sec.key} className="flex items-center gap-3 px-3 py-2">
+                <div className="flex flex-col">
+                  <button type="button" onClick={() => moveSection(i, -1)} disabled={i === 0}
+                    className="text-ash hover:text-ink disabled:opacity-25 leading-none text-xs">▲</button>
+                  <button type="button" onClick={() => moveSection(i, 1)} disabled={i === sections.length - 1}
+                    className="text-ash hover:text-ink disabled:opacity-25 leading-none text-xs">▼</button>
+                </div>
+                <span className="text-body-xs text-muted w-5 text-center font-mono">{i + 1}</span>
+                <span className={`flex-1 text-body-sm ${sec.visible ? "text-ink" : "text-muted line-through"}`}>
+                  {sec.label}{count !== null ? ` — ${count} people` : ""}
+                </span>
+                <button type="button" onClick={() => toggleSection(i)}
+                  className={`px-2.5 py-1 text-body-xs font-medium rounded-card border transition-colors ${
+                    sec.visible ? "bg-confirmed/10 border-confirmed/30 text-confirmed" : "bg-bone/30 border-bone text-muted"
+                  }`}>
+                  {sec.visible ? "On" : "Off"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       {/* Director's note */}
