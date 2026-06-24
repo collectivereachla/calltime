@@ -133,9 +133,9 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
   // Get call responses via RPC (bypasses RLS chain that was blocking reads)
   const responses: Record<string, { status: string; conflict_reason: string | null }> = {};
 
-  if (membership?.org_id) {
+  if (actingOrgId) {
     const { data: responseData } = await supabase.rpc("get_all_call_responses_for_org", {
-      p_org_id: membership.org_id,
+      p_org_id: actingOrgId,
     });
 
     if (responseData) {
@@ -282,9 +282,9 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
     responded_at: string;
   }[] = [];
 
-  if (canManage && membership?.org_id) {
+  if (canManage && actingOrgId) {
     const { data: conflictData } = await supabase.rpc("get_conflict_responses", {
-      p_org_id: membership.org_id,
+      p_org_id: actingOrgId,
     });
     conflicts = (conflictData as typeof conflicts) || [];
   }
