@@ -23,11 +23,11 @@ export function extractDominantColor(url: string): Promise<string> {
         const max = Math.max(r, g, b), min = Math.min(r, g, b);
         const sat = max === 0 ? 0 : (max - min) / max;
         const lum = (r + g + b) / 3;
-        if (sat < 0.25) continue;
-        if (lum < 25 || lum > 235) continue;
+        if (sat < 0.30) continue;
+        if (lum < 60 || lum > 235) continue; // skip muddy darks + near-white
         const key = `${Math.round(r / 24) * 24},${Math.round(g / 24) * 24},${Math.round(b / 24) * 24}`;
         const prev = bins.get(key) || { score: 0, r: 0, g: 0, b: 0, n: 0 };
-        prev.score += sat; prev.r += r; prev.g += g; prev.b += b; prev.n++;
+        prev.score += sat * (lum / 255); prev.r += r; prev.g += g; prev.b += b; prev.n++;
         bins.set(key, prev);
       }
       if (bins.size === 0) return reject(new Error("No strong color found in the image."));
