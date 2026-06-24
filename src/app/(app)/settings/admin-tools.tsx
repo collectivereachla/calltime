@@ -13,9 +13,10 @@ const LOCKABLE_ROOMS = [
 
 interface Props {
   activeProduction: { id: string; title: string; locked_rooms: string[] } | null;
+  canSeedTjs?: boolean;
 }
 
-export function AdminTools({ activeProduction }: Props) {
+export function AdminTools({ activeProduction, canSeedTjs = false }: Props) {
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [lockedRooms, setLockedRooms] = useState<string[]>(
@@ -163,6 +164,7 @@ export function AdminTools({ activeProduction }: Props) {
 
       <div className="bg-card border border-bone rounded-card p-6 space-y-4">
         <div className="flex flex-wrap gap-3">
+{canSeedTjs && (
           <button
             onClick={handleReimport}
             disabled={loading}
@@ -170,7 +172,9 @@ export function AdminTools({ activeProduction }: Props) {
           >
             {loading ? "Working..." : "Reimport TJS Script"}
           </button>
+          )}
 
+{canSeedTjs && (
           <button
             onClick={handleInvite}
             disabled={loading}
@@ -178,6 +182,7 @@ export function AdminTools({ activeProduction }: Props) {
           >
             Invite TJS Members
           </button>
+          )}
 
           <button
             onClick={async () => {
@@ -238,6 +243,7 @@ export function AdminTools({ activeProduction }: Props) {
             Resend invites (people who haven't logged in)
           </button>
 
+{canSeedTjs && (
           <button
             onClick={handleImportNotes}
             disabled={loading}
@@ -245,6 +251,7 @@ export function AdminTools({ activeProduction }: Props) {
           >
             Import Blocking Notes
           </button>
+          )}
         </div>
 
         {status && (

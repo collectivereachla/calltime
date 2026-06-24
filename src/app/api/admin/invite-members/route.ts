@@ -54,6 +54,11 @@ export async function POST(request: Request) {
   const productionId = body.productionId as string | undefined;
   const orgId = body.orgId as string | undefined;
 
+  // A body orgId must be one the caller actually owns — never trust it blindly.
+  if (orgId && !ownedOrgIds.includes(orgId)) {
+    return NextResponse.json({ error: "You don't own that organization" }, { status: 403 });
+  }
+
   const admin = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://checkcalltime.art";
 

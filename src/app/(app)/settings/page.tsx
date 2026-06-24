@@ -38,6 +38,21 @@ export default async function SettingsPage() {
 
   const isOwner = ownership && ownership.length > 0;
 
+  // The TJS seed tools (reimport script, import blocking notes, invite TJS members)
+  // act on a specific BTE production. Only show them to an owner of the org that
+  // actually owns that script — not to every org owner.
+  let canSeedTjs = false;
+  if (isOwner) {
+    const ownedOrgIds = ownership.map((o) => o.org_id);
+    const { data: tjsScript } = await supabase
+      .from("scripts")
+      .select("productions!inner ( org_id )")
+      .eq("id", "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+      .maybeSingle();
+    const tjsOrgId = (tjsScript?.productions as unknown as { org_id: string } | null)?.org_id;
+    canSeedTjs = !!tjsOrgId && ownedOrgIds.includes(tjsOrgId);
+  }
+
   // Get active production for room lock settings
   let activeProduction: { id: string; title: string; locked_rooms: string[] } | null = null;
   if (isOwner) {
@@ -123,7 +138,7 @@ export default async function SettingsPage() {
 
       {isOwner && (
         <div className="mt-10">
-          <AdminTools activeProduction={activeProduction} />
+          <AdminTools activeProduction={activeProduction} canSeedTjs={canSeedTjs} />
         </div>
       )}
     </div>
