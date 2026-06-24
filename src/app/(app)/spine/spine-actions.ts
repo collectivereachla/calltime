@@ -2,6 +2,7 @@
 import { assertNotPreviewing } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
+import { parseScriptText } from "@/lib/parse-script";
 import { createClient } from "@/lib/supabase/server";
 import { createNotification } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity-log";
@@ -516,4 +517,34 @@ export async function deleteMentionAlias(
   if (error) return { error: error.message };
   revalidatePath("/spine");
   return { success: true };
+}
+
+
+export async function importScript(
+  productionId: string,
+  title: string,
+  rawText: string,
+  rightsAttested: boolean
+) {
+  await assertNotPreviewing();
+  if (!rightsAttested) {
+    return { error: "Please confirm you hold the rights to use this script." };
+  }
+  if (!rawText || rawText.trim().length === 0) {
+    return { error: "Paste the script text first." };
+  }
+  const lines = parseScriptText(rawText);
+  if (lines.length === 0) return { error: "No lines were found in that text." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("import_script_from_lines", {
+    p_production_id: productionId,
+    p_title: title,
+    p_lines: lines,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/spine");
+  revalidatePath("/blocking");
+  return { success: true, scriptId: data as string, lineCount: lines.length };
 }

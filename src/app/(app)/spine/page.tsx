@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
 import { SpineLayout } from "./spine-layout";
+import { ImportScript } from "./import-script";
 import { getActiveProductionId } from "@/lib/active-production";
 import { orgIdForProduction, resolveActingOrgId, getRoleInOrg, isLeadershipRole } from "@/lib/membership";
 
@@ -337,11 +338,13 @@ export default async function SpinePage({
         <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
           <span className="text-3xl mb-3 opacity-40">📜</span>
           <h3 className="font-display text-display-sm text-ink mb-2">Script not loaded yet</h3>
-          <p className="text-body-sm text-ash max-w-md leading-relaxed">
-            {canManage
-              ? "The script hasn't been imported for this production. Contact your admin to get the script loaded."
-              : "When the script is ready, you'll find your lines, blocking notes, and line-learning tools here."}
-          </p>
+          {canManage && productionIds.length > 0 ? (
+            <ImportScript productionId={productionIds[0]} />
+          ) : (
+            <p className="text-body-sm text-ash max-w-md leading-relaxed">
+              When the script is ready, you&apos;ll find your lines, blocking notes, and line-learning tools here.
+            </p>
+          )}
         </div>
       ) : lines.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
