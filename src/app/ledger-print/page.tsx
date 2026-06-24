@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { resolveActingOrgId } from "@/lib/membership";
 import { redirect } from "next/navigation";
 import { getActiveProductionId } from "@/lib/active-production";
 import { PrintButton } from "./print-button";
@@ -15,12 +16,13 @@ export default async function LedgerPrintPage() {
   const { data: person } = await supabase.from("people").select("id").eq("user_id", user.id).single();
   if (!person) redirect("/login");
 
+  const actingOrgId = await resolveActingOrgId(person.id);
   const { data: membership } = await supabase
     .from("org_memberships")
     .select("org_id, role, organizations(name)")
     .eq("person_id", person.id)
-    .limit(1)
-    .single();
+    .eq("org_id", actingOrgId ?? "")
+    .maybeSingle();
   const isFinance = membership && (membership.role === "owner" || membership.role === "production");
   if (!isFinance) redirect("/ledger");
 

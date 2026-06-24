@@ -4,6 +4,7 @@ import { assertNotPreviewing } from "@/lib/viewer";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { resolveActingOrgId } from "@/lib/membership";
 import { sendWelcomeEmail } from "@/lib/email-triggers";
 
 export async function createProduction(formData: FormData) {
@@ -23,12 +24,14 @@ export async function createProduction(formData: FormData) {
     .single();
   if (!person) return { error: "No profile found" };
 
+  const actingOrgId = await resolveActingOrgId(person.id);
+  if (!actingOrgId) return { error: "No organization found" };
   const { data: membership } = await supabase
     .from("org_memberships")
-    .select("org_id, role")
+    .select("role")
     .eq("person_id", person.id)
-    .limit(1)
-    .single();
+    .eq("org_id", actingOrgId)
+    .maybeSingle();
   if (!membership) return { error: "No organization found" };
   if (membership.role !== "owner" && membership.role !== "production") {
     return { error: "Only owners and production staff can create productions" };
@@ -53,7 +56,7 @@ export async function createProduction(formData: FormData) {
   const { data: production, error: prodError } = await supabase
     .from("productions")
     .insert({
-      org_id: membership.org_id,
+      org_id: actingOrgId,
       title,
       playwright,
       venue,

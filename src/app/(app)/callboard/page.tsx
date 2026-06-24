@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { resolveActingOrgId } from "@/lib/membership";
 import Link from "next/link";
 import { getViewer } from "@/lib/viewer";
 import { NewEventForm } from "./new-event-form";
@@ -34,12 +35,13 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
     .single();
 
   // Get user's org membership to check tier
+  const actingOrgId = await resolveActingOrgId(person!.id);
   const { data: membership } = await supabase
     .from("org_memberships")
-    .select("org_id, role")
+    .select("role")
     .eq("person_id", person!.id)
-    .limit(1)
-    .single();
+    .eq("org_id", actingOrgId ?? "")
+    .maybeSingle();
 
   const canManage =
     membership?.role === "owner" || membership?.role === "production";

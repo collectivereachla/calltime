@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { resolveActingOrgId } from "@/lib/membership";
 import { getViewer } from "@/lib/viewer";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -31,12 +32,13 @@ export default async function MemberDetailPage({
     .eq("id", meId!)
     .single();
 
+  const actingOrgId = await resolveActingOrgId(viewer!.id);
   const { data: viewerMembership } = await supabase
     .from("org_memberships")
     .select("org_id, role")
     .eq("person_id", viewer!.id)
-    .limit(1)
-    .single();
+    .eq("org_id", actingOrgId ?? "")
+    .maybeSingle();
 
   if (!viewerMembership) return notFound();
 
