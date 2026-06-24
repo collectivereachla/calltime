@@ -112,14 +112,15 @@ export async function PlaybillBody({
   const cfg = savedCfg.filter((c) => (SECTION_KEYS as readonly string[]).includes(c.key));
   const orderedKeys: string[] = cfg.length ? cfg.map((c) => c.key) : [...SECTION_KEYS];
   for (const k of SECTION_KEYS) if (!orderedKeys.includes(k)) orderedKeys.push(k);
-  const orderIndex = (k: SectionKey) => { const i = orderedKeys.indexOf(k); return i < 0 ? 99 : i + 1; };
-  const isVisible = (k: SectionKey): boolean => {
+  const orderIndex = (k: string) => { const i = orderedKeys.indexOf(k); return i < 0 ? 99 : i + 1; };
+  const isVisible = (k: string): boolean => {
     const c = cfg.find((x) => x.key === k);
     if (c) return c.visible !== false;
     if (k === "cast") return playbill.include_cast as boolean;
     if (k === "creative_team") return playbill.include_creative_team as boolean;
     return true;
   };
+  const customSections = (Array.isArray(playbill.custom_sections) ? playbill.custom_sections : []) as { id: string; title?: string; body?: string }[];
 
   return (
     <div className="min-h-screen bg-paper text-ink">
@@ -321,6 +322,18 @@ export async function PlaybillBody({
             </div>
           </section>
         )}
+
+        {/* Custom sections (org-authored), ordered + toggled like the built-ins */}
+        {customSections.map((cs) => (
+          isVisible("custom:" + cs.id) && (cs.body && cs.body.trim()) ? (
+            <section key={cs.id} className="mb-12 break-inside-avoid" style={{ order: orderIndex("custom:" + cs.id) }}>
+              {cs.title && cs.title.trim() && (
+                <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">{cs.title}</h2>
+              )}
+              <div className="text-body-md leading-relaxed whitespace-pre-line">{cs.body}</div>
+            </section>
+          ) : null
+        ))}
       </div>
     </div>
   );

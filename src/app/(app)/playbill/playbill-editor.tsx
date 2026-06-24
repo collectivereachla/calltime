@@ -18,6 +18,7 @@ interface Playbill {
   include_cast: boolean;
   include_creative_team: boolean;
   section_config?: { key: string; visible?: boolean }[];
+  custom_sections?: { id: string; title?: string; body?: string }[];
 }
 interface Credit {
   id: string; credit_type: string; name: string; detail: string | null;
@@ -116,18 +117,22 @@ const SECTION_DEFS: { key: string; label: string }[] = [
 ];
 function buildSections(pb: Playbill): SectionRow[] {
   const saved = Array.isArray(pb.section_config) ? pb.section_config : [];
+  const customs = (Array.isArray(pb.custom_sections) ? pb.custom_sections : []) as { id: string; title?: string; body?: string }[];
+  const customByKey = new Map(customs.map((c) => ["custom:" + c.id, c]));
+  const allKeys = [...SECTION_DEFS.map((d) => d.key), ...customs.map((c) => "custom:" + c.id)];
   const byKey = new Map(saved.map((x) => [x.key, x]));
   const order = saved.length
-    ? saved.map((x) => x.key).filter((k) => SECTION_DEFS.some((d) => d.key === k))
+    ? saved.map((x) => x.key).filter((k) => allKeys.includes(k))
     : SECTION_DEFS.map((d) => d.key);
-  for (const d of SECTION_DEFS) if (!order.includes(d.key)) order.push(d.key);
+  for (const k of allKeys) if (!order.includes(k)) order.push(k);
   return order.map((key) => {
-    const def = SECTION_DEFS.find((d) => d.key === key)!;
     const sv = byKey.get(key);
     let visible = sv ? sv.visible !== false : true;
     if (!sv && key === "cast") visible = pb.include_cast;
     if (!sv && key === "creative_team") visible = pb.include_creative_team;
-    return { key, label: def.label, visible };
+    const builtin = SECTION_DEFS.find((d) => d.key === key);
+    const label = builtin ? builtin.label : (customByKey.get(key)?.title || "Custom section");
+    return { key, label, visible };
   });
 }
 
@@ -161,6 +166,27 @@ export function PlaybillEditor({
     setSections((prev) => prev.map((s, idx) => (idx === i ? { ...s, visible: !s.visible } : s)));
     setSaved(false);
   }
+  const [customSections, setCustomSections] = useState<{ id: string; title: string; body: string }[]>(
+    () => (Array.isArray(playbill.custom_sections) ? playbill.custom_sections.map((c) => ({ id: c.id, title: c.title || "", body: c.body || "" })) : [])
+  );
+  function addCustomSection() {
+    const id = crypto.randomUUID();
+    setCustomSections((prev) => [...prev, { id, title: "", body: "" }]);
+    setSections((prev) => [...prev, { key: "custom:" + id, label: "Custom section", visible: true }]);
+    setSaved(false);
+  }
+  function updateCustom(id: string, patch: { title?: string; body?: string }) {
+    setCustomSections((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    if (patch.title !== undefined) {
+      setSections((prev) => prev.map((s) => (s.key === "custom:" + id ? { ...s, label: patch.title!.trim() || "Custom section" } : s)));
+    }
+    setSaved(false);
+  }
+  function removeCustom(id: string) {
+    setCustomSections((prev) => prev.filter((c) => c.id !== id));
+    setSections((prev) => prev.filter((s) => s.key !== "custom:" + id));
+    setSaved(false);
+  }
 
   const set = <K extends keyof Playbill>(k: K, v: Playbill[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -181,6 +207,7 @@ export function PlaybillEditor({
       include_cast: sections.find((x) => x.key === "cast")?.visible ?? form.include_cast,
       include_creative_team: sections.find((x) => x.key === "creative_team")?.visible ?? form.include_creative_team,
       section_config: sections.map(({ key, visible }) => ({ key, visible })),
+      custom_sections: customSections,
     });
     setSaving(false);
     if (res?.error) { setError(res.error); return; }
@@ -291,6 +318,29 @@ export function PlaybillEditor({
         <Field label="Dedication">
           <input className={inputCls} value={form.dedication ?? ""} onChange={(e) => set("dedication", e.target.value)} />
         </Field>
+      </section>
+
+      {/* Custom text sections */}
+      <section className="mb-8">
+        <h2 className="text-body-md font-medium text-brick mb-1">Custom sections</h2>
+        <p className="text-body-xs text-ash mb-3">
+          Add your own titled blocks &mdash; a welcome letter, land acknowledgment, sponsor copy.
+          Set their order and visibility in Sections below.
+        </p>
+        <div className="space-y-4">
+          {customSections.map((cs) => (
+            <div key={cs.id} className="border border-bone rounded-card p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <input className={inputCls} placeholder="Section title (e.g. A Note of Thanks)" value={cs.title} onChange={(e) => updateCustom(cs.id, { title: e.target.value })} />
+                <button type="button" onClick={() => removeCustom(cs.id)} className="text-body-xs text-muted hover:text-brick shrink-0">Remove</button>
+              </div>
+              <textarea className={inputCls} rows={4} placeholder="Section text&hellip;" value={cs.body} onChange={(e) => updateCustom(cs.id, { body: e.target.value })} />
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={addCustomSection} className="mt-3 px-3 py-1.5 text-body-xs font-medium rounded-card border border-bone text-ink hover:border-ink transition-colors">
+          + Add custom section
+        </button>
       </section>
 
       {/* Sections: show/hide + reorder */}
