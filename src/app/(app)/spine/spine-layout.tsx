@@ -67,6 +67,7 @@ interface Props {
   cast: { person_id: string; name: string; role_title: string }[];
   aliasesByCharacter: Record<string, string[]>;
   aliasRows: { id: string; character_token: string; alias: string }[];
+  hideAi?: boolean;
 }
 
 type Tab = "script" | "linelab" | "linenotes" | "reports" | "mentions";
@@ -149,6 +150,7 @@ export function SpineLayout(props: Props) {
           personId={props.personId}
           isMonologue={isMonologue}
           soloCharacter={soloCharacter}
+          hideAi={props.hideAi}
         />
       )}
       {tab === "linenotes" && (

@@ -7,6 +7,7 @@ import { AdminTools } from "./admin-tools";
 import { OrgSettings } from "./org-settings";
 import { RoomVisibility } from "./room-visibility";
 import { BrandColor } from "./brand-color";
+import { AiFeatures } from "./ai-features";
 import { ConflictsForm } from "./conflicts-form";
 import { NotificationSettings } from "./notification-settings";
 import { W9Card } from "./w9-card";
@@ -76,6 +77,7 @@ export default async function SettingsPage() {
   let orgData: { id: string; name: string; slug: string; description: string | null; city: string | null; state: string | null; website: string | null; logo_url: string | null } | null = null;
   let hiddenRooms: string[] = [];
   let accentDefault: string | null = null;
+  let hideAi = false;
   if (isOwner) {
     const ownedIds = ownership.map((o) => o.org_id);
     const actingOrgId = await resolveActingOrgId(person.id);
@@ -88,10 +90,11 @@ export default async function SettingsPage() {
         .eq("id", settingsOrgId)
         .single();
       if (data) {
-        const { settings, ...rest } = data as typeof data & { settings: { hidden_rooms?: string[]; accent_color?: string } | null };
+        const { settings, ...rest } = data as typeof data & { settings: { hidden_rooms?: string[]; accent_color?: string; hide_ai?: boolean } | null };
         orgData = rest;
         hiddenRooms = Array.isArray(settings?.hidden_rooms) ? settings!.hidden_rooms! : [];
         accentDefault = settings?.accent_color || null;
+        hideAi = !!settings?.hide_ai;
       }
     }
   }
@@ -162,6 +165,12 @@ export default async function SettingsPage() {
       {isOwner && orgData && (
         <div className="mt-10">
           <BrandColor orgId={orgData.id} current={accentDefault} logoUrl={orgData.logo_url} />
+        </div>
+      )}
+
+      {isOwner && orgData && (
+        <div className="mt-10">
+          <AiFeatures orgId={orgData.id} hidden={hideAi} />
         </div>
       )}
 

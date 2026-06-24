@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { resolveActingOrgId } from "@/lib/membership";
 
 export const maxDuration = 30;
 
@@ -25,6 +27,23 @@ export async function POST(request: Request) {
       { error: "ANTHROPIC_API_KEY not configured" },
       { status: 500 }
     );
+  }
+
+  // Enforce the org-level "hide AI features" setting server-side, so turning AI off
+  // truly disables it (not just the UI button).
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    const { data: person } = await supabase.from("people").select("id").eq("user_id", user.id).maybeSingle();
+    if (person) {
+      const orgId = await resolveActingOrgId(person.id);
+      if (orgId) {
+        const { data: org } = await supabase.from("organizations").select("settings").eq("id", orgId).maybeSingle();
+        if ((org?.settings as { hide_ai?: boolean } | null)?.hide_ai) {
+          return NextResponse.json({ error: "AI features are turned off for this organization." }, { status: 403 });
+        }
+      }
+    }
   }
 
   const body = await request.json();

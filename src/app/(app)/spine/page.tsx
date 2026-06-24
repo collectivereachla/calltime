@@ -38,6 +38,14 @@ export default async function SpinePage({
     : null;
   if (!orgId) orgId = await resolveActingOrgId(person!.id);
 
+  // Org-level "hide AI features" toggle (for AI-averse companies).
+  let hideAi = false;
+  if (orgId) {
+    const { data: orgRow } = await supabase
+      .from("organizations").select("settings").eq("id", orgId).maybeSingle();
+    hideAi = !!((orgRow?.settings as { hide_ai?: boolean } | null)?.hide_ai);
+  }
+
   if (!orgId) {
     return (
       <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10">
@@ -373,6 +381,7 @@ export default async function SpinePage({
           cast={cast}
           aliasesByCharacter={aliasesByCharacter}
           aliasRows={aliasRows}
+          hideAi={hideAi}
         />
       )}
     </div>

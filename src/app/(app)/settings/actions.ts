@@ -155,6 +155,16 @@ export async function setOrgAccentColor(orgId: string, color: string | null) {
   return { success: true };
 }
 
+export async function setOrgHideAi(orgId: string, hide: boolean) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_org_hide_ai", { p_org_id: orgId, p_hide: hide });
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  revalidatePath("/settings");
+  return { success: true };
+}
+
 export async function setHiddenRooms(orgId: string, rooms: string[]) {
   await assertNotPreviewing();
   const supabase = await createClient();

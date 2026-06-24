@@ -52,6 +52,7 @@ interface Props {
   personId: string;
   isMonologue: boolean;
   soloCharacter: string | null;
+  hideAi?: boolean;
 }
 
 type Mode = "monologue" | "notecards" | "first-letter" | "verse-coach";
@@ -64,7 +65,7 @@ function firstLetterTransform(text: string): string {
   });
 }
 
-export function LineLab({ lines, annotations, myCharacters, allCharacters, scriptTitle, personId, isMonologue, soloCharacter }: Props) {
+export function LineLab({ lines, annotations, myCharacters, allCharacters, scriptTitle, personId, isMonologue, soloCharacter, hideAi = false }: Props) {
   const [mode, setMode] = useState<Mode>(isMonologue ? "monologue" : "notecards");
   const [selectedCharacter, setSelectedCharacter] = useState<string>(
     soloCharacter || (myCharacters.length > 0 ? myCharacters[0] : allCharacters[0] || "")
@@ -235,14 +236,16 @@ export function LineLab({ lines, annotations, myCharacters, allCharacters, scrip
           >
             First Letters
           </button>
-          <button
-            onClick={() => setMode("verse-coach")}
-            className={`px-4 py-2 text-body-sm font-medium transition-colors ${
-              mode === "verse-coach" ? "bg-ink text-paper" : "bg-card text-ash hover:text-ink"
-            }`}
-          >
-            Verse Coach
-          </button>
+          {!hideAi && (
+            <button
+              onClick={() => setMode("verse-coach")}
+              className={`px-4 py-2 text-body-sm font-medium transition-colors ${
+                mode === "verse-coach" ? "bg-ink text-paper" : "bg-card text-ash hover:text-ink"
+              }`}
+            >
+              Verse Coach
+            </button>
+          )}
         </div>
 
         <span className="font-mono text-data-sm text-muted ml-auto">
