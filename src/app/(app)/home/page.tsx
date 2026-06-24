@@ -215,6 +215,19 @@ export default async function HomePage() {
         <WelcomeChecklist personId={person!.id} productionId={activeProductions[0].productions.id} />
       )}
 
+      {/* Availability prompt — fast path to mark conflicts */}
+      {activeProductions.length > 0 && (
+        <a href="/availability" className="block mb-8 bg-card border border-bone rounded-card px-5 py-3 hover:shadow-card-hover transition-shadow">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-body-sm font-medium text-ink">Mark the dates you can&rsquo;t make it</p>
+              <p className="text-body-xs text-ash">Helps your stage manager build the schedule around you.</p>
+            </div>
+            <span className="text-body-xs text-brick shrink-0">Set availability &rarr;</span>
+          </div>
+        </a>
+      )}
+
       {/* Next call — the single soonest, any status */}
       {hero && (
         <div className="mb-8">

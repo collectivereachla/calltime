@@ -116,6 +116,27 @@ export async function submitConflict(formData: FormData) {
   return { success: true };
 }
 
+export async function markDayUnavailable(date: string) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+  const { data: id, error } = await supabase.rpc("save_conflict", {
+    p_start_date: date,
+    p_conflict_type: "other",
+    p_all_day: true,
+    p_end_date: null,
+    p_start_time: null,
+    p_end_time: null,
+    p_description: null,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/availability");
+  revalidatePath("/callboard");
+  revalidatePath("/home");
+  return { success: true, id: id as string };
+}
+
 export async function deleteConflict(conflictId: string) {
   await assertNotPreviewing();
   const supabase = await createClient();
