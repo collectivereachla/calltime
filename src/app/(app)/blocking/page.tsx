@@ -27,6 +27,20 @@ export default async function BlockingPage() {
   const { data: production } = await supabase
     .from("productions").select("id, title").eq("id", activeProductionId).single();
 
+  // Resolve THIS production's active script (working/unlocked, else most recent),
+  // exactly like Spine. Never a hardcoded id — every org's Blocking room must read
+  // its own script. Falls back to a non-matching id so an org with no script yet
+  // simply shows scenes with no characters instead of another org's script.
+  const { data: scriptRows } = await supabase
+    .from("scripts")
+    .select("id, is_locked, created_at")
+    .eq("production_id", activeProductionId)
+    .order("created_at", { ascending: false });
+  const blockingScriptId =
+    scriptRows?.find((sc) => !sc.is_locked)?.id ||
+    scriptRows?.[0]?.id ||
+    "00000000-0000-0000-0000-000000000000";
+
   // Scenes
   const { data: scenes } = await supabase
     .from("scenes").select("id, act, scene_number, title")
@@ -41,7 +55,7 @@ export default async function BlockingPage() {
   const { data: charRows } = await supabase
     .from("script_lines")
     .select("character, tagged_characters")
-    .eq("script_id", "a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+    .eq("script_id", blockingScriptId);
   for (const r of charRows || []) {
     if (r.character) charSet.add(r.character);
     if (r.tagged_characters) for (const t of r.tagged_characters as string[]) charSet.add(t);
@@ -49,7 +63,7 @@ export default async function BlockingPage() {
 
   // 2. Characters tagged in blocking notes (filtered to this script only)
   const lineIds = (charRows || []).map(() => "").length > 0
-    ? await supabase.from("script_lines").select("id").eq("script_id", "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    ? await supabase.from("script_lines").select("id").eq("script_id", blockingScriptId)
     : { data: [] };
 
   if (lineIds.data && lineIds.data.length > 0) {
@@ -97,7 +111,7 @@ export default async function BlockingPage() {
   const { data: scriptLines } = await supabase
     .from("script_lines")
     .select("id, line_number, act, scene, character, content, line_type")
-    .eq("script_id", "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    .eq("script_id", blockingScriptId)
     .order("line_number", { ascending: true });
 
   // Cast assignments for actor names → character mapping
