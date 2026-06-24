@@ -483,12 +483,10 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
           {showContent ? (
             /* Full contract body — visible to owners + the person signing */
             <div className="px-6 py-6">
-            {/* Letterhead */}
+            {/* Letterhead — derived from the org + production, never hardcoded */}
             <div className="text-center mb-6 pb-4 border-b border-bone">
-              <p className="font-display text-display-sm text-ink">Heritage Parc / Black Theatre Experience</p>
-              <p className="text-body-sm text-ash">SWLA Juneteenth Committee</p>
-              <p className="text-body-md font-medium text-ink mt-3">THE JUNETEENTH STORY</p>
-              <p className="text-body-sm text-ash italic">Written by Twana Benoit · Directed by Josiah Price</p>
+              <p className="font-display text-display-sm text-ink">{orgName}</p>
+              {prod?.title && <p className="text-body-md font-medium text-ink mt-3">{prod.title}</p>}
             </div>
 
             {/* Rendered contract text */}
