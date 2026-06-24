@@ -145,6 +145,16 @@ export async function toggleRoomLock(productionId: string, roomKey: string, lock
   return { success: true, lockedRooms };
 }
 
+export async function setOrgAccentColor(orgId: string, color: string | null) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_org_accent_color", { p_org_id: orgId, p_color: color });
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  revalidatePath("/settings");
+  return { success: true };
+}
+
 export async function setHiddenRooms(orgId: string, rooms: string[]) {
   await assertNotPreviewing();
   const supabase = await createClient();

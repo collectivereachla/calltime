@@ -6,6 +6,7 @@ import { SettingsForm } from "./settings-form";
 import { AdminTools } from "./admin-tools";
 import { OrgSettings } from "./org-settings";
 import { RoomVisibility } from "./room-visibility";
+import { BrandColor } from "./brand-color";
 import { ConflictsForm } from "./conflicts-form";
 import { NotificationSettings } from "./notification-settings";
 import { W9Card } from "./w9-card";
@@ -74,6 +75,7 @@ export default async function SettingsPage() {
   // the settings for the org they're currently working in.
   let orgData: { id: string; name: string; slug: string; description: string | null; city: string | null; state: string | null; website: string | null; logo_url: string | null } | null = null;
   let hiddenRooms: string[] = [];
+  let accentDefault: string | null = null;
   if (isOwner) {
     const ownedIds = ownership.map((o) => o.org_id);
     const actingOrgId = await resolveActingOrgId(person.id);
@@ -86,9 +88,10 @@ export default async function SettingsPage() {
         .eq("id", settingsOrgId)
         .single();
       if (data) {
-        const { settings, ...rest } = data as typeof data & { settings: { hidden_rooms?: string[] } | null };
+        const { settings, ...rest } = data as typeof data & { settings: { hidden_rooms?: string[]; accent_color?: string } | null };
         orgData = rest;
         hiddenRooms = Array.isArray(settings?.hidden_rooms) ? settings!.hidden_rooms! : [];
+        accentDefault = settings?.accent_color || null;
       }
     }
   }
@@ -153,6 +156,12 @@ export default async function SettingsPage() {
       {isOwner && orgData && (
         <div className="mt-10">
           <RoomVisibility orgId={orgData.id} hidden={hiddenRooms} />
+        </div>
+      )}
+
+      {isOwner && orgData && (
+        <div className="mt-10">
+          <BrandColor orgId={orgData.id} current={accentDefault} />
         </div>
       )}
 

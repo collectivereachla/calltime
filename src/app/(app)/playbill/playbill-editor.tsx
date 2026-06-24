@@ -8,6 +8,7 @@ import { savePlaybill, addCredit, deleteCredit, pullSongsScenes, setCreditImage 
 interface Playbill {
   id: string;
   cover_title: string | null;
+  accent_color?: string | null;
   cover_subtitle: string | null;
   cover_image_path: string | null;
   dedication: string | null;
@@ -137,10 +138,10 @@ function buildSections(pb: Playbill): SectionRow[] {
 }
 
 export function PlaybillEditor({
-  productionId, productionTitle, orgId, playbill, credits, castCount, teamCount,
+  productionId, productionTitle, orgId, playbill, credits, castCount, teamCount, orgAccentDefault,
 }: {
   productionId: string; productionTitle: string; orgId: string;
-  playbill: Playbill; credits: Credit[]; castCount: number; teamCount: number;
+  playbill: Playbill; credits: Credit[]; castCount: number; teamCount: number; orgAccentDefault?: string | null;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<Playbill>({
@@ -208,6 +209,7 @@ export function PlaybillEditor({
       include_creative_team: sections.find((x) => x.key === "creative_team")?.visible ?? form.include_creative_team,
       section_config: sections.map(({ key, visible }) => ({ key, visible })),
       custom_sections: customSections,
+      accent_color: form.accent_color || null,
     });
     setSaving(false);
     if (res?.error) { setError(res.error); return; }
@@ -317,6 +319,15 @@ export function PlaybillEditor({
         </Field>
         <Field label="Dedication">
           <input className={inputCls} value={form.dedication ?? ""} onChange={(e) => set("dedication", e.target.value)} />
+        </Field>
+        <Field label="Brand color" hint={orgAccentDefault ? `Your organization default is ${orgAccentDefault}. Override it just for this program if you like.` : "Colors the cover title and section headings. Defaults to your house color."}>
+          <div className="flex items-center gap-3">
+            <input type="color" value={form.accent_color || orgAccentDefault || "#C4522D"} onChange={(e) => set("accent_color", e.target.value)} className="h-9 w-12 rounded border border-bone bg-paper p-0.5" />
+            <span className="text-body-xs text-ash font-mono">{form.accent_color || "using default"}</span>
+            {form.accent_color && (
+              <button type="button" onClick={() => set("accent_color", null)} className="text-body-xs text-muted hover:text-brick">Use default</button>
+            )}
+          </div>
         </Field>
       </section>
 

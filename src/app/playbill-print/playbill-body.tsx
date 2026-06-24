@@ -27,12 +27,13 @@ type Playbill = Record<string, unknown> & { id: string };
 // cookie-scoped client (internal preview, RLS) or the admin client (public
 // page, no session). `chrome` shows the screen-only print toolbar.
 export async function PlaybillBody({
-  supabase, pid, prod, playbill, orgName, chrome,
+  supabase, pid, prod, playbill, orgName, chrome, accentColor,
 }: {
   supabase: SupabaseClient;
   pid: string;
   prod: Prod;
   playbill: Playbill;
+  accentColor?: string | null;
   orgName: string;
   chrome: boolean;
 }) {
@@ -121,6 +122,7 @@ export async function PlaybillBody({
     return true;
   };
   const customSections = (Array.isArray(playbill.custom_sections) ? playbill.custom_sections : []) as { id: string; title?: string; body?: string }[];
+  const accentStyle = accentColor ? { color: accentColor } : undefined;
 
   return (
     <div className="min-h-screen bg-paper text-ink">
@@ -146,7 +148,7 @@ export async function PlaybillBody({
               {(playbill.presented_by as string) || `${orgName} presents`}
             </p>
           )}
-          <h1 className="font-display text-5xl leading-tight text-brick mb-4">{title}</h1>
+          <h1 style={accentStyle} className="font-display text-5xl leading-tight text-brick mb-4">{title}</h1>
           {(playbill.cover_subtitle as string) && <p className="font-display text-xl italic text-ink mb-6">{playbill.cover_subtitle as string}</p>}
           {(playbill.show_info as string) && <p className="text-body-sm text-ash max-w-md mx-auto whitespace-pre-line">{playbill.show_info as string}</p>}
           {(playbill.dedication as string) && <p className="text-body-sm italic text-ash mt-10">{playbill.dedication as string}</p>}
@@ -155,7 +157,7 @@ export async function PlaybillBody({
         {/* Director's note */}
         {isVisible("directors_note") && (playbill.directors_note as string) && (
           <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("directors_note") }}>
-            <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Director&rsquo;s Note</h2>
+            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Director&rsquo;s Note</h2>
             <div className="text-body-md leading-relaxed whitespace-pre-line">
               {director?.headshotPath && signed.get(director.headshotPath) && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -169,7 +171,7 @@ export async function PlaybillBody({
         {/* Songs & scenes */}
         {isVisible("songs_scenes") && songList.length > 0 && (
           <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("songs_scenes") }}>
-            <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Musical Numbers &amp; Scenes</h2>
+            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Musical Numbers &amp; Scenes</h2>
             {songList.map((act, i) => (
               <div key={i} className="mb-4">
                 <p className="font-display italic text-lg text-ink mb-1">{act.act}</p>
@@ -189,7 +191,7 @@ export async function PlaybillBody({
         {/* Cast */}
         {isVisible("cast") && castList.length > 0 && (
           <section className="mb-12 break-before-page" style={{ order: orderIndex("cast") }}>
-            <h2 className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Cast</h2>
+            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Cast</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
               {castList.map((c, i) => {
                 const url = c.headshotPath ? signed.get(c.headshotPath) || null : null;
@@ -221,7 +223,7 @@ export async function PlaybillBody({
         {/* Creative & production team */}
         {isVisible("creative_team") && teamList.length > 0 && (
           <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("creative_team") }}>
-            <h2 className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Creative &amp; Production Team</h2>
+            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Creative &amp; Production Team</h2>
             <div className="space-y-6">
               {orderedDepts.map((dept) => (
                 <div key={dept} className="break-inside-avoid">
@@ -256,7 +258,7 @@ export async function PlaybillBody({
         {/* Special thanks */}
         {isVisible("special_thanks") && (playbill.special_thanks as string) && (
           <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("special_thanks") }}>
-            <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Special Thanks</h2>
+            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Special Thanks</h2>
             <div className="text-body-md leading-relaxed whitespace-pre-line">{playbill.special_thanks as string}</div>
             {acks.length > 0 && (
               <ul className="mt-2 text-body-sm text-ash">
@@ -269,7 +271,7 @@ export async function PlaybillBody({
         {/* Sponsors & partners */}
         {isVisible("sponsors") && sponsors.length > 0 && (
           <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("sponsors") }}>
-            <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Our Sponsors &amp; Partners</h2>
+            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Our Sponsors &amp; Partners</h2>
             <div className="grid grid-cols-2 gap-4">
               {sponsors.map((s) => {
                 const logo = s.image_path ? signed.get(s.image_path) || null : null;
@@ -295,7 +297,7 @@ export async function PlaybillBody({
         {/* Ads */}
         {isVisible("ads") && ads.length > 0 && (
           <section className="break-before-page" style={{ order: orderIndex("ads") }}>
-            <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">With Support From</h2>
+            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">With Support From</h2>
             <div className="grid grid-cols-2 gap-4">
               {ads.map((a) => {
                 const href = externalHref(a.link_url);
@@ -313,7 +315,7 @@ export async function PlaybillBody({
         {/* Gallery */}
         {isVisible("gallery") && gallery.length > 0 && (
           <section className="mb-12 break-before-page" style={{ order: orderIndex("gallery") }}>
-            <h2 className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Gallery</h2>
+            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Gallery</h2>
             <div className="columns-2 md:columns-3 gap-3">
               {gallery.map((src, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -328,7 +330,7 @@ export async function PlaybillBody({
           isVisible("custom:" + cs.id) && (cs.body && cs.body.trim()) ? (
             <section key={cs.id} className="mb-12 break-inside-avoid" style={{ order: orderIndex("custom:" + cs.id) }}>
               {cs.title && cs.title.trim() && (
-                <h2 className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">{cs.title}</h2>
+                <h2 style={accentStyle} className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">{cs.title}</h2>
               )}
               <div className="text-body-md leading-relaxed whitespace-pre-line">{cs.body}</div>
             </section>

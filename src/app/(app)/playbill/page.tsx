@@ -52,6 +52,10 @@ export default async function PlaybillPage() {
     return <div className="max-w-3xl mx-auto px-4 md:px-8 py-10"><p className="text-body-md text-brick">{ensureError || "Couldn't open the playbill."}</p></div>;
   }
 
+  const { data: orgRow } = await supabase
+    .from("organizations").select("settings").eq("id", orgId).maybeSingle();
+  const orgAccentDefault = ((orgRow?.settings as { accent_color?: string } | null)?.accent_color) || null;
+
   const { data: credits } = await supabase
     .from("playbill_credits").select("*").eq("playbill_id", playbill.id).order("sort_order", { ascending: true });
 
@@ -72,6 +76,7 @@ export default async function PlaybillPage() {
       credits={credits || []}
       castCount={castCount}
       teamCount={teamCount}
+      orgAccentDefault={orgAccentDefault}
     />
   );
 }

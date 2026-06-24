@@ -16,8 +16,8 @@ async function load(id: string) {
     .from("playbills").select("*").eq("production_id", id).maybeSingle();
   if (!playbill || !playbill.web_published) return null;
   const { data: org } = await admin
-    .from("organizations").select("name").eq("id", prod.org_id).maybeSingle();
-  return { admin, prod, playbill, orgName: org?.name || "" };
+    .from("organizations").select("name, settings").eq("id", prod.org_id).maybeSingle();
+  return { admin, prod, playbill, orgName: org?.name || "", accentColor: (playbill.accent_color as string) || ((org?.settings as { accent_color?: string } | null)?.accent_color) || null };
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -40,6 +40,7 @@ export default async function ProgramPage({ params }: { params: Promise<{ id: st
       prod={data.prod}
       playbill={data.playbill}
       orgName={data.orgName}
+      accentColor={data.accentColor}
       chrome={false}
     />
   );

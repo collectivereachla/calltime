@@ -24,7 +24,7 @@ export default async function PlaybillPrintPage({
   if (!playbill) redirect("/playbill");
 
   const { data: org } = await supabase
-    .from("organizations").select("name").eq("id", prod.org_id).maybeSingle();
+    .from("organizations").select("name, settings").eq("id", prod.org_id).maybeSingle();
 
   return (
     <PlaybillBody
@@ -33,6 +33,7 @@ export default async function PlaybillPrintPage({
       prod={prod}
       playbill={playbill}
       orgName={org?.name || ""}
+      accentColor={(playbill.accent_color as string) || ((org?.settings as { accent_color?: string } | null)?.accent_color) || null}
       chrome
     />
   );

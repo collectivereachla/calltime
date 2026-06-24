@@ -196,6 +196,7 @@ type PlaybillFields = {
   cover_image_path?: string | null;
   section_config?: { key: string; visible?: boolean }[];
   custom_sections?: { id: string; title: string; body: string }[];
+  accent_color?: string | null;
 };
 
 // Recompute the Songs & Scenes section from the rooms on demand (for playbills that
