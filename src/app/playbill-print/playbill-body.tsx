@@ -211,7 +211,7 @@ export async function PlaybillBody({
                     <div className="min-w-0">
                       <p className="text-body-sm font-semibold leading-tight">{c.name}</p>
                       {c.characters.length > 0 && <p className="text-[11px] text-ash mb-1">{c.characters.join(" / ")}</p>}
-                      {bio && <p className="font-display text-[13px] text-ink/90 leading-relaxed whitespace-pre-line">{bio}</p>}
+                      {bio && <p className="font-display text-base text-ink/90 leading-relaxed whitespace-pre-line">{bio}</p>}
                     </div>
                   </div>
                 );
