@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { SettingsForm } from "./settings-form";
 import { AdminTools } from "./admin-tools";
 import { OrgSettings } from "./org-settings";
+import { RoomVisibility } from "./room-visibility";
 import { ConflictsForm } from "./conflicts-form";
 import { NotificationSettings } from "./notification-settings";
 import { W9Card } from "./w9-card";
@@ -72,6 +73,7 @@ export default async function SettingsPage() {
   // (cookie-driven), not just their first owned org. A multi-org owner must see
   // the settings for the org they're currently working in.
   let orgData: { id: string; name: string; slug: string; description: string | null; city: string | null; state: string | null; website: string | null; logo_url: string | null } | null = null;
+  let hiddenRooms: string[] = [];
   if (isOwner) {
     const ownedIds = ownership.map((o) => o.org_id);
     const actingOrgId = await resolveActingOrgId(person.id);
@@ -80,10 +82,14 @@ export default async function SettingsPage() {
     if (settingsOrgId) {
       const { data } = await supabase
         .from("organizations")
-        .select("id, name, slug, description, city, state, website, logo_url")
+        .select("id, name, slug, description, city, state, website, logo_url, settings")
         .eq("id", settingsOrgId)
         .single();
-      orgData = data;
+      if (data) {
+        const { settings, ...rest } = data as typeof data & { settings: { hidden_rooms?: string[] } | null };
+        orgData = rest;
+        hiddenRooms = Array.isArray(settings?.hidden_rooms) ? settings!.hidden_rooms! : [];
+      }
     }
   }
 
@@ -143,6 +149,12 @@ export default async function SettingsPage() {
       </div>
 
       {isOwner && orgData && <OrgSettings org={orgData} />}
+
+      {isOwner && orgData && (
+        <div className="mt-10">
+          <RoomVisibility orgId={orgData.id} hidden={hiddenRooms} />
+        </div>
+      )}
 
       {isOwner && (
         <div className="mt-10">

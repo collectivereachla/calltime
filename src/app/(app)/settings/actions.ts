@@ -145,6 +145,19 @@ export async function toggleRoomLock(productionId: string, roomKey: string, lock
   return { success: true, lockedRooms };
 }
 
+export async function setHiddenRooms(orgId: string, rooms: string[]) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_org_hidden_rooms", {
+    p_org_id: orgId,
+    p_rooms: rooms,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  revalidatePath("/settings");
+  return { success: true };
+}
+
 export async function updateOrganization(orgId: string, formData: FormData) {
   await assertNotPreviewing();
   const supabase = await createClient();

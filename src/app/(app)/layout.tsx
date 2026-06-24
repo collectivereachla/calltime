@@ -125,6 +125,27 @@ export default async function AppLayout({
     lockedRooms = prod?.locked_rooms || [];
   }
 
+  // Org-level hidden rooms (owner-configured "rooms we don't use"), for the org
+  // the viewer is acting in. Hides nav entries org-wide; distinct from per-show locks.
+  let hiddenRooms: string[] = [];
+  {
+    let actingOrgId: string | null = null;
+    if (activeProductionId) {
+      const { data: ap } = await supabase
+        .from("productions").select("org_id").eq("id", activeProductionId).maybeSingle();
+      actingOrgId = (ap?.org_id as string) ?? null;
+    }
+    if (!actingOrgId) {
+      actingOrgId = (memberships[0]?.organizations as unknown as { id: string } | undefined)?.id ?? null;
+    }
+    if (actingOrgId) {
+      const { data: orgRow } = await supabase
+        .from("organizations").select("settings").eq("id", actingOrgId).maybeSingle();
+      const st = (orgRow?.settings as { hidden_rooms?: string[] } | null) || {};
+      hiddenRooms = Array.isArray(st.hidden_rooms) ? st.hidden_rooms : [];
+    }
+  }
+
   // Booth is the design/production team's room — hide it from cast in the nav.
   // (The Booth page enforces the same check server-side.)
   let boothAccess = memberships.some(
@@ -212,6 +233,7 @@ export default async function AppLayout({
         productions={productions}
         activeProductionId={activeProductionId}
         lockedRooms={lockedRooms}
+        hiddenRooms={hiddenRooms}
         isOwner={isOwner}
         boothAccess={boothAccess}
         seatingAccess={seatingAccess}

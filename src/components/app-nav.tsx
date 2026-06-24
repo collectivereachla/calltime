@@ -31,6 +31,7 @@ interface AppNavProps {
   isOwner?: boolean;
   boothAccess?: boolean;
   seatingAccess?: boolean;
+  hiddenRooms?: string[];
 }
 
 const rooms = [
@@ -53,7 +54,7 @@ const rooms = [
 
 const mobileRooms = rooms.filter((r) => r.mobile);
 
-export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, productions = [], activeProductionId = null, lockedRooms = [], isOwner = false, boothAccess = true, seatingAccess = false }: AppNavProps) {
+export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, productions = [], activeProductionId = null, lockedRooms = [], isOwner = false, boothAccess = true, seatingAccess = false, hiddenRooms = [] }: AppNavProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const isAdmin = orgs.some((o) => o.role === "owner" || o.role === "admin");
@@ -69,7 +70,7 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, 
     return badges[key] || 0;
   }
 
-  const visibleRooms = rooms.filter((r) => (!("adminOnly" in r && r.adminOnly) || isAdmin) && (r.path !== "/booth" || boothAccess) && (r.path !== "/dressing-room" || !boothAccess) && (r.path !== "/seating" || seatingAccess));
+  const visibleRooms = rooms.filter((r) => (!("adminOnly" in r && r.adminOnly) || isAdmin) && (r.path !== "/booth" || boothAccess) && (r.path !== "/dressing-room" || !boothAccess) && (r.path !== "/seating" || seatingAccess) && !hiddenRooms.includes(r.path.replace("/", "")));
 
   return (
     <>
