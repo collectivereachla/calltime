@@ -161,7 +161,7 @@ export default async function SettingsPage() {
 
       {isOwner && orgData && (
         <div className="mt-10">
-          <BrandColor orgId={orgData.id} current={accentDefault} />
+          <BrandColor orgId={orgData.id} current={accentDefault} logoUrl={orgData.logo_url} />
         </div>
       )}
 
