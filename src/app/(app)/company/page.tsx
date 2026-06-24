@@ -82,17 +82,18 @@ export default async function CompanyPage() {
   // org_bans has two paths to people (person_id and banned_by_person_id).
   let bannedList: { person_id: string; full_name: string; reason: string | null }[] = [];
   if (canManage) {
-    const { data: bans } = await supabase
-      .from("org_bans")
-      .select("person_id, reason, people!org_bans_person_id_fkey ( full_name, preferred_name )")
-      .eq("org_id", org.id)
-      .order("created_at", { ascending: false });
-    bannedList = (bans || [])
-      .filter((b) => (b.people as unknown as { full_name: string } | null) != null)
-      .map((b) => {
-        const pp = b.people as unknown as { full_name: string; preferred_name: string | null };
-        return { person_id: b.person_id, full_name: pp.preferred_name || pp.full_name, reason: b.reason };
-      });
+    // A banned person is no longer an org member, so people-RLS hides their name
+    // from managers. get_org_bans (SECURITY DEFINER) returns names to org managers.
+    const { data: bans } = await supabase.rpc("get_org_bans", { p_org_id: org.id });
+    bannedList = (
+      (bans as unknown as {
+        person_id: string; full_name: string; preferred_name: string | null; reason: string | null;
+      }[]) || []
+    ).map((b) => ({
+      person_id: b.person_id,
+      full_name: b.preferred_name || b.full_name,
+      reason: b.reason,
+    }));
   }
 
   // Get all members with their org role
