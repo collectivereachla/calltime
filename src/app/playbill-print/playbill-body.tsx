@@ -157,8 +157,8 @@ export async function PlaybillBody({
         {/* Director's note */}
         {isVisible("directors_note") && (playbill.directors_note as string) && (
           <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("directors_note") }}>
-            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Director&rsquo;s Note</h2>
-            <div className="text-body-md leading-relaxed whitespace-pre-line">
+            <h2 style={accentStyle} className="font-display text-lg uppercase tracking-[0.18em] text-brick text-center mb-5 pb-2 border-b border-bone">Director&rsquo;s Note</h2>
+            <div className="font-display text-body-md leading-relaxed whitespace-pre-line">
               {director?.headshotPath && signed.get(director.headshotPath) && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={signed.get(director.headshotPath)!} alt={director.name} className="float-left w-32 h-40 mr-5 mb-3 rounded-card object-cover border border-bone" />
@@ -171,7 +171,7 @@ export async function PlaybillBody({
         {/* Songs & scenes */}
         {isVisible("songs_scenes") && songList.length > 0 && (
           <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("songs_scenes") }}>
-            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Musical Numbers &amp; Scenes</h2>
+            <h2 style={accentStyle} className="font-display text-lg uppercase tracking-[0.18em] text-brick text-center mb-5 pb-2 border-b border-bone">Musical Numbers &amp; Scenes</h2>
             {songList.map((act, i) => (
               <div key={i} className="mb-4">
                 <p className="font-display italic text-lg text-ink mb-1">{act.act}</p>
@@ -191,13 +191,13 @@ export async function PlaybillBody({
         {/* Cast */}
         {isVisible("cast") && castList.length > 0 && (
           <section className="mb-12 break-before-page" style={{ order: orderIndex("cast") }}>
-            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Cast</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
+            <h2 style={accentStyle} className="font-display text-lg uppercase tracking-[0.18em] text-brick text-center mb-5 pb-2 border-b border-bone">Cast</h2>
+            <div className="columns-1 sm:columns-2 gap-x-10">
               {castList.map((c, i) => {
                 const url = c.headshotPath ? signed.get(c.headshotPath) || null : null;
                 const bio = c.bio && c.bio.trim() ? c.bio.trim() : null;
                 return (
-                  <div key={i} className="break-inside-avoid flex gap-3">
+                  <div key={i} className="break-inside-avoid flex gap-3 mb-5">
                     <div className="w-24 h-32 shrink-0 self-start rounded-card overflow-hidden bg-bone/40 border border-bone">
                       {url ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -211,7 +211,7 @@ export async function PlaybillBody({
                     <div className="min-w-0">
                       <p className="text-body-sm font-semibold leading-tight">{c.name}</p>
                       {c.characters.length > 0 && <p className="text-[11px] text-ash mb-1">{c.characters.join(" / ")}</p>}
-                      {bio && <p className="text-body-xs text-ink/90 leading-snug whitespace-pre-line">{bio}</p>}
+                      {bio && <p className="font-display text-[13px] text-ink/90 leading-relaxed whitespace-pre-line">{bio}</p>}
                     </div>
                   </div>
                 );
@@ -223,7 +223,7 @@ export async function PlaybillBody({
         {/* Creative & production team */}
         {isVisible("creative_team") && teamList.length > 0 && (
           <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("creative_team") }}>
-            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Creative &amp; Production Team</h2>
+            <h2 style={accentStyle} className="font-display text-lg uppercase tracking-[0.18em] text-brick text-center mb-5 pb-2 border-b border-bone">Creative &amp; Production Team</h2>
             <div className="space-y-6">
               {orderedDepts.map((dept) => (
                 <div key={dept} className="break-inside-avoid">
@@ -258,8 +258,8 @@ export async function PlaybillBody({
         {/* Special thanks */}
         {isVisible("special_thanks") && (playbill.special_thanks as string) && (
           <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("special_thanks") }}>
-            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Special Thanks</h2>
-            <div className="text-body-md leading-relaxed whitespace-pre-line">{playbill.special_thanks as string}</div>
+            <h2 style={accentStyle} className="font-display text-lg uppercase tracking-[0.18em] text-brick text-center mb-5 pb-2 border-b border-bone">Special Thanks</h2>
+            <div className="font-display text-body-md leading-relaxed whitespace-pre-line">{playbill.special_thanks as string}</div>
             {acks.length > 0 && (
               <ul className="mt-2 text-body-sm text-ash">
                 {acks.map((a) => <li key={a.id}>{a.name}{a.detail ? ` — ${a.detail}` : ""}</li>)}
@@ -271,7 +271,7 @@ export async function PlaybillBody({
         {/* Sponsors & partners */}
         {isVisible("sponsors") && sponsors.length > 0 && (
           <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("sponsors") }}>
-            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">Our Sponsors &amp; Partners</h2>
+            <h2 style={accentStyle} className="font-display text-lg uppercase tracking-[0.18em] text-brick text-center mb-5 pb-2 border-b border-bone">Our Sponsors &amp; Partners</h2>
             <div className="grid grid-cols-2 gap-4">
               {sponsors.map((s) => {
                 const logo = s.image_path ? signed.get(s.image_path) || null : null;
@@ -297,7 +297,7 @@ export async function PlaybillBody({
         {/* Ads */}
         {isVisible("ads") && ads.length > 0 && (
           <section className="break-before-page" style={{ order: orderIndex("ads") }}>
-            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">With Support From</h2>
+            <h2 style={accentStyle} className="font-display text-lg uppercase tracking-[0.18em] text-brick text-center mb-5 pb-2 border-b border-bone">With Support From</h2>
             <div className="grid grid-cols-2 gap-4">
               {ads.map((a) => {
                 const href = externalHref(a.link_url);
@@ -315,7 +315,7 @@ export async function PlaybillBody({
         {/* Gallery */}
         {isVisible("gallery") && gallery.length > 0 && (
           <section className="mb-12 break-before-page" style={{ order: orderIndex("gallery") }}>
-            <h2 style={accentStyle} className="font-display text-2xl text-brick mb-4 border-b border-bone pb-2">Gallery</h2>
+            <h2 style={accentStyle} className="font-display text-lg uppercase tracking-[0.18em] text-brick text-center mb-5 pb-2 border-b border-bone">Gallery</h2>
             <div className="columns-2 md:columns-3 gap-3">
               {gallery.map((src, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -330,9 +330,9 @@ export async function PlaybillBody({
           isVisible("custom:" + cs.id) && (cs.body && cs.body.trim()) ? (
             <section key={cs.id} className="mb-12 break-inside-avoid" style={{ order: orderIndex("custom:" + cs.id) }}>
               {cs.title && cs.title.trim() && (
-                <h2 style={accentStyle} className="font-display text-2xl text-brick mb-3 border-b border-bone pb-2">{cs.title}</h2>
+                <h2 style={accentStyle} className="font-display text-lg uppercase tracking-[0.18em] text-brick text-center mb-5 pb-2 border-b border-bone">{cs.title}</h2>
               )}
-              <div className="text-body-md leading-relaxed whitespace-pre-line">{cs.body}</div>
+              <div className="font-display text-body-md leading-relaxed whitespace-pre-line">{cs.body}</div>
             </section>
           ) : null
         ))}
