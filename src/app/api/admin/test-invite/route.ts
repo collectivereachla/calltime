@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendEmail, buildInvitationEmail } from "@/lib/email";
+import { resolveActingOrgId } from "@/lib/membership";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function POST() {
 
   const { data: person } = await supabase
     .from("people")
-    .select("full_name, preferred_name, email")
+    .select("id, full_name, preferred_name, email")
     .eq("user_id", user.id)
     .single();
 
@@ -29,18 +30,36 @@ export async function POST() {
     return NextResponse.json({ error: "No email on your account" }, { status: 400 });
   }
 
+  // Use the caller's actual org + a current production, not hardcoded BTE/TJS.
+  const orgId = await resolveActingOrgId(person.id);
+  let orgName = "your organization";
+  let productionTitle = "your production";
+  if (orgId) {
+    const { data: org } = await supabase
+      .from("organizations").select("name").eq("id", orgId).maybeSingle();
+    if (org?.name) orgName = org.name;
+    const { data: prod } = await supabase
+      .from("productions").select("title")
+      .eq("org_id", orgId)
+      .not("status", "in", "(closed,archived)")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (prod?.title) productionTitle = prod.title;
+  }
+
   const html = buildInvitationEmail({
     name: person.preferred_name || person.full_name,
-    orgName: "Black Theatre Experience",
-    productionTitle: "The Juneteenth Story",
-    roleTitle: "Director",
+    orgName,
+    productionTitle,
+    roleTitle: "Member",
     tempPassword: "aB3x7kQ9",
     loginUrl: "https://checkcalltime.art/login",
   });
 
   const result = await sendEmail({
     to: person.email,
-    subject: "Your Calltime account is ready — The Juneteenth Story",
+    subject: `Your Calltime account is ready — ${productionTitle}`,
     html,
   });
 
