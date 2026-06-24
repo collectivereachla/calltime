@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { extractDominantColor } from "@/lib/extract-color";
 import { savePlaybill, addCredit, deleteCredit, pullSongsScenes, setCreditImage } from "./actions";
 
 interface Playbill {
@@ -11,6 +12,7 @@ interface Playbill {
   accent_color?: string | null;
   cover_subtitle: string | null;
   cover_image_path: string | null;
+  poster_path?: string | null;
   dedication: string | null;
   show_info: string | null;
   directors_note: string | null;
@@ -188,6 +190,27 @@ export function PlaybillEditor({
     setSections((prev) => prev.filter((s) => s.key !== "custom:" + id));
     setSaved(false);
   }
+  const flyerSrc = (playbill.poster_path as string | null) || (playbill.cover_image_path as string | null) || null;
+  const [pullingFlyer, setPullingFlyer] = useState(false);
+  async function pullFromFlyer() {
+    if (!flyerSrc) return;
+    setPullingFlyer(true);
+    setError(null);
+    try {
+      let url = flyerSrc;
+      if (!url.startsWith("http") && !url.startsWith("/")) {
+        const { data } = await createClient().storage.from("promo-assets").createSignedUrl(url, 600);
+        if (!data?.signedUrl) throw new Error("Couldn't load the flyer image.");
+        url = data.signedUrl;
+      }
+      const hex = await extractDominantColor(url);
+      set("accent_color", hex);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't read the flyer.");
+    } finally {
+      setPullingFlyer(false);
+    }
+  }
 
   const set = <K extends keyof Playbill>(k: K, v: Playbill[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -320,10 +343,16 @@ export function PlaybillEditor({
         <Field label="Dedication">
           <input className={inputCls} value={form.dedication ?? ""} onChange={(e) => set("dedication", e.target.value)} />
         </Field>
-        <Field label="Brand color" hint={orgAccentDefault ? `Your organization default is ${orgAccentDefault}. Override it just for this program if you like.` : "Colors the cover title and section headings. Defaults to your house color."}>
-          <div className="flex items-center gap-3">
+        <Field label="Brand color" hint={`Colors the cover title and section headings. Pull it from this show\u2019s flyer, or leave it on your organization default${orgAccentDefault ? ` (${orgAccentDefault})` : ""}.`}>
+          <div className="flex items-center gap-3 flex-wrap">
             <input type="color" value={form.accent_color || orgAccentDefault || "#C4522D"} onChange={(e) => set("accent_color", e.target.value)} className="h-9 w-12 rounded border border-bone bg-paper p-0.5" />
             <span className="text-body-xs text-ash font-mono">{form.accent_color || "using default"}</span>
+            {flyerSrc && (
+              <button type="button" onClick={pullFromFlyer} disabled={pullingFlyer}
+                className="px-3 py-1.5 text-body-xs font-medium rounded-card border border-bone text-ink hover:border-ink transition-colors disabled:opacity-50">
+                {pullingFlyer ? "Reading flyer\u2026" : "Pull from flyer"}
+              </button>
+            )}
             {form.accent_color && (
               <button type="button" onClick={() => set("accent_color", null)} className="text-body-xs text-muted hover:text-brick">Use default</button>
             )}
