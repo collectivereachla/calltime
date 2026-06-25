@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { PostHogProvider } from "@/components/posthog-provider";
 
 export const metadata: Metadata = {
   title: "Calltime.",
@@ -32,7 +33,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-paper text-ink antialiased">
-        {children}
+        <PostHogProvider>{children}</PostHogProvider>
       </body>
     </html>
   );
