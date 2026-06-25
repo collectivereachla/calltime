@@ -5,7 +5,7 @@ import { addBudgetItem, updateBudgetItem, deleteBudgetItem } from "./budget-acti
 import { addRevenueItem, updateRevenueItem, deleteRevenueItem } from "./revenue-actions";
 import { updateContract, deleteContract, addStaffMember } from "./ledger-actions";
 import { useRouter } from "next/navigation";
-import { EXPENSE_CATS, REVENUE_CATS, STAFF_TYPES, TALENT_TYPES, CAT_LABELS, fmt, parseAmount, computeBudgetExtras } from "@/lib/budget-pl";
+import { EXPENSE_CATS, REVENUE_CATS, STAFF_TYPES, TALENT_TYPES, CAT_LABELS, fmt, parseAmount, chargeableAmount, computeBudgetExtras } from "@/lib/budget-pl";
 import type { InvoiceRow, ReceiptRow } from "./invoices-view";
 
 interface BudgetItem {
@@ -101,7 +101,7 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
   const staffContracts = useMemo(() => contractSummaries.filter(c => STAFF_TYPES.has(c.contract_type)), [contractSummaries]);
   const talentContracts = useMemo(() => contractSummaries.filter(c => TALENT_TYPES.has(c.contract_type)), [contractSummaries]);
 
-  const staffTotal = staffContracts.reduce((s, c) => s + parseAmount(c.compensation), 0);
+  const staffTotal = staffContracts.reduce((s, c) => s + chargeableAmount(c.compensation), 0);
 
   const talent = useMemo(() => {
     const byType: Record<string, { people: ContractSummary[]; total: number }> = {};
@@ -110,7 +110,7 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
       const t = c.contract_type;
       if (!byType[t]) byType[t] = { people: [], total: 0 };
       byType[t].people.push(c);
-      const amt = parseAmount(c.compensation);
+      const amt = chargeableAmount(c.compensation);
       byType[t].total += amt; total += amt;
     }
     return { byType, total };

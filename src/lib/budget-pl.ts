@@ -5,7 +5,7 @@
 export const EXPENSE_CATS = ["venue", "equipment", "transportation", "other"];
 export const REVENUE_CATS = ["sponsor", "ticket_sales", "grant", "donation", "other"];
 export const STAFF_TYPES = new Set([
-  "crew", "director", "stage_manager", "props_asm", "lighting_design",
+  "crew", "paid_crew", "director", "stage_manager", "props_asm", "lighting_design",
   "sound_design", "sound_engineer", "set_design", "original_music",
 ]);
 export const TALENT_TYPES = new Set(["actor", "band"]);
@@ -24,6 +24,15 @@ export function parseAmount(comp: string | null): number {
   if (!match) return 0;
   return parseFloat(match[1].replace(/,/g, "")) || 0;
 }
+
+// Amount actually charged to THIS production's budget. Compensation marked
+// "(Paid by <someone>)" is covered by an external payer (e.g. Collective Reach
+// LLC or a third party), so it is shown on the contract but not charged here.
+export function chargeableAmount(comp: string | null): number {
+  if (comp && /paid by/i.test(comp)) return 0;
+  return parseAmount(comp);
+}
+
 
 export interface PLContract {
   id: string;
@@ -61,7 +70,7 @@ export function computeBudgetPL(
     .sort((a, b) => parseAmount(b.compensation) - parseAmount(a.compensation));
   const talentContracts = contracts.filter((c) => TALENT_TYPES.has(c.contract_type));
 
-  const staffTotal = staffContracts.reduce((s, c) => s + parseAmount(c.compensation), 0);
+  const staffTotal = staffContracts.reduce((s, c) => s + chargeableAmount(c.compensation), 0);
 
   const talentByType: Record<string, { people: PLContract[]; total: number }> = {};
   let talentTotal = 0;
@@ -69,7 +78,7 @@ export function computeBudgetPL(
     const t = c.contract_type;
     if (!talentByType[t]) talentByType[t] = { people: [], total: 0 };
     talentByType[t].people.push(c);
-    const amt = parseAmount(c.compensation);
+    const amt = chargeableAmount(c.compensation);
     talentByType[t].total += amt;
     talentTotal += amt;
   }
