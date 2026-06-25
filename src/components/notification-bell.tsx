@@ -51,6 +51,10 @@ function notificationIcon(type: string) {
       return "🎉";
     case "application_declined":
       return "—";
+    case "invoice_submitted":
+      return "💵";
+    case "receipt_submitted":
+      return "🧾";
     default:
       return "●";
   }
