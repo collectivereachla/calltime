@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { submitInvoice, setInvoiceStatus, addInvoiceLine, deleteInvoiceLine } from "./invoice-actions";
 import { submitReceipt, reviewReceipt, deleteReceipt, getReceiptSignedUrl } from "./receipt-actions";
 import { PaymentSettings } from "./payment-settings";
+import { W9Form } from "@/app/(app)/settings/w9-form";
 
 interface PaymentMethod { method: string; label: string | null; details: string | null }
 interface MyContract {
@@ -422,6 +423,7 @@ export function InvoicesView(props: Props) {
   const [address, setAddress] = useState(myAddress || "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showW9, setShowW9] = useState(false);
 
   const alreadySubmitted = myContract ? invoices.some((i) => i.person_id === personId && i.status !== "void") : false;
   const base = myContract?.baseAmount ?? null;
@@ -481,7 +483,18 @@ export function InvoicesView(props: Props) {
           ) : w9Blocked ? (
             <div className="bg-tentative/10 border border-tentative/30 rounded-card px-4 py-3">
               <p className="text-body-sm text-ink">Payments of {money(w9Threshold)} or more need a W-9 on file before you can submit.</p>
-              <p className="text-body-xs text-muted mt-1">Add your W-9 in your profile, then come back to submit.</p>
+              {!showW9 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button onClick={() => setShowW9(true)} className="px-3 py-1.5 text-body-sm font-medium rounded-card bg-ink text-paper hover:bg-ink/90">
+                    Fill out your W-9 here
+                  </button>
+                  <a href="/settings" className="px-3 py-1.5 text-body-sm rounded-card border border-bone text-ash hover:text-ink hover:border-ash">Upload a PDF instead</a>
+                </div>
+              ) : (
+                <div className="mt-3">
+                  <W9Form onDone={() => { setShowW9(false); router.refresh(); }} />
+                </div>
+              )}
             </div>
           ) : (
             <>
