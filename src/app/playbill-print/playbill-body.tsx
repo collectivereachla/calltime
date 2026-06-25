@@ -77,6 +77,30 @@ export async function PlaybillBody({
   const { data: credits } = await supabase
     .from("playbill_credits").select("*").eq("playbill_id", playbill.id).order("sort_order", { ascending: true });
   const sponsors = (credits || []).filter((c) => c.credit_type === "sponsor" || c.credit_type === "partner");
+
+  // Full sync: the Playbill sponsor list draws from the Rolodex (single source
+  // of truth). Merge in org sponsor + in-kind contacts not already credited by
+  // hand, skipping any tagged "hide-playbill" (e.g., the co-producing orgs).
+  const { data: rolodexSponsors } = await supabase
+    .from("contacts")
+    .select("id, full_name, in_kind, lifetime_total, tags")
+    .eq("org_id", prod.org_id)
+    .or("type.eq.sponsor,in_kind.not.is.null")
+    .order("lifetime_total", { ascending: false, nullsFirst: false });
+  const creditedNames = new Set(sponsors.map((c) => (c.name || "").trim().toLowerCase()));
+  const rolodexSponsorCards = (rolodexSponsors || [])
+    .filter((c) => c.full_name
+      && !(Array.isArray(c.tags) && c.tags.includes("hide-playbill"))
+      && !creditedNames.has(c.full_name.trim().toLowerCase()))
+    .map((c) => ({
+      id: `rolodex-${c.id}`,
+      name: c.full_name as string,
+      detail: c.in_kind ? `In-kind: ${c.in_kind}` : null,
+      image_path: null as string | null,
+      link_url: null as string | null,
+      credit_type: "sponsor",
+    }));
+  const mergedSponsors = [...sponsors, ...rolodexSponsorCards];
   const ads = (credits || []).filter((c) => c.credit_type === "ad");
   const acks = (credits || []).filter((c) => c.credit_type === "acknowledgment");
 
@@ -269,11 +293,11 @@ export async function PlaybillBody({
         )}
 
         {/* Sponsors & partners */}
-        {isVisible("sponsors") && sponsors.length > 0 && (
+        {isVisible("sponsors") && mergedSponsors.length > 0 && (
           <section className="mb-12 break-inside-avoid" style={{ order: orderIndex("sponsors") }}>
             <h2 style={accentStyle} className="font-display text-lg uppercase tracking-[0.18em] text-brick text-center mb-5 pb-2 border-b border-bone">Our Sponsors &amp; Partners</h2>
             <div className="grid grid-cols-2 gap-4">
-              {sponsors.map((s) => {
+              {mergedSponsors.map((s) => {
                 const logo = s.image_path ? signed.get(s.image_path) || null : null;
                 const href = externalHref(s.link_url);
                 const card = (

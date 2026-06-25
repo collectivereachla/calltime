@@ -44,7 +44,7 @@ export default async function RolodexPage() {
   const { data: contacts } = await supabase
     .from("contacts")
     .select(
-      "id, type, full_name, email, phone, city, zip, tags, lifetime_total, steward_tier, subscribed, first_season, source, notes"
+      "id, type, full_name, email, phone, city, zip, tags, lifetime_total, steward_tier, subscribed, first_season, source, notes, affiliated_contact_id, affiliation_role, in_kind"
     )
     .eq("org_id", orgId)
     .order("lifetime_total", { ascending: false, nullsFirst: false })
@@ -57,10 +57,16 @@ export default async function RolodexPage() {
     )
     .eq("contacts.org_id", orgId);
 
+  const nameById = new Map((contacts ?? []).map((c) => [c.id, c.full_name]));
+  const enriched = (contacts ?? []).map((c) => ({
+    ...c,
+    affiliated_name: c.affiliated_contact_id ? (nameById.get(c.affiliated_contact_id) ?? null) : null,
+  }));
+
   return (
     <RolodexClient
       orgName={orgRow?.name ?? ""}
-      contacts={contacts ?? []}
+      contacts={enriched}
       activity={(activity ?? []) as unknown as ActivityRow[]}
     />
   );

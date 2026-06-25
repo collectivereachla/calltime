@@ -17,6 +17,10 @@ interface Contact {
   first_season: number | null;
   source: string | null;
   notes: string | null;
+  affiliated_contact_id?: string | null;
+  affiliation_role?: string | null;
+  affiliated_name?: string | null;
+  in_kind?: string | null;
 }
 interface ActivityRow {
   contact_id: string;
@@ -70,7 +74,7 @@ export function RolodexClient({
       if (sub === "subscribed" && !c.subscribed) return false;
       if (sub === "unsubscribed" && c.subscribed) return false;
       if (needle) {
-        const hay = `${c.full_name ?? ""} ${c.email ?? ""} ${c.city ?? ""} ${c.zip ?? ""}`.toLowerCase();
+        const hay = `${c.full_name ?? ""} ${c.email ?? ""} ${c.city ?? ""} ${c.zip ?? ""} ${c.affiliated_name ?? ""} ${c.in_kind ?? ""}`.toLowerCase();
         if (!hay.includes(needle)) return false;
       }
       return true;
@@ -166,6 +170,8 @@ export function RolodexClient({
                     {c.phone && <span>Phone: <span className="text-ink">{c.phone}</span></span>}
                     {c.first_season && <span>First season: <span className="text-ink">{c.first_season}</span></span>}
                     {c.source && <span>Source: <span className="text-ink">{c.source}</span></span>}
+                    {c.affiliated_name && <span>{c.affiliation_role || "Affiliated"}: <span className="text-ink">{c.affiliated_name}</span></span>}
+                    {c.in_kind && <span>In-kind: <span className="text-ink">{c.in_kind}</span></span>}
                     {c.tags && c.tags.length > 0 && <span>Tags: <span className="text-ink">{c.tags.join(", ")}</span></span>}
                   </div>
                   {c.notes && <p className="text-ash mb-3 italic">{c.notes}</p>}
