@@ -120,13 +120,16 @@ export async function submitInvoice(input: {
     if (!upg) return { error: "The invoice didn't save. Refresh and try again, or reach out to production." };
     invoiceId = upg.id;
   } else {
-    // Invoice number: INV-{year}-{running count for this org}
-    const year = new Date().getFullYear();
-    const { count } = await supabase
-      .from("invoices")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", production.org_id);
-    const invoiceNumber = `INV-${year}-${String((count || 0) + 1).padStart(4, "0")}`;
+    // Invoice number: atomic, org-scoped counter (SECURITY DEFINER RPC).
+    // A client-side count() is wrong here — RLS only shows the member their own
+    // invoice, so the count was always 0 and every invoice collided on
+    // INV-{year}-0001. next_invoice_number increments a per-org/year counter
+    // server-side and is race-safe.
+    const { data: invoiceNumber, error: numErr } = await supabase
+      .rpc("next_invoice_number", { p_org: production.org_id });
+    if (numErr || !invoiceNumber) {
+      return { error: "Couldn't assign an invoice number. Refresh and try again, or reach out to production." };
+    }
 
     const { data: inv, error: invErr } = await supabase
       .from("invoices")
