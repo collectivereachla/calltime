@@ -88,6 +88,7 @@ function EditCell({ value, onSave, type = "text", className = "" }: {
 export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSeeContent, productionId, coproduction }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [viewBasis, setViewBasis] = useState<string | null>(null); // co-pro modeling override; null = per contract
   const [addingStaff, setAddingStaff] = useState(false);
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("");
@@ -219,17 +220,25 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
       </div>
 
       {coproduction && (() => {
-        const isTickets = coproduction.basis === "tickets";
+        const contractBasis = coproduction.basis;
+        const effBasis = viewBasis ?? contractBasis;
+        const isModeling = viewBasis !== null && viewBasis !== contractBasis;
+        const isTickets = effBasis === "tickets";
         const ticketSales = revenueItems.filter((r) => r.category === "ticket_sales").reduce((s, r) => s + (r.amount || 0), 0);
         const offTop = budgetItems.filter((b) => b.off_top).reduce((s, b) => s + (b.budget_amount || 0), 0);
-        const basisAmount = isTickets ? ticketSales - offTop : coproduction.basis === "gross" ? revenueTotal : net;
+        const basisAmount = isTickets ? ticketSales - offTop : effBasis === "gross" ? ticketSales : ticketSales - totalCosts;
         const splittable = isTickets ? Math.max(basisAmount, 0) : basisAmount;
         const leadShare = (splittable * coproduction.leadPct) / 100;
         const partnerShare = (splittable * coproduction.partnerPct) / 100;
         const agentName = coproduction.fiscalAgent === "lead" ? coproduction.leadName : coproduction.partnerName;
         const otherName = coproduction.fiscalAgent === "lead" ? coproduction.partnerName : coproduction.leadName;
         const otherShare = coproduction.fiscalAgent === "lead" ? partnerShare : leadShare;
-        const basisLabel = isTickets ? "ticket sales, venue off the top" : coproduction.basis === "gross" ? "gross revenue" : "net, after all costs";
+        const basisLabel = isTickets ? "ticket sales, venue off the top" : effBasis === "gross" ? "gross ticket sales" : "ticket sales, net of all production costs";
+        const TOGGLE: { key: string; label: string }[] = [
+          { key: contractBasis, label: "Per contract" },
+          { key: "gross", label: "Gross" },
+          { key: "net", label: "Net" },
+        ].filter((o, i, a) => a.findIndex((x) => x.key === o.key) === i);
         return (
           <div className="border border-brick/30 rounded-card p-4 bg-brick/5">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -238,6 +247,29 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
                 {coproduction.leadName} {coproduction.leadPct}% · {coproduction.partnerName} {coproduction.partnerPct}% of {basisLabel}
               </span>
             </div>
+
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <span className="text-body-xs text-muted">View as:</span>
+              <div className="inline-flex rounded-card border border-bone overflow-hidden">
+                {TOGGLE.map((o) => {
+                  const active = effBasis === o.key;
+                  return (
+                    <button
+                      key={o.key}
+                      type="button"
+                      onClick={() => setViewBasis(o.key === contractBasis ? null : o.key)}
+                      className={`text-body-xs px-3 py-1 transition-colors ${active ? "bg-brick text-paper" : "bg-card text-ash hover:text-ink"}`}
+                    >{o.label}</button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {isModeling && (
+              <p className="text-body-xs text-conflict mt-2 leading-relaxed">
+                Modeling view only. The signed agreement splits ticket sales 70/30 as written; this {effBasis === "net" ? "net-after-costs" : "gross-revenue"} scenario is for negotiation and does not change what the contract says you are owed.
+              </p>
+            )}
 
             {isTickets && (
               <div className="mt-3 text-body-sm">
@@ -259,7 +291,7 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
             <div className="grid grid-cols-3 gap-3 mt-3">
               <div className="bg-card border border-bone rounded-card px-3 py-2 text-center">
                 <p className={`font-mono text-display-sm ${basisAmount >= 0 ? "text-confirmed" : "text-conflict"}`}>{fmt(basisAmount)}</p>
-                <p className="text-body-xs text-muted mt-0.5">{isTickets ? "Pool" : coproduction.basis === "gross" ? "Gross" : "Net"}</p>
+                <p className="text-body-xs text-muted mt-0.5">{isTickets ? "Pool" : effBasis === "gross" ? "Gross tickets" : "Net of costs"}</p>
               </div>
               <div className="bg-card border border-bone rounded-card px-3 py-2 text-center">
                 <p className="font-mono text-display-sm text-ink">{fmt(leadShare)}</p>
