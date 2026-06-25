@@ -179,11 +179,40 @@ function ChatRoom({ roomKind, orgId, productionId, canManage, personId, personNa
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [headshotUrls, setHeadshotUrls] = useState<Record<string, string>>({});
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // Headshots live on people.headshot_url as private promo-assets paths (or, for
+  // some uploads, full public URLs). Greenroom renders client-side, so it must
+  // sign the paths here or the <img> tags break (the "?" avatars). Resolved
+  // values are cached by path; realtime authors get signed as they arrive.
+  useEffect(() => {
+    const needed = Array.from(
+      new Set(messages.map((m) => m.author_headshot).filter((v): v is string => !!v))
+    ).filter((v) => !(v in headshotUrls));
+    if (needed.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const resolved: Record<string, string> = {};
+      const toSign: string[] = [];
+      for (const v of needed) {
+        if (/^https?:\/\//i.test(v)) resolved[v] = v;
+        else toSign.push(v);
+      }
+      if (toSign.length > 0) {
+        const { data } = await supabase.storage.from("promo-assets").createSignedUrls(toSign, 3600);
+        for (const sgn of data || []) if (sgn.path && sgn.signedUrl) resolved[sgn.path] = sgn.signedUrl;
+      }
+      if (!cancelled && Object.keys(resolved).length > 0) {
+        setHeadshotUrls((prev) => ({ ...prev, ...resolved }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [messages, headshotUrls, supabase]);
 
   // Scope a messages query to this room.
   const scopeQuery = useCallback(
@@ -572,8 +601,8 @@ function ChatRoom({ roomKind, orgId, productionId, canManage, personId, personNa
               <div className={`group ${showHeader ? "mt-3" : "mt-0.5"}`}>
                 {showHeader && (
                   <div className="flex items-center gap-2 mb-0.5">
-                    {msg.author_headshot ? (
-                      <img src={msg.author_headshot} alt="" className="w-6 h-6 rounded-full object-cover" />
+                    {msg.author_headshot && headshotUrls[msg.author_headshot] ? (
+                      <img src={headshotUrls[msg.author_headshot]} alt="" className="w-6 h-6 rounded-full object-cover" />
                     ) : (
                       <div className="w-6 h-6 rounded-full bg-brick/10 text-brick flex items-center justify-center text-[9px] font-semibold">
                         {initials}
