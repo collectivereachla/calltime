@@ -271,6 +271,8 @@ export default async function LedgerPage() {
     | null = null;
   let invoicePaymentMethods: { method: string; label: string | null; details: string | null }[] = [];
   let invoiceW9Threshold = 600;
+  let invoiceSurveyDone = false;
+  let invoiceRoomSurveyUrl: string | null = null;
   let invoiceW9OnFile = false;
   let invoiceMyAddress = "";
   let invoices: InvoiceRow[] = [];
@@ -281,6 +283,11 @@ export default async function LedgerPage() {
   if (activePid) {
     const { data: orgRow } = await supabase.from("organizations").select("settings").eq("id", orgId).single();
     invoiceW9Threshold = Number((orgRow?.settings as Record<string, unknown> | null)?.w9_threshold ?? 600);
+    invoiceRoomSurveyUrl = ((orgRow?.settings as Record<string, unknown> | null)?.room_survey_url as string) || null;
+    const { data: surveyRow } = await supabase
+      .from("product_survey_responses").select("id")
+      .eq("production_id", activePid).eq("person_id", person!.id).maybeSingle();
+    invoiceSurveyDone = !!surveyRow;
 
     const [{ data: payersData }, { data: prodRow }, { data: pmData }, { data: md }, { data: myCRow }] =
       await Promise.all([
@@ -482,6 +489,8 @@ export default async function LedgerPage() {
           invoiceFinanceMethods={invoiceFinanceMethods}
           receipts={receipts}
           canSubmitReceipts={hasActiveAssignment}
+          invoiceSurveyDone={invoiceSurveyDone}
+          invoiceRoomSurveyUrl={invoiceRoomSurveyUrl}
         />
       )}
     </div>

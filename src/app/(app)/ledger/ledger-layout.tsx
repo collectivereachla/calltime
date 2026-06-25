@@ -118,6 +118,8 @@ interface Props {
   invoiceFinanceMethods: { id: string; method: string; label: string | null; production_id: string | null; enabled: boolean }[];
   receipts: ReceiptRow[];
   canSubmitReceipts: boolean;
+  invoiceSurveyDone: boolean;
+  invoiceRoomSurveyUrl: string | null;
 }
 
 export function LedgerLayout(props: Props) {
@@ -185,6 +187,8 @@ export function LedgerLayout(props: Props) {
           w9OnFile={props.invoiceW9OnFile}
           myAddress={props.invoiceMyAddress}
           invoices={props.invoices}
+          surveyDone={props.invoiceSurveyDone}
+          roomSurveyUrl={props.invoiceRoomSurveyUrl}
           productionId={props.invoiceProductionId}
           productionTitle={props.invoiceProductionTitle}
           orgId={props.invoiceOrgId}

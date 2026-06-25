@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { submitInvoice, setInvoiceStatus, addInvoiceLine, deleteInvoiceLine } from "./invoice-actions";
+import { ProductSurvey } from "./product-survey";
 import { submitReceipt, reviewReceipt, deleteReceipt, getReceiptSignedUrl } from "./receipt-actions";
 import { PaymentSettings } from "./payment-settings";
 import { W9Form } from "@/app/(app)/settings/w9-form";
@@ -43,6 +44,8 @@ interface Props {
   financeMethods: { id: string; method: string; label: string | null; production_id: string | null; enabled: boolean }[];
   receipts: ReceiptRow[];
   canSubmitReceipts: boolean;
+  surveyDone: boolean;
+  roomSurveyUrl: string | null;
 }
 
 const money = (n: number) =>
@@ -424,6 +427,8 @@ export function InvoicesView(props: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showW9, setShowW9] = useState(false);
+  const [surveyOpen, setSurveyOpen] = useState(false);
+  const [surveyDone, setSurveyDone] = useState(props.surveyDone);
 
   const alreadySubmitted = myContract ? invoices.some((i) => i.person_id === personId && i.status !== "void") : false;
   const base = myContract?.baseAmount ?? null;
@@ -453,8 +458,42 @@ export function InvoicesView(props: Props) {
           </p>
         </div>
       ) : alreadySubmitted ? (
-        <div className="bg-confirmed/5 border border-confirmed/20 rounded-card px-4 py-3">
-          <p className="text-body-sm text-ink">Your invoice has been submitted. You can see its status below.</p>
+        <div className="space-y-3">
+          <div className="bg-confirmed/5 border border-confirmed/20 rounded-card px-4 py-3">
+            <p className="text-body-sm text-ink">Your invoice has been submitted. You can see its status below.</p>
+          </div>
+
+          <div className="bg-card border border-bone rounded-card p-5">
+            <h3 className="text-body-md font-medium text-ink">Help shape Calltime</h3>
+            {surveyOpen ? (
+              <div className="mt-3">
+                <ProductSurvey productionId={props.productionId} onDone={() => { setSurveyOpen(false); setSurveyDone(true); }} />
+              </div>
+            ) : (
+              <>
+                <p className="text-body-sm text-ash mt-1">
+                  {surveyDone
+                    ? "Thanks for your feedback. You can update it anytime."
+                    : "You're one of Calltime's first users. Two minutes of blunt feedback directly shapes what we build next."}
+                </p>
+                <button onClick={() => setSurveyOpen(true)} className="mt-3 px-4 py-2 text-body-sm font-medium rounded-card bg-ink text-paper hover:bg-ink/90">
+                  {surveyDone ? "Update my feedback" : "Give feedback"}
+                </button>
+              </>
+            )}
+          </div>
+
+          {props.roomSurveyUrl && (
+            <div className="bg-card border border-bone rounded-card p-5">
+              <h3 className="text-body-md font-medium text-ink">Reflect on the process</h3>
+              <p className="text-body-sm text-ash mt-1">
+                A separate, anonymous reflection on the production and the room. We can&apos;t see who said what, and answers are read only in aggregate. Nothing here affects your standing, your casting, or your pay.
+              </p>
+              <a href={props.roomSurveyUrl} target="_blank" rel="noopener" className="mt-3 inline-block px-4 py-2 text-body-sm font-medium rounded-card border border-bone text-ink hover:border-ash">
+                Open the anonymous reflection →
+              </a>
+            </div>
+          )}
         </div>
       ) : (
         <div className="bg-card border border-bone rounded-card p-5">
