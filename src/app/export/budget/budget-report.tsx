@@ -86,7 +86,7 @@ export function BudgetReport({
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-10 py-12">
+      <div className="max-w-3xl mx-auto px-10 py-6">
         <div className="mb-6">
           <p className="text-xs uppercase tracking-widest text-gray-500">{orgName} · Budget</p>
           <h1 className="text-4xl font-bold tracking-tight mt-1">{title}</h1>
@@ -204,11 +204,11 @@ export function BudgetReport({
               const items = pl.revByCat[cat];
               const catTotal = items.reduce((s, i) => s + (i.amount || 0), 0);
               return (
-                <section key={`rev-${cat}`} className="mb-5" style={{ breakInside: "avoid" }}>
-                  <div className="flex items-center justify-between mb-1">
+                <section key={`rev-${cat}`} className="mb-5">
+                  <div className="keep-with-next"><div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-semibold">{CAT_LABELS[cat]} <span className="text-gray-400 font-normal">({items.length})</span></span>
                     <span className="font-mono text-sm font-semibold">{fmt(catTotal)}</span>
-                  </div>
+                  </div></div>
                   <table className="w-full text-sm">
                     <tbody>
                       {items.map((i) => (
@@ -281,11 +281,11 @@ export function BudgetReport({
               const items = pl.expByCat[cat];
               const catTotal = items.reduce((s, i) => s + (i.budget_amount || 0), 0);
               return (
-                <section key={`exp-${cat}`} className="mb-5" style={{ breakInside: "avoid" }}>
-                  <div className="flex items-center justify-between mb-1">
+                <section key={`exp-${cat}`} className="mb-5">
+                  <div className="keep-with-next"><div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-semibold">{CAT_LABELS[cat]} <span className="text-gray-400 font-normal">({items.length})</span></span>
                     <span className="font-mono text-sm font-semibold">{fmt(catTotal)}</span>
-                  </div>
+                  </div></div>
                   <table className="w-full text-sm">
                     <tbody>
                       {items.map((i) => (
