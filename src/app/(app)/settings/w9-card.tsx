@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { submitW9 } from "./w9-actions";
+import { W9Form } from "./w9-form";
 
 export function W9Card({
   w9TaxYear,
@@ -19,6 +20,7 @@ export function W9Card({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<"choose" | "fill" | "upload">("choose");
 
   async function handleUpload() {
     const file = fileRef.current?.files?.[0];
@@ -61,6 +63,20 @@ export function W9Card({
           )}
         </p>
 
+        {mode === "choose" && (
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setMode("fill")} className="px-4 py-2 text-body-sm font-medium rounded-card bg-ink text-paper hover:bg-ink/90">
+              Fill out on Calltime
+            </button>
+            <button onClick={() => setMode("upload")} className="px-4 py-2 text-body-sm font-medium rounded-card border border-bone text-ash hover:text-ink hover:border-ash">
+              Upload a completed PDF
+            </button>
+          </div>
+        )}
+
+        {mode === "fill" && <W9Form onDone={() => setMode("choose")} />}
+
+        {mode === "upload" && (
         <div className="flex flex-wrap items-end gap-2">
           <div>
             <label className="text-body-xs text-muted block mb-1">Tax year</label>
@@ -89,6 +105,7 @@ export function W9Card({
             {busy ? "Uploading…" : "Upload W-9"}
           </button>
         </div>
+        )}
 
         {msg && (
           <p className={`text-body-xs mt-2 ${msg.type === "success" ? "text-confirmed" : "text-brick"}`}>{msg.text}</p>
