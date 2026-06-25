@@ -5,16 +5,33 @@ import { fmt, parseAmount, CAT_LABELS, REVENUE_CATS, EXPENSE_CATS, computeBudget
 
 type PL = ReturnType<typeof computeBudgetPL>;
 
+export type Settlement = {
+  leadName: string; partnerName: string; leadPct: number; partnerPct: number;
+  fiscalAgent: "lead" | "partner";
+  basis: string; contractBasis: string;
+  ticketSales: number; offTop: number; basisAmount: number;
+  leadShare: number; partnerShare: number;
+  notes: string | null;
+};
+
+const BASIS_LABEL: Record<string, string> = {
+  tickets: "Per contract (ticket sales, venue off the top)",
+  gross: "Gross ticket sales",
+  net: "Net (ticket sales, after all production costs)",
+};
+
 export function BudgetReport({
   pl,
   orgName,
   title,
   generatedAt,
+  settlement,
 }: {
   pl: PL;
   orgName: string;
   title: string;
   generatedAt: string;
+  settlement?: Settlement | null;
 }) {
   const [mode, setMode] = useState<"detailed" | "collapsed">("detailed");
 
@@ -81,6 +98,63 @@ export function BudgetReport({
             </div>
           ))}
         </div>
+
+        {settlement && (() => {
+          const agentName = settlement.fiscalAgent === "lead" ? settlement.leadName : settlement.partnerName;
+          const otherName = settlement.fiscalAgent === "lead" ? settlement.partnerName : settlement.leadName;
+          const otherShare = settlement.fiscalAgent === "lead" ? settlement.partnerShare : settlement.leadShare;
+          const isModeling = settlement.basis !== settlement.contractBasis;
+          return (
+            <div className="border-2 border-black rounded mb-8" style={{ breakInside: "avoid" }}>
+              <div className="flex items-center justify-between px-4 py-2 border-b border-gray-300">
+                <h2 className="text-base font-bold">Co-production settlement</h2>
+                <span className="text-xs text-gray-600">{BASIS_LABEL[settlement.basis] || settlement.basis}</span>
+              </div>
+              <div className="px-4 py-3">
+                <div className="text-sm">
+                  <div className="flex justify-between py-1 border-b border-gray-200">
+                    <span>Ticket sales (gross)</span><span className="font-mono">{fmt(settlement.ticketSales)}</span>
+                  </div>
+                  {settlement.basis === "tickets" && (
+                    <div className="flex justify-between py-1 border-b border-gray-200">
+                      <span>Less venue, off the top</span><span className="font-mono">&minus;{fmt(settlement.offTop)}</span>
+                    </div>
+                  )}
+                  {settlement.basis === "net" && (
+                    <div className="flex justify-between py-1 border-b border-gray-200">
+                      <span>Less all production costs</span><span className="font-mono">&minus;{fmt(pl.totalCosts)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between py-1.5 font-semibold">
+                    <span>Pool to split</span>
+                    <span className={`font-mono ${settlement.basisAmount < 0 ? "text-red-600" : ""}`}>{fmt(settlement.basisAmount)}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="border border-gray-300 rounded px-3 py-2 text-center">
+                    <p className="font-mono text-base font-semibold">{fmt(settlement.leadShare)}</p>
+                    <p className="text-xs text-gray-600 mt-0.5">{settlement.leadName} · {settlement.leadPct}%</p>
+                  </div>
+                  <div className="border border-gray-300 rounded px-3 py-2 text-center">
+                    <p className="font-mono text-base font-semibold">{fmt(settlement.partnerShare)}</p>
+                    <p className="text-xs text-gray-600 mt-0.5">{settlement.partnerName} · {settlement.partnerPct}%</p>
+                  </div>
+                </div>
+                <p className="text-sm mt-3">
+                  {settlement.basisAmount >= 0
+                    ? `${agentName} collects ticket revenue and pays ${otherName} ${fmt(otherShare)}.`
+                    : `Shortfall. ${otherName} owes ${agentName} ${fmt(Math.abs(otherShare))}.`}
+                </p>
+                {isModeling && (
+                  <p className="text-xs text-gray-600 mt-2">
+                    Modeling view. The signed agreement splits ticket sales {settlement.leadPct}/{settlement.partnerPct} as written; this {settlement.basis === "net" ? "net-after-costs" : "gross"} scenario is for negotiation only.
+                  </p>
+                )}
+                {settlement.notes && <p className="text-xs text-gray-500 mt-2 leading-relaxed">{settlement.notes}</p>}
+              </div>
+            </div>
+          );
+        })()}
 
         {mode === "collapsed" ? (
           /* ---------------- COLLAPSED: totals only, one sheet ---------------- */

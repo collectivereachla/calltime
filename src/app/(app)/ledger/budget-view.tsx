@@ -198,8 +198,13 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
     <div className="space-y-8 max-w-4xl">
       {canSeeContent && (
         <div className="flex justify-end -mb-4">
-          <a href="/export/budget" className="text-body-xs font-medium px-3 py-1.5 rounded-card border border-bone text-ash hover:text-ink hover:border-ash">
-            Print this report
+          <a
+            href={`/export/budget${coproduction ? `?basis=${viewBasis ?? coproduction.basis}` : ""}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-body-xs font-medium px-3 py-1.5 rounded-card border border-bone text-ash hover:text-ink hover:border-ash"
+          >
+            Print this report{coproduction ? ` (${(viewBasis ?? coproduction.basis) === "tickets" ? "per contract" : (viewBasis ?? coproduction.basis) === "gross" ? "gross" : "net"})` : ""}
           </a>
         </div>
       )}
