@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { setContactAffiliation } from "./rolodex-actions";
 
 interface Contact {
   id: string;
@@ -33,6 +35,59 @@ interface ActivityRow {
   email_engagement: string | null;
   promo_code: string | null;
   platform: string | null;
+}
+
+function AffiliationEditor({ contact, options }: {
+  contact: { id: string; affiliated_contact_id?: string | null; affiliation_role?: string | null; in_kind?: string | null };
+  options: { id: string; full_name: string | null }[];
+}) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [aff, setAff] = useState(contact.affiliated_contact_id || "");
+  const [role, setRole] = useState(contact.affiliation_role || "");
+  const [inKind, setInKind] = useState(contact.in_kind || "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const fieldCls = "px-2 py-1 text-body-xs rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick";
+
+  async function save() {
+    setBusy(true); setErr(null);
+    const res = await setContactAffiliation(contact.id, aff || null, role || null, inKind || null);
+    setBusy(false);
+    if (res?.error) { setErr(res.error); return; }
+    setEditing(false); router.refresh();
+  }
+
+  if (!editing) {
+    return (
+      <button onClick={() => setEditing(true)} className="text-body-xs text-brick hover:underline mb-3">
+        Edit affiliation / in-kind
+      </button>
+    );
+  }
+  const opts = options.filter((o) => o.id !== contact.id).sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? ""));
+  return (
+    <div className="mb-3 p-3 rounded-card border border-bone bg-paper flex flex-wrap items-end gap-2">
+      <div>
+        <label className="text-[10px] uppercase tracking-wide text-muted block mb-0.5">Represents</label>
+        <select className={fieldCls} value={aff} onChange={(e) => setAff(e.target.value)}>
+          <option value="">— none —</option>
+          {opts.map((o) => <option key={o.id} value={o.id}>{o.full_name || "—"}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="text-[10px] uppercase tracking-wide text-muted block mb-0.5">Role</label>
+        <input className={fieldCls} placeholder="Owner" value={role} onChange={(e) => setRole(e.target.value)} />
+      </div>
+      <div>
+        <label className="text-[10px] uppercase tracking-wide text-muted block mb-0.5">In-kind gift</label>
+        <input className={fieldCls} placeholder="Food for the Jubilee" value={inKind} onChange={(e) => setInKind(e.target.value)} />
+      </div>
+      <button onClick={save} disabled={busy} className="px-3 py-1 text-body-xs font-medium rounded-card bg-ink text-paper hover:bg-ink/90 disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
+      <button onClick={() => setEditing(false)} className="px-2 py-1 text-body-xs text-ash hover:text-ink">Cancel</button>
+      {err && <span className="text-body-xs text-brick w-full">{err}</span>}
+    </div>
+  );
 }
 
 const money = (n: number | null) =>
@@ -175,6 +230,7 @@ export function RolodexClient({
                     {c.tags && c.tags.length > 0 && <span>Tags: <span className="text-ink">{c.tags.join(", ")}</span></span>}
                   </div>
                   {c.notes && <p className="text-ash mb-3 italic">{c.notes}</p>}
+                  <AffiliationEditor contact={c} options={contacts} />
                   {acts.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-body-xs">
