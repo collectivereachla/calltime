@@ -163,7 +163,7 @@ export function BudgetReport({
         {mode === "collapsed" ? (
           /* ---------------- COLLAPSED: totals only, one sheet ---------------- */
           <>
-            <h2 className="text-base font-bold border-b-2 border-black pb-1 mb-2">Revenue</h2>
+            <div className="keep-with-next"><h2 className="text-base font-bold border-b-2 border-black pb-1 mb-2">Revenue</h2></div>
             {revCats.length === 0 ? <p className="text-sm text-gray-400 italic mb-4">No revenue recorded.</p> : (
               <div className="mb-1">
                 {revCats.map((cat) => {
@@ -176,7 +176,7 @@ export function BudgetReport({
               </div>
             )}
 
-            <h2 className="text-base font-bold border-b-2 border-black pb-1 mb-2 mt-6">Costs</h2>
+            <div className="keep-with-next"><h2 className="text-base font-bold border-b-2 border-black pb-1 mb-2 mt-6">Costs</h2></div>
             <Line label="Staff" count={pl.staffContracts.length} total={pl.staffTotal} noun="contracts" />
             <Line label="Talent" count={pl.talentContracts.length} total={pl.talent.total} noun="contracts" />
             {Object.keys(pl.talent.byType).length > 0 && (
@@ -199,7 +199,7 @@ export function BudgetReport({
         ) : (
           /* ---------------- DETAILED: every line item ---------------- */
           <>
-            <h2 className="text-xl font-bold border-b-2 border-black pb-1 mb-4">Revenue</h2>
+            <div className="keep-with-next"><h2 className="text-xl font-bold border-b-2 border-black pb-1 mb-4">Revenue</h2></div>
             {revCats.map((cat) => {
               const items = pl.revByCat[cat];
               const catTotal = items.reduce((s, i) => s + (i.amount || 0), 0);
@@ -227,9 +227,11 @@ export function BudgetReport({
             })}
             {pl.revenueTotal === 0 && <p className="text-sm text-gray-400 italic mb-5">No revenue recorded.</p>}
 
+            <div className="keep-with-next">
             <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-4 mt-8">
               <h2 className="text-xl font-bold">Staff <span className="text-gray-400 text-sm font-normal">({pl.staffContracts.length})</span></h2>
               <span className="font-mono text-sm font-semibold">{fmt(pl.staffTotal)}</span>
+            </div>
             </div>
             {pl.staffContracts.length === 0 ? <p className="text-sm text-gray-400 italic mb-5">No staff contracts.</p> : (
               <table className="w-full text-sm mb-5">
@@ -245,9 +247,11 @@ export function BudgetReport({
               </table>
             )}
 
+            <div className="keep-with-next">
             <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-4 mt-8">
               <h2 className="text-xl font-bold">Talent <span className="text-gray-400 text-sm font-normal">({pl.talentContracts.length})</span></h2>
               <span className="font-mono text-sm font-semibold">{fmt(pl.talent.total)}</span>
+            </div>
             </div>
             {Object.keys(pl.talent.byType).length > 0 && (
               <div className="flex flex-wrap gap-2 mb-3">
@@ -272,7 +276,7 @@ export function BudgetReport({
               </table>
             )}
 
-            <h2 className="text-xl font-bold border-b-2 border-black pb-1 mb-4 mt-8">Production Expenses</h2>
+            <div className="keep-with-next"><h2 className="text-xl font-bold border-b-2 border-black pb-1 mb-4 mt-8">Production Expenses</h2></div>
             {expCats.map((cat) => {
               const items = pl.expByCat[cat];
               const catTotal = items.reduce((s, i) => s + (i.budget_amount || 0), 0);
@@ -304,7 +308,7 @@ export function BudgetReport({
         {/* Net — both modes */}
         {committed > 0 && (
           <div className="mt-8" style={{ breakInside: "avoid" }}>
-            <h2 className="text-base font-bold border-b-2 border-black pb-1 mb-2">From Invoices &amp; Receipts</h2>
+            <div className="keep-with-next"><h2 className="text-base font-bold border-b-2 border-black pb-1 mb-2">From Invoices &amp; Receipts</h2></div>
             {(extras?.stipendItems || []).map((it, i) => (
               <div key={`st-${i}`} className="flex items-center justify-between py-1.5 border-b border-gray-200 text-sm">
                 <span>{it.who} · {it.label} <span className="text-gray-400">(stipend)</span></span>

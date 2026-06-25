@@ -116,15 +116,28 @@ body {
     widows: 3;
   }
 
-  /* Smart pagination: keep every heading with the content it introduces */
-  h1, h2, h3, h4, h5, h6 {
-    page-break-after: avoid;
-    break-after: avoid;
+  /* Smart pagination. NOTE: Chrome ignores break-after: avoid for print, so a
+     bare heading rule does nothing. The reliable technique is a wrapper that
+     can't be split (break-inside: avoid) plus an invisible spacer after the
+     heading: if less than the spacer height remains on the page, the whole
+     header block is pushed to the next page, carrying the heading to sit atop
+     its content instead of being stranded alone at the bottom. */
+  .keep-with-next {
     page-break-inside: avoid;
     break-inside: avoid;
   }
+  .keep-with-next::after {
+    content: "";
+    display: block;
+    height: 6.5rem;
+    margin-bottom: -6.5rem;
+  }
 
-  /* Don't split tables, rows, images, or figures across a page break */
+  /* Headings still get inside protection; don't split tables, rows, images. */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
   table, thead, tr, img, figure {
     page-break-inside: avoid;
     break-inside: avoid;
