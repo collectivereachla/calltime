@@ -17,71 +17,90 @@ export async function createScheduleEvent(formData: FormData) {
   const personIds = formData.getAll("person_ids") as string[];
   const title = formData.get("title") as string;
   const eventDate = formData.get("event_date") as string;
+  const eventType = formData.get("event_type") as string;
+  const startTime = (formData.get("start_time") as string) || null;
+  const endTime = (formData.get("end_time") as string) || null;
+  const location = (formData.get("location") as string) || null;
+  const notes = (formData.get("notes") as string) || null;
+  const callTimesRaw = formData.get("call_times") as string | null;
 
-  const { data: eventId, error } = await supabase.rpc("create_schedule_event", {
-    p_production_id: productionId,
-    p_event_type: formData.get("event_type") as string,
-    p_title: title,
-    p_event_date: eventDate,
-    p_start_time: (formData.get("start_time") as string) || null,
-    p_end_time: (formData.get("end_time") as string) || null,
-    p_location: (formData.get("location") as string) || null,
-    p_notes: (formData.get("notes") as string) || null,
-    p_call_everyone: callEveryone,
-  });
+  // Optional weekly recurrence: repeat on the selected weekdays through an end
+  // date. New events are created as drafts (published defaults to false), so
+  // bulk-creating a whole series is silent — nothing is called or notified until
+  // the week is published.
+  const repeatUntil = (formData.get("repeat_until") as string) || "";
+  const repeatDays = (formData.getAll("repeat_days") as string[])
+    .map((d) => parseInt(d, 10))
+    .filter((d) => !Number.isNaN(d));
+  const dates = buildRecurringDates(eventDate, repeatUntil, repeatDays);
 
-  if (error) return { error: error.message };
+  // Apply calls, staggered call times, and mandatory auto-confirm to one event.
+  async function configureEvent(eventId: string): Promise<string | null> {
+    if (!callEveryone && personIds.length > 0) {
+      const { error: callError } = await supabase.rpc("update_event_calls", {
+        p_event_id: eventId,
+        p_person_ids: personIds,
+      });
+      if (callError) return callError.message;
 
-  // If not calling everyone and specific people were selected, set their calls
-  if (!callEveryone && personIds.length > 0 && eventId) {
-    const { error: callError } = await supabase.rpc("update_event_calls", {
-      p_event_id: eventId,
-      p_person_ids: personIds,
-    });
-    if (callError) return { error: callError.message };
-
-    // Apply any per-person call times (staggered calls). Empty = event start.
-    const callTimesRaw = formData.get("call_times") as string | null;
-    if (callTimesRaw) {
-      try {
-        const times = JSON.parse(callTimesRaw);
-        if (Array.isArray(times) && times.length > 0) {
-          await supabase.rpc("set_event_call_times", { p_event_id: eventId, p_times: times });
+      if (callTimesRaw) {
+        try {
+          const times = JSON.parse(callTimesRaw);
+          if (Array.isArray(times) && times.length > 0) {
+            await supabase.rpc("set_event_call_times", { p_event_id: eventId, p_times: times });
+          }
+        } catch {
+          // malformed times payload — ignore, calls still created at event start
         }
-      } catch {
-        // malformed times payload — ignore, calls still created at event start
       }
     }
-  }
 
-  // If mandatory, set the flag and auto-confirm all called people
-  if (isMandatory && eventId) {
-    await supabase.from("schedule_events").update({ mandatory: true }).eq("id", eventId);
-
-    // Get all event_calls for this event and auto-confirm
-    const { data: calls } = await supabase
-      .from("event_calls")
-      .select("id, person_id")
-      .eq("event_id", eventId);
-
-    if (calls && calls.length > 0) {
-      const responses = calls
-        .map((c) => ({
+    if (isMandatory) {
+      await supabase.from("schedule_events").update({ mandatory: true }).eq("id", eventId);
+      const { data: calls } = await supabase
+        .from("event_calls")
+        .select("id, person_id")
+        .eq("event_id", eventId);
+      if (calls && calls.length > 0) {
+        const responses = calls.map((c) => ({
           event_call_id: c.id,
           status: "confirmed" as const,
           responded_at: new Date().toISOString(),
         }));
+        await supabase.from("call_responses").upsert(responses, { onConflict: "event_call_id" });
+      }
+    }
+    return null;
+  }
 
-      await supabase.from("call_responses").upsert(responses, { onConflict: "event_call_id" });
+  let firstEventId: string | null = null;
+  let created = 0;
+  for (const d of dates) {
+    const { data: eventId, error } = await supabase.rpc("create_schedule_event", {
+      p_production_id: productionId,
+      p_event_type: eventType,
+      p_title: title,
+      p_event_date: d,
+      p_start_time: startTime,
+      p_end_time: endTime,
+      p_location: location,
+      p_notes: notes,
+      p_call_everyone: callEveryone,
+    });
+    if (error) {
+      if (created === 0) return { error: error.message };
+      break; // keep the events that already succeeded
+    }
+    if (eventId) {
+      if (!firstEventId) firstEventId = eventId as string;
+      const cfgErr = await configureEvent(eventId as string);
+      if (cfgErr && created === 0) return { error: cfgErr };
+      created++;
     }
   }
 
-  // New events are created as drafts (schedule_events.published defaults to
-  // false), so creating one is silent — no calls or notifications go out until
-  // the week is published. Publishing is what starts the confirm cycle.
-
   // Activity log
-  if (eventId) {
+  if (firstEventId) {
     const dateStr = new Date(eventDate + "T00:00:00").toLocaleDateString("en-US", {
       weekday: "short", month: "short", day: "numeric",
     });
@@ -89,14 +108,36 @@ export async function createScheduleEvent(formData: FormData) {
     if (prod) {
       logActivity({
         productionId, orgId: prod.org_id,
-        action: "event_created", entityType: "schedule_event", entityId: eventId,
-        summary: `Posted ${title} for ${dateStr}`,
+        action: "event_created", entityType: "schedule_event", entityId: firstEventId,
+        summary: created > 1 ? `Posted ${created} ${title} events starting ${dateStr}` : `Posted ${title} for ${dateStr}`,
       }).catch(() => {});
     }
   }
 
   revalidatePath("/callboard");
-  return { success: true };
+  return { success: true, count: created };
+}
+
+// Build the list of dates for a (possibly recurring) event. Always includes the
+// base date. With an end date + weekdays, adds every matching weekday from the
+// base date through the end date (inclusive). Capped at one year to be safe.
+function buildRecurringDates(baseDate: string, repeatUntil: string, weekdays: number[]): string[] {
+  if (!baseDate) return [];
+  if (!repeatUntil || weekdays.length === 0) return [baseDate];
+  const start = new Date(baseDate + "T00:00:00");
+  const end = new Date(repeatUntil + "T00:00:00");
+  if (Number.isNaN(end.getTime()) || end < start) return [baseDate];
+  const fmt = (dt: Date) =>
+    `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  const set = new Set<string>([baseDate]);
+  const cur = new Date(start);
+  let guard = 0;
+  while (cur <= end && guard < 366) {
+    if (weekdays.includes(cur.getDay())) set.add(fmt(cur));
+    cur.setDate(cur.getDate() + 1);
+    guard++;
+  }
+  return Array.from(set).sort();
 }
 
 /** Notify each person called to an event */

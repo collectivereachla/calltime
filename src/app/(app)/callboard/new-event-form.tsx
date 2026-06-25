@@ -40,6 +40,8 @@ export function NewEventForm({ productions, companyMembers }: Props) {
   const [callEveryone, setCallEveryone] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [times, setTimes] = useState<Record<string, string>>({});
+  const [repeat, setRepeat] = useState(false);
+  const [repeatDays, setRepeatDays] = useState<Set<number>>(new Set());
   const router = useRouter();
 
   // Group members by department
@@ -59,6 +61,14 @@ export function NewEventForm({ productions, companyMembers }: Props) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleRepeatDay(i: number) {
+    setRepeatDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
       return next;
     });
   }
@@ -93,6 +103,10 @@ export function NewEventForm({ productions, companyMembers }: Props) {
       }
     }
 
+    if (repeat && repeatDays.size > 0) {
+      for (const d of repeatDays) formData.append("repeat_days", String(d));
+    }
+
     const result = await createScheduleEvent(formData);
     if (result?.error) {
       setError(result.error);
@@ -104,6 +118,8 @@ export function NewEventForm({ productions, companyMembers }: Props) {
     setCallEveryone(true);
     setSelectedIds(new Set());
     setTimes({});
+    setRepeat(false);
+    setRepeatDays(new Set());
     router.refresh();
   }
 
@@ -196,6 +212,44 @@ export function NewEventForm({ productions, companyMembers }: Props) {
               className="w-full px-3 py-2 bg-paper border border-bone rounded-card font-mono text-data-sm text-ink focus:border-brick focus:outline-none transition-colors"
             />
           </div>
+        </div>
+
+        {/* Repeat weekly */}
+        <div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={repeat}
+              onChange={(e) => setRepeat(e.target.checked)}
+              className="w-4 h-4 rounded border-bone text-brick focus:ring-brick"
+            />
+            <span className="text-body-sm text-ink">Repeat weekly</span>
+          </label>
+          {repeat && (
+            <div className="mt-2 pl-6 space-y-2">
+              <div className="flex gap-1">
+                {["S", "M", "T", "W", "T", "F", "S"].map((lbl, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => toggleRepeatDay(i)}
+                    className={`w-9 h-9 rounded-card border text-body-xs ${repeatDays.has(i) ? "bg-brick text-paper border-brick" : "border-bone text-ash hover:border-ash"}`}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+              <div>
+                <label className="block text-body-xs text-ash mb-1">Repeat until</label>
+                <input
+                  name="repeat_until"
+                  type="date"
+                  className="w-full px-3 py-2 bg-paper border border-bone rounded-card font-mono text-data-sm text-ink focus:border-brick focus:outline-none transition-colors"
+                />
+              </div>
+              <p className="text-body-xs text-muted">Creates a draft event on each selected weekday through this date. Publish a week to send the calls.</p>
+            </div>
+          )}
         </div>
 
         {/* Location + Notes */}
