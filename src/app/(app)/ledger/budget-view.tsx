@@ -202,7 +202,7 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
   return (
     <div className="space-y-8 max-w-4xl">
       {canSeeContent && (
-        <div className="flex justify-end -mb-4">
+        <div className="flex justify-end mb-2">
           <a
             href={`/export/budget${coproduction ? `?basis=${viewBasis ?? coproduction.basis}` : ""}`}
             target="_blank"
