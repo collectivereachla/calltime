@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
-import { resolveActingOrgId } from "@/lib/membership";
+import { resolveActingOrgId, getRoleInOrg, isLeadershipRole } from "@/lib/membership";
 import { redirect } from "next/navigation";
 import { getActiveProductionId } from "@/lib/active-production";
 import { PrintButton } from "./print-button";
+
+export const dynamic = "force-dynamic";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
@@ -13,24 +15,43 @@ export default async function LedgerPrintPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: person } = await supabase.from("people").select("id").eq("user_id", user.id).single();
+  const { data: person } = await supabase.from("people").select("id").eq("user_id", user.id).maybeSingle();
   if (!person) redirect("/login");
 
-  const actingOrgId = await resolveActingOrgId(person.id);
-  const { data: membership } = await supabase
-    .from("org_memberships")
-    .select("org_id, role, organizations(name)")
-    .eq("person_id", person.id)
-    .eq("org_id", actingOrgId ?? "")
-    .maybeSingle();
-  const isFinance = membership && (membership.role === "owner" || membership.role === "production");
-  if (!isFinance) redirect("/ledger");
+  // Resolve org + production the SAME way the Ledger and budget export do, so
+  // this print route works even when the active-production cookie was never set
+  // (e.g. opened in a fresh tab). Previously it relied on the cookie alone and
+  // silently redirected to /ledger, which read to the user as the page just
+  // refreshing.
+  const orgId = await resolveActingOrgId(person.id);
+  if (!orgId) redirect("/ledger");
 
-  const orgName = (membership.organizations as unknown as { name: string } | null)?.name || "";
-  const pid = await getActiveProductionId();
+  const role = await getRoleInOrg(person.id, orgId);
+  if (!isLeadershipRole(role)) redirect("/ledger");
+
+  let pid = await getActiveProductionId();
+  if (pid) {
+    const { data: check } = await supabase
+      .from("productions").select("id").eq("id", pid).eq("org_id", orgId).maybeSingle();
+    if (!check) pid = null;
+  }
+  if (!pid) {
+    const { data: prods } = await supabase
+      .from("productions")
+      .select("id")
+      .eq("org_id", orgId)
+      .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
+      .order("opening_date", { ascending: true })
+      .limit(1);
+    pid = prods?.[0]?.id ?? null;
+  }
   if (!pid) redirect("/ledger");
 
-  const { data: prod } = await supabase.from("productions").select("title").eq("id", pid).single();
+  const [{ data: org }, { data: prod }] = await Promise.all([
+    supabase.from("organizations").select("name").eq("id", orgId).maybeSingle(),
+    supabase.from("productions").select("title").eq("id", pid).maybeSingle(),
+  ]);
+  const orgName = org?.name || "";
   const productionTitle = prod?.title || "";
 
   const { data: invRows } = await supabase
