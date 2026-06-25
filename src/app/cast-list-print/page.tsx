@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { resolveHeadshots } from "@/lib/headshot";
 import { redirect } from "next/navigation";
 import { getActiveProductionId } from "@/lib/active-production";
 import { getViewer } from "@/lib/viewer";
@@ -73,12 +74,10 @@ export default async function CastListPrintPage({
     .sort((a, b) => a.name.localeCompare(b.name));
 
   // Sign all headshots in one batch.
-  const paths = entries.map((e) => e.headshotPath).filter((p): p is string => !!p);
-  const signed = new Map<string, string>();
-  if (paths.length > 0) {
-    const { data: s } = await supabase.storage.from("promo-assets").createSignedUrls(paths, 3600);
-    for (const row of s || []) if (row.path && row.signedUrl) signed.set(row.path, row.signedUrl);
-  }
+  const signed = await resolveHeadshots(
+    supabase,
+    entries.map((e) => e.headshotPath)
+  );
 
   return (
     <div className="min-h-screen bg-paper text-ink">

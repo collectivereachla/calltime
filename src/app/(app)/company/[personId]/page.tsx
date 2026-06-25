@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { resolveHeadshot } from "@/lib/headshot";
 import { resolveActingOrgId } from "@/lib/membership";
 import { getViewer } from "@/lib/viewer";
 import { notFound } from "next/navigation";
@@ -64,13 +65,7 @@ export default async function MemberDetailPage({
   if (!person) return notFound();
 
   // Sign the headshot path so the image loads (private bucket).
-  let signedHeadshot: string | null = null;
-  if (person.headshot_url) {
-    const { data: s } = await supabase.storage
-      .from("promo-assets")
-      .createSignedUrl(person.headshot_url, 3600);
-    signedHeadshot = s?.signedUrl || null;
-  }
+  const signedHeadshot = await resolveHeadshot(supabase, person.headshot_url);
 
   // Minor gating on contact info
   const hideContact = person.is_minor && !isStaff && !isSelf;

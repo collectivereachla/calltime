@@ -91,7 +91,7 @@ export async function submitReceipt(input: {
 export async function getReceiptSignedUrl(path: string) {
   const supabase = await createClient();
   if (!path) return { error: "No receipt file on this one.", url: null };
-  const { data, error } = await supabase.storage.from("receipts").createSignedUrl(path, 120);
+  const { data, error } = await supabase.storage.from("receipts").createSignedUrl(path, 3600);
   if (error || !data) return { error: error?.message || "Couldn't open the receipt.", url: null };
   return { error: null, url: data.signedUrl };
 }

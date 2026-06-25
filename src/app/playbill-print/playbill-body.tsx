@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveHeadshots } from "@/lib/headshot";
 import { PrintButton } from "./print-button";
 
 const DEPT_ORDER = ["directing", "playwright", "production", "music", "design", "stage_management", "marketing", "video", "crew"];
@@ -67,12 +68,10 @@ export async function PlaybillBody({
   const director = teamList.find((t) => t.department === "directing" && t.roles.some((r) => /director/i.test(r))) || teamList.find((t) => t.department === "directing" && !t.roles.some((r) => /writer|playwright/i.test(r)));
 
   // Sign cast + team headshots.
-  const paths = [...castList, ...teamList].map((x) => x.headshotPath).filter((p): p is string => !!p);
-  const signed = new Map<string, string>();
-  if (paths.length > 0) {
-    const { data: s } = await supabase.storage.from("promo-assets").createSignedUrls(paths, 3600);
-    for (const row of s || []) if (row.path && row.signedUrl) signed.set(row.path, row.signedUrl);
-  }
+  const signed = await resolveHeadshots(
+    supabase,
+    [...castList, ...teamList].map((x) => x.headshotPath)
+  );
 
   const { data: credits } = await supabase
     .from("playbill_credits").select("*").eq("playbill_id", playbill.id).order("sort_order", { ascending: true });

@@ -53,7 +53,7 @@ export async function notifyOrgOwners(
     .from("org_memberships")
     .select("person_id")
     .eq("org_id", orgId)
-    .eq("role", "owner");
+    .in("role", ["owner", "production"]);
 
   if (!owners || owners.length === 0) return;
 

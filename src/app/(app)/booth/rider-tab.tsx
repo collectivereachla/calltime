@@ -58,7 +58,7 @@ export function RiderTab({ productionId, productionTitle, sections, autoBodies, 
             </button>
           )}
           <a
-            href="/rider-print"
+            href={`/rider-print?p=${productionId}`}
             target="_blank"
             className="px-3 py-1.5 text-body-sm bg-ink text-paper rounded-card hover:bg-ink/90"
           >

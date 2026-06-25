@@ -72,7 +72,7 @@ export async function submitW9(base64Pdf: string, taxYear: number) {
 export async function getW9SignedUrl(path: string) {
   const supabase = await createClient();
   if (!path) return { error: "No document on file.", url: null };
-  const { data, error } = await supabase.storage.from("w9-documents").createSignedUrl(path, 120);
+  const { data, error } = await supabase.storage.from("w9-documents").createSignedUrl(path, 3600);
   if (error || !data) return { error: error?.message || "Couldn't open the document.", url: null };
   return { error: null, url: data.signedUrl };
 }

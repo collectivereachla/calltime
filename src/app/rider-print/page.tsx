@@ -1,15 +1,34 @@
 import { createClient } from "@/lib/supabase/server";
+import { resolveActingOrgId } from "@/lib/membership";
 import { redirect } from "next/navigation";
 import { getActiveProductionId } from "@/lib/active-production";
 import { buildAutoBodies, type RiderAutoSource } from "@/app/(app)/booth/rider-data";
 import { PrintButton } from "./print-button";
 
-export default async function RiderPrintPage() {
+export const dynamic = "force-dynamic";
+
+export default async function RiderPrintPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ p?: string }>;
+}) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const pid = await getActiveProductionId();
+  const { data: person } = await supabase.from("people").select("id").eq("user_id", user.id).maybeSingle();
+
+  let pid = (await searchParams)?.p || (await getActiveProductionId());
+  if (!pid && person) {
+    const orgId = await resolveActingOrgId(person.id);
+    if (orgId) {
+      const { data: prods } = await supabase
+        .from("productions").select("id").eq("org_id", orgId)
+        .in("status", ["pre_production", "rehearsal", "tech", "in_run"])
+        .order("opening_date", { ascending: true }).limit(1);
+      pid = prods?.[0]?.id ?? null;
+    }
+  }
   if (!pid) redirect("/booth");
 
   // RLS on productions/rider_sections scopes visibility; if the person can't

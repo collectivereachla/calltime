@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { resolveHeadshots } from "@/lib/headshot";
 import { getViewer } from "@/lib/viewer";
 import { getRoleInOrg, isLeadershipRole, resolveActingOrgId } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
@@ -162,11 +163,7 @@ export default async function MarqueePage({
     // Build the headshot roster grid: one row per person, signed preview if they
     // have a headshot on their person record. Headshots live on people.headshot_url
     // (portable across orgs/shows), stored as a promo-assets path.
-    const headSigned = new Map<string, string>();
-    if (headshotPaths.length > 0) {
-      const { data: hs } = await supabase.storage.from("promo-assets").createSignedUrls(headshotPaths, 3600);
-      for (const s of hs || []) if (s.path && s.signedUrl) headSigned.set(s.path, s.signedUrl);
-    }
+    const headSigned = await resolveHeadshots(supabase, headshotPaths);
     const seenH = new Set<string>();
     for (const a of rosterRows || []) {
       if (seenH.has(a.person_id)) continue;
