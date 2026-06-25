@@ -34,7 +34,7 @@ const securityHeaders = [
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' blob: data: https://*.supabase.co https://drive.google.com https://drive.usercontent.google.com https://*.googleusercontent.com",
       "media-src 'self' blob: https://*.supabase.co",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io",
       "frame-ancestors 'none'",
     ].join("; "),
   },
