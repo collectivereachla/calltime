@@ -46,6 +46,7 @@ const rooms = [
   { name: "Marquee", path: "/marquee", icon: "▦" },
   { name: "Playbill", path: "/playbill", icon: "❧", adminOnly: true },
   { name: "Ledger", path: "/ledger", icon: "▧" },
+  { name: "Rolodex", path: "/rolodex", icon: "◈", adminOnly: true },
   { name: "Seating", path: "/seating", icon: "◍" },
   { name: "Inventory", path: "/inventory", icon: "▢", adminOnly: true },
   { name: "Applications", path: "/applications", icon: "◇", adminOnly: true },
