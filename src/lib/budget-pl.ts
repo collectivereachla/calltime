@@ -104,3 +104,66 @@ export function computeBudgetPL(
     net,
   };
 }
+
+// ── Ledger-derived costs that live outside budget_items ──────────────────────
+// Stipends = non-base invoice line items (add-ons on top of contracted base,
+// which is already counted via contracts). Reimbursements = approved
+// expense_receipts. A receipt that was added to an invoice as a line item is
+// counted once (from the receipt) and excluded from stipends via its linked
+// line-item id, so the same dollar is never counted twice.
+export interface ExtraInvoiceLite {
+  status: string;
+  person_name?: string;
+  lines: { id?: string; description: string; amount: number; is_base: boolean }[];
+}
+export interface ExtraReceiptLite {
+  status: string;
+  amount: number;
+  description: string;
+  person_name?: string;
+  category?: string | null;
+  invoice_line_item_id?: string | null;
+}
+export interface BudgetExtraItem { label: string; who: string; amount: number; pending?: boolean }
+
+export function computeBudgetExtras(invoices: ExtraInvoiceLite[], receipts: ExtraReceiptLite[]) {
+  const COUNTED_INVOICE = new Set(["submitted", "approved", "paid"]);
+  const linkedLineIds = new Set(
+    receipts.map((r) => r.invoice_line_item_id).filter(Boolean) as string[]
+  );
+
+  let stipends = 0;
+  const stipendItems: BudgetExtraItem[] = [];
+  for (const inv of invoices) {
+    if (!COUNTED_INVOICE.has(inv.status)) continue;
+    for (const l of inv.lines || []) {
+      if (l.is_base) continue;
+      if (l.id && linkedLineIds.has(l.id)) continue; // reimbursement, counted below
+      stipends += l.amount || 0;
+      stipendItems.push({ label: l.description || "Stipend", who: inv.person_name || "—", amount: l.amount || 0 });
+    }
+  }
+
+  let reimbApproved = 0;
+  let reimbPending = 0;
+  const reimbItems: BudgetExtraItem[] = [];
+  for (const r of receipts) {
+    if (r.status === "approved") {
+      reimbApproved += r.amount || 0;
+      reimbItems.push({ label: r.description || "Reimbursement", who: r.person_name || "—", amount: r.amount || 0 });
+    } else if (r.status === "pending") {
+      reimbPending += r.amount || 0;
+      reimbItems.push({ label: r.description || "Reimbursement", who: r.person_name || "—", amount: r.amount || 0, pending: true });
+    }
+  }
+
+  return {
+    stipends,
+    stipendItems,
+    reimbApproved,
+    reimbPending,
+    reimbItems,
+    // committed = real obligations added to the budget's cost side
+    committed: stipends + reimbApproved,
+  };
+}

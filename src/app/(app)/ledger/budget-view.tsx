@@ -5,7 +5,8 @@ import { addBudgetItem, updateBudgetItem, deleteBudgetItem } from "./budget-acti
 import { addRevenueItem, updateRevenueItem, deleteRevenueItem } from "./revenue-actions";
 import { updateContract, deleteContract, addStaffMember } from "./ledger-actions";
 import { useRouter } from "next/navigation";
-import { EXPENSE_CATS, REVENUE_CATS, STAFF_TYPES, TALENT_TYPES, CAT_LABELS, fmt, parseAmount } from "@/lib/budget-pl";
+import { EXPENSE_CATS, REVENUE_CATS, STAFF_TYPES, TALENT_TYPES, CAT_LABELS, fmt, parseAmount, computeBudgetExtras } from "@/lib/budget-pl";
+import type { InvoiceRow, ReceiptRow } from "./invoices-view";
 
 interface BudgetItem {
   id: string;
@@ -52,6 +53,8 @@ interface Props {
     leadName: string; partnerName: string; leadPct: number; partnerPct: number;
     basis: string; fiscalAgent: "lead" | "partner"; notes: string | null;
   } | null;
+  invoices?: InvoiceRow[];
+  receipts?: ReceiptRow[];
 }
 
 const CAT_COLORS: Record<string, string> = {
@@ -85,7 +88,7 @@ function EditCell({ value, onSave, type = "text", className = "" }: {
   );
 }
 
-export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSeeContent, productionId, coproduction }: Props) {
+export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSeeContent, productionId, coproduction, invoices = [], receipts = [] }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [viewBasis, setViewBasis] = useState<string | null>(null); // co-pro modeling override; null = per contract
@@ -136,7 +139,9 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
   const expenseTotal = budgetItems.reduce((s, i) => s + (i.budget_amount || 0), 0);
   const revenueTotal = revenueItems.reduce((s, i) => s + (i.amount || 0), 0);
   const totalCosts = expenseTotal + staffTotal + talent.total;
-  const net = revenueTotal - totalCosts;
+  const extras = useMemo(() => computeBudgetExtras(invoices, receipts), [invoices, receipts]);
+  const totalCostsAll = totalCosts + extras.committed;
+  const net = revenueTotal - totalCostsAll;
 
   // Budget CRUD
   async function saveExpField(id: string, f: string, v: string) {
@@ -224,6 +229,50 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
         ))}
       </div>
 
+      {(extras.committed > 0 || extras.reimbPending > 0) && (
+        <div className="border border-bone rounded-card p-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="font-display text-display-xs text-ink">From invoices &amp; receipts</h3>
+            <span className="text-body-xs text-muted">Included in Net above</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+            <div className="bg-card border border-bone rounded-card px-3 py-2 text-center">
+              <p className="font-mono text-display-sm text-ink">{fmt(extras.stipends)}</p>
+              <p className="text-body-xs text-muted mt-0.5">Stipends &amp; add-ons ({extras.stipendItems.length})</p>
+            </div>
+            <div className="bg-card border border-bone rounded-card px-3 py-2 text-center">
+              <p className="font-mono text-display-sm text-ink">{fmt(extras.reimbApproved)}</p>
+              <p className="text-body-xs text-muted mt-0.5">Reimbursements, approved</p>
+            </div>
+            <div className="bg-card border border-bone rounded-card px-3 py-2 text-center">
+              <p className="font-mono text-display-sm text-ash">{fmt(extras.reimbPending)}</p>
+              <p className="text-body-xs text-muted mt-0.5">Reimbursements, pending</p>
+            </div>
+          </div>
+          {(extras.stipendItems.length > 0 || extras.reimbItems.length > 0) && (
+            <div className="mt-3 text-body-sm">
+              {extras.stipendItems.map((it, i) => (
+                <div key={`st-${i}`} className="flex justify-between py-1 border-b border-bone/50">
+                  <span className="text-ash">{it.who} · {it.label} <span className="text-muted">(stipend)</span></span>
+                  <span className="font-mono text-ink">{fmt(it.amount)}</span>
+                </div>
+              ))}
+              {extras.reimbItems.map((it, i) => (
+                <div key={`rb-${i}`} className="flex justify-between py-1 border-b border-bone/50">
+                  <span className="text-ash">{it.who} · {it.label} <span className="text-muted">(reimbursement{it.pending ? ", pending" : ""})</span></span>
+                  <span className={`font-mono ${it.pending ? "text-ash" : "text-ink"}`}>{fmt(it.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {extras.reimbPending > 0 && (
+            <p className="text-body-xs text-muted mt-2 leading-relaxed">
+              Pending reimbursements are shown for awareness but are not in Net until you approve them in the Invoices tab.
+            </p>
+          )}
+        </div>
+      )}
+
       {coproduction && (() => {
         const contractBasis = coproduction.basis;
         const effBasis = viewBasis ?? contractBasis;
@@ -231,7 +280,7 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
         const isTickets = effBasis === "tickets";
         const ticketSales = revenueItems.filter((r) => r.category === "ticket_sales").reduce((s, r) => s + (r.amount || 0), 0);
         const offTop = budgetItems.filter((b) => b.off_top).reduce((s, b) => s + (b.budget_amount || 0), 0);
-        const basisAmount = isTickets ? ticketSales - offTop : effBasis === "gross" ? ticketSales : ticketSales - totalCosts;
+        const basisAmount = isTickets ? ticketSales - offTop : effBasis === "gross" ? ticketSales : ticketSales - totalCostsAll;
         const splittable = isTickets ? Math.max(basisAmount, 0) : basisAmount;
         const leadShare = (splittable * coproduction.leadPct) / 100;
         const partnerShare = (splittable * coproduction.partnerPct) / 100;

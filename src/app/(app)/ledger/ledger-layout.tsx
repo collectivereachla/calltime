@@ -204,6 +204,8 @@ export function LedgerLayout(props: Props) {
           canSeeContent={props.canSeeContent}
           productionId={props.productionId}
           coproduction={props.coproduction}
+          invoices={props.invoices}
+          receipts={props.receipts}
         />
       )}
 

@@ -375,6 +375,7 @@ export default async function LedgerPage() {
     id: string; person_id: string; person_name: string; description: string;
     category: string | null; amount: number; expense_date: string | null;
     status: string; receipt_path: string | null; review_note: string | null; created_at: string;
+    invoice_line_item_id: string | null;
   };
   let receipts: ReceiptRow[] = [];
   let hasActiveAssignment = false;
@@ -391,7 +392,7 @@ export default async function LedgerPage() {
 
     let rq = supabase
       .from("expense_receipts")
-      .select("id, person_id, description, category, amount, expense_date, status, receipt_path, review_note, created_at")
+      .select("id, person_id, description, category, amount, expense_date, status, receipt_path, review_note, created_at, invoice_line_item_id")
       .eq("production_id", activePid)
       .order("created_at", { ascending: false });
     if (!canManage) rq = rq.eq("person_id", person!.id);
@@ -417,6 +418,7 @@ export default async function LedgerPage() {
       receipt_path: r.receipt_path,
       review_note: r.review_note,
       created_at: r.created_at,
+      invoice_line_item_id: r.invoice_line_item_id ?? null,
     }));
   }
 

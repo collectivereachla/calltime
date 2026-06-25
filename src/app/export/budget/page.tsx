@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getActiveProductionId } from "@/lib/active-production";
 import { getRoleInOrg, isOwnerRole, resolveActingOrgId } from "@/lib/membership";
-import { computeBudgetPL, type PLContract } from "@/lib/budget-pl";
+import { computeBudgetPL, computeBudgetExtras, type PLContract } from "@/lib/budget-pl";
 import { BudgetReport, type Settlement } from "./budget-report";
 
 export const dynamic = "force-dynamic";
@@ -47,14 +47,41 @@ export default async function BudgetPrintPage({
   }
   if (!pid) redirect("/ledger");
 
-  const [{ data: org }, { data: prod }, { data: contractsRaw }, { data: budgetItems }, { data: revenueItems }, { data: copro }] = await Promise.all([
+  const [{ data: org }, { data: prod }, { data: contractsRaw }, { data: budgetItems }, { data: revenueItems }, { data: copro }, { data: invRows }, { data: rcptRows }] = await Promise.all([
     supabase.from("organizations").select("name").eq("id", orgId).maybeSingle(),
     supabase.from("productions").select("title").eq("id", pid).maybeSingle(),
     supabase.from("contracts").select("id, person_name, role_title, compensation, template_id").eq("production_id", pid),
     supabase.from("budget_items").select("id, expense_name, category, budget_amount, vendor, notes, is_paid, off_top").eq("production_id", pid),
     supabase.from("revenue_items").select("id, source_name, category, amount, donor_or_event, notes, is_received").eq("production_id", pid),
     supabase.from("coproductions").select("lead_org_id, partner_org_id, lead_pct, partner_pct, basis, fiscal_agent, notes").eq("production_id", pid).maybeSingle(),
+    supabase.from("invoices").select("status, person_id, people(full_name, preferred_name), invoice_line_items(id, description, amount, is_base)").eq("production_id", pid),
+    supabase.from("expense_receipts").select("status, amount, description, person_id, invoice_line_item_id").eq("production_id", pid),
   ]);
+
+  // Resolve receipt person names (two FKs to people, so embed would 300)
+  const rPersonIds = [...new Set((rcptRows || []).map((r) => r.person_id))] as string[];
+  const { data: rPpl } = rPersonIds.length
+    ? await supabase.from("people").select("id, full_name, preferred_name").in("id", rPersonIds)
+    : { data: [] as { id: string; full_name: string; preferred_name: string | null }[] };
+  const rName = new Map((rPpl || []).map((p) => [p.id, p.preferred_name || p.full_name]));
+
+  const invoicesLite = (invRows || []).map((r) => {
+    const pp = r.people as unknown as { full_name: string; preferred_name: string | null } | null;
+    return {
+      status: r.status as string,
+      person_name: pp ? pp.preferred_name || pp.full_name : "—",
+      lines: ((r.invoice_line_items as unknown as { id: string; description: string; amount: number; is_base: boolean }[]) || [])
+        .map((l) => ({ id: l.id, description: l.description, amount: Number(l.amount), is_base: l.is_base })),
+    };
+  });
+  const receiptsLite = (rcptRows || []).map((r) => ({
+    status: r.status as string,
+    amount: Number(r.amount),
+    description: r.description as string,
+    person_name: rName.get(r.person_id) || "—",
+    invoice_line_item_id: (r.invoice_line_item_id as string | null) ?? null,
+  }));
+  const extras = computeBudgetExtras(invoicesLite, receiptsLite);
 
   const tids = [...new Set((contractsRaw || []).map((c) => c.template_id).filter(Boolean))] as string[];
   const typeById = new Map<string, string>();
@@ -88,7 +115,7 @@ export default async function BudgetPrintPage({
 
     const ticketSales = (pl.revByCat.ticket_sales || []).reduce((s, i) => s + (i.amount || 0), 0);
     const offTop = (budgetItems || []).filter((b) => b.off_top).reduce((s, b) => s + (b.budget_amount || 0), 0);
-    const basisAmount = basis === "tickets" ? ticketSales - offTop : basis === "gross" ? ticketSales : ticketSales - pl.totalCosts;
+    const basisAmount = basis === "tickets" ? ticketSales - offTop : basis === "gross" ? ticketSales : ticketSales - (pl.totalCosts + extras.committed);
     const splittable = basis === "tickets" ? Math.max(basisAmount, 0) : basisAmount;
 
     settlement = {
@@ -105,6 +132,6 @@ export default async function BudgetPrintPage({
   const generatedAt = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
   return (
-    <BudgetReport pl={pl} orgName={org?.name || ""} title={prod?.title || ""} generatedAt={generatedAt} settlement={settlement} />
+    <BudgetReport pl={pl} orgName={org?.name || ""} title={prod?.title || ""} generatedAt={generatedAt} settlement={settlement} extras={extras} />
   );
 }

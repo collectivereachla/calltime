@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { fmt, parseAmount, CAT_LABELS, REVENUE_CATS, EXPENSE_CATS, computeBudgetPL } from "@/lib/budget-pl";
+import { fmt, parseAmount, CAT_LABELS, REVENUE_CATS, EXPENSE_CATS, computeBudgetPL, type computeBudgetExtras } from "@/lib/budget-pl";
 
 type PL = ReturnType<typeof computeBudgetPL>;
 
@@ -26,13 +26,17 @@ export function BudgetReport({
   title,
   generatedAt,
   settlement,
+  extras,
 }: {
   pl: PL;
   orgName: string;
   title: string;
   generatedAt: string;
   settlement?: Settlement | null;
+  extras?: ReturnType<typeof computeBudgetExtras> | null;
 }) {
+  const committed = extras?.committed ?? 0;
+  const netAll = pl.net - committed;
   const [mode, setMode] = useState<"detailed" | "collapsed">("detailed");
 
   const summary = [
@@ -40,7 +44,7 @@ export function BudgetReport({
     { label: "Staff", value: pl.staffTotal },
     { label: "Talent", value: pl.talent.total },
     { label: "Production", value: pl.expenseTotal },
-    { label: "Net", value: pl.net },
+    { label: "Net", value: netAll },
   ];
 
   const revCats = REVENUE_CATS.filter((c) => (pl.revByCat[c] || []).length > 0);
@@ -122,7 +126,7 @@ export function BudgetReport({
                   )}
                   {settlement.basis === "net" && (
                     <div className="flex justify-between py-1 border-b border-gray-200">
-                      <span>Less all production costs</span><span className="font-mono">&minus;{fmt(pl.totalCosts)}</span>
+                      <span>Less all production costs</span><span className="font-mono">&minus;{fmt(pl.totalCosts + committed)}</span>
                     </div>
                   )}
                   <div className="flex justify-between py-1.5 font-semibold">
@@ -298,9 +302,30 @@ export function BudgetReport({
         )}
 
         {/* Net — both modes */}
-        <div className={`mt-8 rounded px-6 py-4 flex items-center justify-between ${pl.net >= 0 ? "bg-black text-white" : "border-2 border-red-600 text-red-600"}`}>
-          <span className="text-lg font-bold">Net {pl.net >= 0 ? "Surplus" : "Shortfall"}</span>
-          <span className="font-mono text-2xl font-bold">{fmt(Math.abs(pl.net))}</span>
+        {committed > 0 && (
+          <div className="mt-8" style={{ breakInside: "avoid" }}>
+            <h2 className="text-base font-bold border-b-2 border-black pb-1 mb-2">From Invoices &amp; Receipts</h2>
+            {(extras?.stipendItems || []).map((it, i) => (
+              <div key={`st-${i}`} className="flex items-center justify-between py-1.5 border-b border-gray-200 text-sm">
+                <span>{it.who} · {it.label} <span className="text-gray-400">(stipend)</span></span>
+                <span className="font-mono">{fmt(it.amount)}</span>
+              </div>
+            ))}
+            {(extras?.reimbItems || []).filter((it) => !it.pending).map((it, i) => (
+              <div key={`rb-${i}`} className="flex items-center justify-between py-1.5 border-b border-gray-200 text-sm">
+                <span>{it.who} · {it.label} <span className="text-gray-400">(reimbursement)</span></span>
+                <span className="font-mono">{fmt(it.amount)}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between py-1.5 text-sm font-semibold">
+              <span>Total from invoices &amp; receipts</span><span className="font-mono">{fmt(committed)}</span>
+            </div>
+          </div>
+        )}
+
+        <div className={`mt-8 rounded px-6 py-4 flex items-center justify-between ${netAll >= 0 ? "bg-black text-white" : "border-2 border-red-600 text-red-600"}`}>
+          <span className="text-lg font-bold">Net {netAll >= 0 ? "Surplus" : "Shortfall"}</span>
+          <span className="font-mono text-2xl font-bold">{fmt(Math.abs(netAll))}</span>
         </div>
       </div>
     </div>

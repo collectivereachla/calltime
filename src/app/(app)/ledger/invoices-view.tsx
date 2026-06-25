@@ -22,6 +22,7 @@ export interface ReceiptRow {
   id: string; person_id: string; person_name: string; description: string;
   category: string | null; amount: number; expense_date: string | null;
   status: string; receipt_path: string | null; review_note: string | null; created_at: string;
+  invoice_line_item_id?: string | null;
 }
 
 interface Props {
