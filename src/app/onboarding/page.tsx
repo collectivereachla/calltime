@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { normalizePhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
@@ -142,13 +143,15 @@ export default function OnboardingPage() {
     if (profileError) { setError(profileError.message); setLoading(false); return; }
     setPersonId(pid);
 
+    const __np = normalizePhone(phone);
+    if (!__np.ok) { setError(__np.error!); setLoading(false); return; }
     const { error: updateError } = await supabase
       .from("people")
       .update({
         full_name: fullName,
         preferred_name: preferredName || null,
         pronouns: pronouns || null,
-        phone: phone || null,
+        phone: __np.value,
         birth_month: birthMonth || null,
         birth_day: birthDay || null,
         is_minor: computeIsMinor(),
@@ -190,12 +193,14 @@ export default function OnboardingPage() {
       const { data: org } = await supabase
         .from("organizations").select("id").eq("slug", slug).maybeSingle();
       if (org) {
+        const __ep = normalizePhone(emergencyPhone);
+        if (!__ep.ok) { setError(__ep.error!); setLoading(false); return; }
         await supabase.from("member_details").upsert({
           person_id: personId,
           org_id: org.id,
           birth_year: birthYear || null,
           emergency_contact_name: emergencyName || null,
-          emergency_contact_phone: emergencyPhone || null,
+          emergency_contact_phone: __ep.value,
           emergency_contact_relationship: emergencyRelationship || null,
         }, { onConflict: "person_id,org_id" });
       }

@@ -4,6 +4,8 @@ import { assertNotPreviewing } from "@/lib/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
+import { normalizePhone } from "@/lib/phone";
+
 export async function getProfile() {
   const supabase = await createClient();
 
@@ -54,6 +56,12 @@ export async function updateProfile(formData: FormData) {
     if (value !== null) {
       updates[field] = (value as string) || null;
     }
+  }
+
+  if ("phone" in updates) {
+    const np = normalizePhone(updates.phone as string | null);
+    if (!np.ok) return { error: np.error };
+    updates.phone = np.value;
   }
 
   // full_name is required

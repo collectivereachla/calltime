@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { normalizePhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
@@ -139,6 +140,17 @@ export default function CompleteProfilePage() {
     setSubmitting(true);
 
     const supabase = createClient();
+
+    // Phone fields must be a full 10-digit number; store as 000.000.0000.
+    const phoneKeys = ["emergency_contact_phone", "guardian_phone"];
+    for (const pk of phoneKeys) {
+      const v = values[pk];
+      if (v && v.trim()) {
+        const np = normalizePhone(v);
+        if (!np.ok) { setError(np.error!); setSubmitting(false); return; }
+        values[pk] = np.value!;
+      }
+    }
 
     // Build the insert object from form values
     const insert: Record<string, unknown> = {
