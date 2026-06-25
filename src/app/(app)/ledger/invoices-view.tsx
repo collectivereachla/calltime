@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { submitInvoice, setInvoiceStatus, addInvoiceLine, deleteInvoiceLine } from "./invoice-actions";
+import { submitInvoice, setInvoiceStatus, addInvoiceLine, deleteInvoiceLine, donateContractPayment } from "./invoice-actions";
 import { ProductSurvey } from "./product-survey";
 import { submitReceipt, reviewReceipt, deleteReceipt, getReceiptSignedUrl } from "./receipt-actions";
 import { PaymentSettings } from "./payment-settings";
@@ -53,6 +53,7 @@ const money = (n: number) =>
 
 const STATUS_STYLE: Record<string, string> = {
   submitted: "bg-tentative/15 text-tentative",
+  donated: "bg-confirmed/15 text-confirmed",
   approved: "bg-ink/10 text-ink",
   paid: "bg-confirmed/15 text-confirmed",
   void: "bg-ash/10 text-ash",
@@ -429,8 +430,12 @@ export function InvoicesView(props: Props) {
   const [showW9, setShowW9] = useState(false);
   const [surveyOpen, setSurveyOpen] = useState(false);
   const [surveyDone, setSurveyDone] = useState(props.surveyDone);
+  const [donating, setDonating] = useState(false);
+  const [showDonate, setShowDonate] = useState(false);
 
   const alreadySubmitted = myContract ? invoices.some((i) => i.person_id === personId && i.status !== "void") : false;
+  const myInvoice = invoices.find((i) => i.person_id === personId && i.status !== "void");
+  const isDonated = myInvoice?.status === "donated";
   const base = myContract?.baseAmount ?? null;
   const w9Required = base !== null && base >= w9Threshold;
   const w9Blocked = w9Required && !w9OnFile;
@@ -448,6 +453,15 @@ export function InvoicesView(props: Props) {
     router.refresh();
   }
 
+  async function handleDonate() {
+    if (!myContract) return;
+    setDonating(true); setError(null);
+    const result = await donateContractPayment({ contractId: myContract.id });
+    setDonating(false);
+    if (result?.error) { setError(result.error); return; }
+    router.refresh();
+  }
+
   return (
     <div className="space-y-8">
       {!myContract ? (
@@ -460,7 +474,7 @@ export function InvoicesView(props: Props) {
       ) : alreadySubmitted ? (
         <div className="space-y-3">
           <div className="bg-confirmed/5 border border-confirmed/20 rounded-card px-4 py-3">
-            <p className="text-body-sm text-ink">Your invoice has been submitted. You can see its status below.</p>
+            <p className="text-body-sm text-ink">{isDonated ? "Thank you for donating your payment back to Black Theatre Experience and the SWLA Juneteenth Committee. It goes straight into building what\u2019s next." : "Your invoice has been submitted. You can see its status below."}</p>
           </div>
 
           <div className="bg-card border border-bone rounded-card p-5">
@@ -570,6 +584,25 @@ export function InvoicesView(props: Props) {
               </button>
               <p className="text-body-xs text-muted mt-2">The amount is locked to your signed contract. Any approved stipend is added as a separate line.</p>
             </>
+          )}
+
+          {base !== null && (
+            <div className="mt-4 pt-3 border-t border-bone">
+              {!showDonate ? (
+                <button onClick={() => setShowDonate(true)} className="text-body-sm text-ash hover:text-ink underline">
+                  Or donate your payment back to the production
+                </button>
+              ) : (
+                <div className="bg-paper border border-bone rounded-card p-3">
+                  <p className="text-body-sm text-ink">Donate your {money(base)} back to Black Theatre Experience and the SWLA Juneteenth Committee? This takes the place of your invoice, so you won&apos;t be paid, and the gift goes toward what&apos;s next. Reach out if you ever change your mind.</p>
+                  {error && <p className="text-body-sm text-brick mt-2">{error}</p>}
+                  <div className="mt-2 flex gap-2">
+                    <button onClick={handleDonate} disabled={donating} className="px-3 py-1.5 text-body-sm font-medium rounded-card bg-brick text-paper hover:bg-brick/90 disabled:opacity-50">{donating ? "Recording\u2026" : "Yes, donate my payment"}</button>
+                    <button onClick={() => setShowDonate(false)} className="px-3 py-1.5 text-body-sm rounded-card border border-bone text-ash hover:text-ink">Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
