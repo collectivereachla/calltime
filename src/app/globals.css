@@ -192,3 +192,36 @@ body {
     print-color-adjust: exact;
   }
 }
+
+/* ----------------------------------------------------------------------------
+ * Safari print fix. Tailwind v4 emits the default palette (black, white, the
+ * grays, red-600, etc.) as lab()/oklch()/color-mix() values inside @layer.
+ * WebKit's print rasterizer renders those modern color values as transparent,
+ * so printed/"Save as PDF" output came out BLANK (the report text inherited a
+ * lab() black that printed invisible). Re-declare the palette utilities used in
+ * printed docs with plain sRGB so Safari prints them. Unlayered + !important
+ * wins the cascade; nearest text-* still wins (e.g. white on the black net bar).
+ * -------------------------------------------------------------------------- */
+@media print {
+  .text-black { color: #000 !important; }
+  .text-white { color: #fff !important; }
+  .text-gray-400 { color: #9ca3af !important; }
+  .text-gray-500 { color: #6b7280 !important; }
+  .text-gray-600 { color: #4b5563 !important; }
+  .text-gray-700 { color: #374151 !important; }
+  .text-gray-800 { color: #1f2937 !important; }
+  .text-gray-900 { color: #111827 !important; }
+  .text-red-600 { color: #dc2626 !important; }
+  .text-blue-700 { color: #1d4ed8 !important; }
+  .text-amber-700 { color: #b45309 !important; }
+
+  .bg-black { background-color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .bg-white { background-color: #fff !important; }
+  .bg-gray-100 { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  .border-black { border-color: #000 !important; }
+  .border-gray-200 { border-color: #e5e7eb !important; }
+  .border-gray-300 { border-color: #d1d5db !important; }
+  .border-gray-400 { border-color: #9ca3af !important; }
+  .border-red-600 { border-color: #dc2626 !important; }
+}
