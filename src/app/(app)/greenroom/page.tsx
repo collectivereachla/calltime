@@ -83,8 +83,38 @@ export default async function GreenroomPage() {
     );
   }
 
+  // Members for @mention autocomplete: org members + this production's assignees,
+  // deduped, excluding self. RLS limits this to people the viewer may see.
+  const mentionRows: { id: string; name: string }[] = [];
+  {
+    const { data: om } = await supabase
+      .from("org_memberships")
+      .select("people(id, full_name, preferred_name)")
+      .eq("org_id", orgId)
+      .eq("status", "active");
+    for (const r of om || []) {
+      const pp = r.people as unknown as { id: string; full_name: string; preferred_name: string | null } | null;
+      if (pp) mentionRows.push({ id: pp.id, name: pp.preferred_name || pp.full_name });
+    }
+    if (productionId) {
+      const { data: pa } = await supabase
+        .from("production_assignments")
+        .select("people(id, full_name, preferred_name)")
+        .eq("production_id", productionId)
+        .eq("active", true);
+      for (const r of pa || []) {
+        const pp = r.people as unknown as { id: string; full_name: string; preferred_name: string | null } | null;
+        if (pp) mentionRows.push({ id: pp.id, name: pp.preferred_name || pp.full_name });
+      }
+    }
+  }
+  const mentionMembers = Array.from(new Map(mentionRows.map((m) => [m.id, m])).values())
+    .filter((m) => m.id !== person!.id)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <GreenroomChat
+      members={mentionMembers}
       orgId={orgId}
       orgName={orgName}
       productionId={productionId}

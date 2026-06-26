@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type ReactElement } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { notifyGreenroomMessage } from "./actions";
+import { notifyGreenroomMessage, notifyMentions } from "./actions";
 
 interface Message {
   id: string;
@@ -74,6 +74,7 @@ function mapRow(m: Record<string, unknown>): Message {
 // ---- Wrapper: tabs for the Org room and the Production room ----
 
 interface WrapperProps {
+  members: { id: string; name: string }[];
   orgId: string;
   orgName: string;
   productionId: string | null;
@@ -140,6 +141,7 @@ export function GreenroomChat(props: WrapperProps) {
 
       <ChatRoom
         key={active.key}
+        members={props.members}
         roomKind={active.kind}
         orgId={props.orgId}
         productionId={active.productionId}
@@ -155,6 +157,7 @@ export function GreenroomChat(props: WrapperProps) {
 // ---- One room (org or production), fully isolated; remounted on room switch ----
 
 interface RoomProps {
+  members: { id: string; name: string }[];
   roomKind: "org" | "production";
   orgId: string;
   productionId: string | null;
@@ -164,10 +167,13 @@ interface RoomProps {
   personHeadshot: string | null;
 }
 
-function ChatRoom({ roomKind, orgId, productionId, canManage, personId, personName, personHeadshot }: RoomProps) {
+function ChatRoom({ members, roomKind, orgId, productionId, canManage, personId, personName, personHeadshot }: RoomProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [reactions, setReactions] = useState<Map<string, Reaction[]>>(new Map());
   const [input, setInput] = useState("");
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const pickedMentions = useRef<Map<string, string>>(new Map());
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -352,10 +358,43 @@ function ChatRoom({ roomKind, orgId, productionId, canManage, personId, personNa
     return () => { supabase.removeChannel(channel); };
   }, [productionId, orgId, supabase]);
 
+  // --- @mention autocomplete + rendering (CRE-49) ---
+  const escapeRx = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const mentionMatches = mentionOpen
+    ? members.filter((mm) => mm.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6)
+    : [];
+  function handleInputChange(val: string) {
+    setInput(val);
+    const mm = val.match(/(?:^|\s)@([^\s@]*)$/);
+    if (mm) { setMentionQuery(mm[1]); setMentionOpen(true); }
+    else { setMentionOpen(false); setMentionQuery(""); }
+  }
+  function selectMention(mem: { id: string; name: string }) {
+    setInput((prev) => prev.replace(/(^|\s)@([^\s@]*)$/, (_f, pre) => `${pre}@${mem.name} `));
+    pickedMentions.current.set(mem.id, mem.name);
+    setMentionOpen(false); setMentionQuery("");
+    inputRef.current?.focus();
+  }
+  function renderContent(text: string) {
+    if (!members.length || !text.includes("@")) return text;
+    const names = members.map((mm) => mm.name).sort((a, b) => b.length - a.length).map(escapeRx);
+    const rx = new RegExp(`@(${names.join("|")})`, "g");
+    const out: Array<string | ReactElement> = [];
+    let last = 0; let mm: RegExpExecArray | null;
+    while ((mm = rx.exec(text)) !== null) {
+      if (mm.index > last) out.push(text.slice(last, mm.index));
+      out.push(<span key={mm.index} className="text-brick font-medium">@{mm[1]}</span>);
+      last = mm.index + mm[0].length;
+    }
+    if (last < text.length) out.push(text.slice(last));
+    return out.length ? out : text;
+  }
+
   async function sendMessage(attachmentUrl?: string, attachmentName?: string, attachmentType?: string) {
     const text = input.trim();
     if (!text && !attachmentUrl) return;
     const msgContent = text || (attachmentName || "shared a file");
+    const mentionedIds = [...pickedMentions.current.entries()].filter(([, nm]) => msgContent.includes("@" + nm)).map(([id]) => id);
     setInput("");
     setSending(true);
     inputRef.current?.focus();
@@ -387,10 +426,16 @@ function ChatRoom({ roomKind, orgId, productionId, canManage, personId, personNa
     setSending(false);
     if (error) {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-    } else if (roomKind === "org") {
-      // Org-room push/in-app notify to org members (production-room notifications
-      // to assignees are a separate follow-up).
-      notifyGreenroomMessage(orgId, personId, personName, msgContent).catch(() => {});
+    } else {
+      // High-signal @mention notifications (any room).
+      if (mentionedIds.length) {
+        notifyMentions(orgId, personName, msgContent, mentionedIds, productionId).catch(() => {});
+      }
+      // Org-room broadcast notify (production-room broadcast is a separate follow-up).
+      if (roomKind === "org") {
+        notifyGreenroomMessage(orgId, personId, personName, msgContent).catch(() => {});
+      }
+      pickedMentions.current.clear();
     }
   }
 
@@ -623,7 +668,7 @@ function ChatRoom({ roomKind, orgId, productionId, canManage, personId, personNa
                   <div className="flex-1 min-w-0">
                     {msg.content && !(msg.attachment_url && msg.content === (msg.attachment_name || "shared a file")) && (
                       <p className={`text-body-md leading-relaxed ${isOptimistic ? "text-ash" : "text-ink"}`}>
-                        {msg.content}
+                        {renderContent(msg.content)}
                       </p>
                     )}
                     {renderAttachment(msg)}
@@ -674,20 +719,42 @@ function ChatRoom({ roomKind, orgId, productionId, canManage, personId, personNa
               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
             />
           </label>
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-              }
-            }}
-            placeholder={roomKind === "production" ? "Message this production..." : "Message the company..."}
-            autoFocus
-            className="flex-1 px-4 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors"
-          />
+          <div className="relative flex-1">
+            {mentionOpen && mentionMatches.length > 0 && (
+              <div className="absolute bottom-full mb-1 left-0 w-64 max-h-56 overflow-y-auto bg-paper border border-bone rounded-card shadow-lg z-20">
+                {mentionMatches.map((mm) => (
+                  <button
+                    key={mm.id}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); selectMention(mm); }}
+                    className="block w-full text-left px-3 py-1.5 text-body-sm text-ink hover:bg-brick/10"
+                  >
+                    @{mm.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (mentionOpen && mentionMatches.length > 0 && (e.key === "Enter" || e.key === "Tab")) {
+                  e.preventDefault();
+                  selectMention(mentionMatches[0]);
+                  return;
+                }
+                if (e.key === "Escape" && mentionOpen) { setMentionOpen(false); return; }
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              placeholder={roomKind === "production" ? "Message this production..." : "Message the company..."}
+              autoFocus
+              className="w-full px-4 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors"
+            />
+          </div>
           <button
             onClick={() => sendMessage()}
             disabled={sending || (!input.trim() && !uploading)}
