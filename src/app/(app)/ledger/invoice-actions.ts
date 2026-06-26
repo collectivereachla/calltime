@@ -338,10 +338,14 @@ export async function updateInvoicePayment(input: { invoiceId: string; paymentMe
   if (inv.person_id !== me.id) return { error: "You can only update your own invoice." };
   if (inv.status !== "submitted") return { error: "This invoice can no longer be edited." };
 
-  const { error } = await supabase
-    .from("invoices")
-    .update({ payment_method: input.paymentMethod || null, payment_details: input.paymentDetails?.trim() || null })
-    .eq("id", input.invoiceId);
+  // Members have no RLS UPDATE on invoices (only owner/production do), so a direct
+  // update silently affects 0 rows. Go through a SECURITY DEFINER RPC that re-checks
+  // ownership + submitted status and updates only the payment columns.
+  const { error } = await supabase.rpc("update_invoice_payment", {
+    p_invoice_id: input.invoiceId,
+    p_method: input.paymentMethod || "",
+    p_details: input.paymentDetails || "",
+  });
   if (error) return { error: error.message };
 
   revalidatePath("/ledger");
