@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { PrintButton } from "@/components/print-button";
 import { resolveHeadshots } from "@/lib/headshot";
 import { getViewer } from "@/lib/viewer";
 import { EditMemberButton } from "./edit-member";
@@ -209,11 +210,14 @@ export default async function CompanyPage() {
             {org.name} &middot; {members?.length || 0} member{members?.length === 1 ? "" : "s"}
           </p>
         </div>
-        {canManage && (
-          <span className="text-body-xs text-muted bg-bone/50 px-2 py-0.5 rounded">
-            {myRole}
-          </span>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          <PrintButton label="Print roster" />
+          {canManage && (
+            <span className="text-body-xs text-muted bg-bone/50 px-2 py-0.5 rounded">
+              {myRole}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Staff completion dashboard */}
