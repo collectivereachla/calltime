@@ -670,6 +670,7 @@ export function InvoicesView(props: Props) {
                 <a href="/export/ledger?type=invoices" className="text-body-xs font-medium text-brick hover:underline">Invoices CSV</a>
                 <a href="/export/ledger?type=budget" className="text-body-xs text-ash hover:text-ink hover:underline">Budget CSV</a>
                 <a href="/export/ledger?type=revenue" className="text-body-xs text-ash hover:text-ink hover:underline">Revenue CSV</a>
+                <a href="/export/ledger?type=1099" className="text-body-xs text-ash hover:text-ink hover:underline">1099 prep</a>
                 <a href="/ledger-print" target="_blank" rel="noopener" className="text-body-xs font-medium text-brick hover:underline">PDF →</a>
               </div>
             )}
