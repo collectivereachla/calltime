@@ -181,10 +181,14 @@ export default async function HomePage() {
     const prod = a.productions as unknown as ProdInfo | null;
     if (!prod) continue; // null-guard: RLS can hide the joined row
     if (prod.status === "archived" || prod.status === "closed") continue;
+    // Full "What changed" feed is for CORE production leadership only: org
+    // owner/production, or director / stage management / producer on this show.
+    // access_tier is intentionally NOT used here — design/marketing/video carry a
+    // production-ish tier to edit their own rooms but shouldn't see the whole
+    // company's activity. Everyone else gets the scoped "involves me" feed.
     const leadsThisShow =
       ownerOrgIds.has(prod.organizations?.id) ||
-      a.department === "stage_management" ||
-      ["admin", "production", "staff"].includes(a.access_tier);
+      ["directing", "stage_management", "production"].includes(a.department);
     const existing = prodMap.get(prod.id);
     if (existing) {
       existing.role_titles.push(a.role_title);

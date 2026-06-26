@@ -74,14 +74,20 @@ export async function WhatChanged({
   const showTag = productions.length > 1; // only worth tagging the show when there's more than one
 
   // The viewer's own owned entities, used to scope what cast-level members see.
-  const [contractsRes, lineNotesRes, costumesRes] = await Promise.all([
+  const [contractsRes, lineNotesRes, costumesRes, callsRes, appsRes] = await Promise.all([
     supabase.from("contracts").select("id").eq("person_id", personId),
     supabase.from("line_notes").select("id").eq("person_id", personId),
     supabase.from("costume_assignments").select("item_id").eq("person_id", personId),
+    supabase.from("event_calls").select("event_id").eq("person_id", personId),
+    supabase.from("applications").select("id").eq("person_id", personId),
   ]);
   const contractIds = new Set((contractsRes.data || []).map((r: { id: string }) => r.id));
   const lineNoteIds = new Set((lineNotesRes.data || []).map((r: { id: string }) => r.id));
   const costumeIds = new Set((costumesRes.data || []).map((r: { item_id: string }) => r.item_id));
+  // Events this person is called to, and their own applications — so the scoped
+  // feed surfaces "a rehearsal you're in changed" and "your application moved".
+  const calledEventIds = new Set((callsRes.data || []).map((r: { event_id: string }) => r.event_id));
+  const applicationIds = new Set((appsRes.data || []).map((r: { id: string }) => r.id));
 
   const byId = new Map<string, RawEntry>();
 
@@ -110,7 +116,9 @@ export async function WhatChanged({
         (e.entity_id != null &&
           ((e.entity_type === "contract" && contractIds.has(e.entity_id)) ||
             (e.entity_type === "line_note" && lineNoteIds.has(e.entity_id)) ||
-            (e.entity_type === "costume_inventory" && costumeIds.has(e.entity_id))));
+            (e.entity_type === "costume_inventory" && costumeIds.has(e.entity_id)) ||
+            (e.entity_type === "schedule_event" && calledEventIds.has(e.entity_id)) ||
+            (e.entity_type === "application" && applicationIds.has(e.entity_id))));
       if (keep) byId.set(e.id, e);
     }
   }
