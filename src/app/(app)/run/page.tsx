@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
 import { getRoleInOrg, isLeadershipRole, orgIdForProduction } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
+import { getOrgTimezone } from "@/lib/timezone";
 import { RunLayout } from "./run-layout";
 
 export default async function RunPage() {
@@ -45,7 +46,7 @@ export default async function RunPage() {
   }
 
   // Today's date in CT
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: await getOrgTimezone(orgId) });
 
   // Today's events + calls + responses
   const { data: todayEvents } = await supabase

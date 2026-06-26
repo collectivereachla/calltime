@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { resolveActingOrgId } from "@/lib/membership";
+import { getOrgTimezone } from "@/lib/timezone";
 import Link from "next/link";
 import { getViewer } from "@/lib/viewer";
 import { NewEventForm } from "./new-event-form";
@@ -70,8 +71,9 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
     : allProductions.slice(0, 1);
 
   // Get upcoming events for all user's productions
-  // Use Central Time for "today" — UTC would hide today's events after 7PM CT
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+  // "today" in the org's timezone (defaults to Central) — UTC would hide today's events after 7PM
+  const orgTz = await getOrgTimezone(actingOrgId);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: orgTz });
   const productionIds = activeProductions.map((p) => p.id);
 
   let events: {
