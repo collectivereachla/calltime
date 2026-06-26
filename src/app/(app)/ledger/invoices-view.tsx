@@ -612,14 +612,12 @@ export function InvoicesView(props: Props) {
           <div className="flex items-center justify-between mb-2">
             <p className="text-body-xs text-muted uppercase tracking-wider">{canManage ? "All invoices" : "Your invoices"}</p>
             {canManage && (
-              <a
-                href="/ledger-print"
-                target="_blank"
-                rel="noopener"
-                className="text-body-xs font-medium text-brick hover:underline"
-              >
-                Export all as PDF →
-              </a>
+              <div className="flex items-center gap-3">
+                <a href="/export/ledger?type=invoices" className="text-body-xs font-medium text-brick hover:underline">Invoices CSV</a>
+                <a href="/export/ledger?type=budget" className="text-body-xs text-ash hover:text-ink hover:underline">Budget CSV</a>
+                <a href="/export/ledger?type=revenue" className="text-body-xs text-ash hover:text-ink hover:underline">Revenue CSV</a>
+                <a href="/ledger-print" target="_blank" rel="noopener" className="text-body-xs font-medium text-brick hover:underline">PDF →</a>
+              </div>
             )}
           </div>
           <div className="space-y-2">
