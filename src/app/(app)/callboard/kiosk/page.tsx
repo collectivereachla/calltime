@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
 import { getActiveProductionId } from "@/lib/active-production";
+import { getOrgTimezone } from "@/lib/timezone";
 import { KioskBoard } from "./kiosk-board";
 import Link from "next/link";
 
@@ -44,7 +45,8 @@ export default async function KioskPage() {
     );
   }
 
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+  const tz = await getOrgTimezone(prod.org_id as string);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: tz });
 
   // Today's published events for this production.
   const { data: events } = await supabase
@@ -107,7 +109,7 @@ export default async function KioskPage() {
       orgId={prod.org_id as string}
       today={today}
       nowMinutes={(() => {
-        const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(new Date());
+        const p = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "numeric", hour12: false }).formatToParts(new Date());
         const h = parseInt(p.find((x) => x.type === "hour")?.value ?? "0", 10) % 24;
         const m = parseInt(p.find((x) => x.type === "minute")?.value ?? "0", 10);
         return h * 60 + m;

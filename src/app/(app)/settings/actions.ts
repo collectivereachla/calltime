@@ -235,3 +235,13 @@ export async function setMyCheckinPin(pin: string) {
   revalidatePath("/settings");
   return { error: null };
 }
+
+export async function setOrgTimezone(orgId: string, timezone: string) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_org_timezone", { p_org_id: orgId, p_timezone: timezone });
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  revalidatePath("/settings");
+  return { success: true };
+}
