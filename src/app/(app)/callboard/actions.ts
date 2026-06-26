@@ -62,12 +62,9 @@ export async function createScheduleEvent(formData: FormData) {
         .select("id, person_id")
         .eq("event_id", eventId);
       if (calls && calls.length > 0) {
-        const responses = calls.map((c) => ({
-          event_call_id: c.id,
-          status: "confirmed" as const,
-          responded_at: new Date().toISOString(),
-        }));
-        await supabase.from("call_responses").upsert(responses, { onConflict: "event_call_id" });
+        // SECDEF RPC: SM-confirm on behalf (members' INSERT policy is own-calls-only,
+        // and call_responses has no unique(event_call_id) for upsert onConflict).
+        await supabase.rpc("sm_confirm_calls", { p_event_call_ids: calls.map((c) => c.id) });
       }
     }
     return null;
@@ -615,10 +612,7 @@ export async function addEventCall(eventId: string, personId: string) {
     const { data: pers } = await supabase
       .from("people").select("user_id").eq("id", personId).maybeSingle();
     if (pers?.user_id) {
-      await supabase.from("call_responses").upsert(
-        { event_call_id: inserted.id, status: "confirmed", responded_at: new Date().toISOString(), responded_by: pers.user_id },
-        { onConflict: "event_call_id" }
-      );
+      await supabase.rpc("sm_confirm_calls", { p_event_call_ids: [inserted.id] });
     }
   }
 
