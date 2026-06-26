@@ -79,8 +79,11 @@ export default async function OrgPage({
     .eq("visibility", "public")
     .order("opening_date", { ascending: true, nullsFirst: false });
 
-  const openCall = (productions || []).filter((p) => p.accepting_applications);
-  const upcoming = (productions || []).filter((p) => !p.accepting_applications && p.status !== "closed");
+  const nowMs = Date.now();
+  const isOpenCall = (p: { accepting_applications: boolean | null; open_call_deadline: string | null }) =>
+    !!p.accepting_applications && (!p.open_call_deadline || new Date(p.open_call_deadline).getTime() >= nowMs);
+  const openCall = (productions || []).filter(isOpenCall);
+  const upcoming = (productions || []).filter((p) => !isOpenCall(p) && p.status !== "closed");
   const past = (productions || []).filter((p) => p.status === "closed");
 
   // Public gallery: only APPROVED (is_official) image assets, only on PUBLIC

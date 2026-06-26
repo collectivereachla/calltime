@@ -3,6 +3,7 @@ import { getViewer } from "@/lib/viewer";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { AddPersonForm } from "./add-person-form";
+import { OpenCallCard } from "./open-call-card";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -32,14 +33,18 @@ export default async function ProductionPage({ params }: Props) {
       status,
       has_music,
       has_choreography,
-      organizations (id, name)
+      accepting_applications,
+      application_types,
+      open_call_description,
+      open_call_deadline,
+      organizations (id, name, slug)
     `)
     .eq("id", id)
     .single();
 
   if (!production) notFound();
 
-  const org = production.organizations as unknown as { id: string; name: string };
+  const org = production.organizations as unknown as { id: string; name: string; slug: string };
 
   // Get assignments for this production
   const { data: assignments } = await supabase
@@ -81,6 +86,17 @@ export default async function ProductionPage({ params }: Props) {
   const canManage =
     membership?.role === "owner" ||
     membership?.role === "production";
+
+  // Pending open-call applications awaiting review (owner/production only).
+  let pendingApplications = 0;
+  if (canManage) {
+    const { count } = await supabase
+      .from("applications")
+      .select("id", { count: "exact", head: true })
+      .eq("production_id", id)
+      .eq("status", "submitted");
+    pendingApplications = count || 0;
+  }
 
   // Group assignments by department
   const departments = new Map<string, typeof assignments>();
@@ -263,6 +279,19 @@ export default async function ProductionPage({ params }: Props) {
       {/* Add person form — only for directors/admins */}
       {canManage && (
         <AddPersonForm productionId={id} orgMembers={orgMembers} />
+      )}
+
+      {/* Open Call (auditions/applications) — owner/production only */}
+      {canManage && (
+        <OpenCallCard
+          productionId={id}
+          slug={org.slug}
+          accepting={!!production.accepting_applications}
+          types={(production.application_types as string[]) || []}
+          description={production.open_call_description as string | null}
+          deadline={production.open_call_deadline as string | null}
+          pendingCount={pendingApplications}
+        />
       )}
     </div>
   );

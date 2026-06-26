@@ -60,11 +60,16 @@ export default function ApplyPage() {
       // Fetch production + org
       const { data: prod } = await supabase
         .from("productions")
-        .select("title, playwright, application_types, open_call_description, accepting_applications, organizations(name)")
+        .select("title, playwright, application_types, open_call_description, open_call_deadline, accepting_applications, organizations(name)")
         .eq("id", productionId)
         .single();
 
       if (!prod || !prod.accepting_applications) {
+        router.push(`/org/${slug}`);
+        return;
+      }
+      // Enforce the open-call deadline: closed once it has passed, even if the toggle is still on.
+      if (prod.open_call_deadline && new Date(prod.open_call_deadline as string) < new Date()) {
         router.push(`/org/${slug}`);
         return;
       }

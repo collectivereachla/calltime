@@ -148,3 +148,39 @@ export async function addPersonToProduction(formData: FormData) {
   revalidatePath("/home");
   return { success: true };
 }
+
+// Manage a production's Open Call (auditions/applications) AFTER creation.
+// RLS ("Owner and production can update productions") is the real guard; we also
+// check here for a clean error message. Lets owners open/close auditions on
+// existing shows, set which application types are accepted, the blurb, and a deadline.
+export async function updateOpenCall(
+  productionId: string,
+  input: { accepting: boolean; types: string[]; description: string | null; deadline: string | null }
+) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+  const { data: me } = await supabase.from("people").select("id").eq("user_id", user.id).single();
+  if (!me) return { error: "Profile not found" };
+  const { data: prod } = await supabase.from("productions").select("org_id").eq("id", productionId).single();
+  if (!prod) return { error: "Production not found" };
+  const { data: mem } = await supabase
+    .from("org_memberships").select("role")
+    .eq("person_id", me.id).eq("org_id", prod.org_id).maybeSingle();
+  if (!mem || !["owner", "production"].includes(mem.role as string)) {
+    return { error: "Only production leadership can manage open call." };
+  }
+  const { error } = await supabase
+    .from("productions")
+    .update({
+      accepting_applications: input.accepting,
+      application_types: input.types,
+      open_call_description: input.description,
+      open_call_deadline: input.deadline,
+    })
+    .eq("id", productionId);
+  if (error) return { error: error.message };
+  revalidatePath(`/productions/${productionId}`);
+  return { success: true };
+}
