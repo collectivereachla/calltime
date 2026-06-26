@@ -117,7 +117,10 @@ export async function WhatChanged({
           ((e.entity_type === "contract" && contractIds.has(e.entity_id)) ||
             (e.entity_type === "line_note" && lineNoteIds.has(e.entity_id)) ||
             (e.entity_type === "costume_inventory" && costumeIds.has(e.entity_id)) ||
-            (e.entity_type === "schedule_event" && calledEventIds.has(e.entity_id)) ||
+            // schedule_event covers "a rehearsal you're in was added/changed" — but NOT
+            // call_conflict, which carries another person's private reason (their own
+            // conflicts still show via the actor check above).
+            (e.entity_type === "schedule_event" && e.action !== "call_conflict" && calledEventIds.has(e.entity_id)) ||
             (e.entity_type === "application" && applicationIds.has(e.entity_id))));
       if (keep) byId.set(e.id, e);
     }
