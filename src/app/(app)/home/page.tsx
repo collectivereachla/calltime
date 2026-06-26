@@ -23,6 +23,49 @@ type UpcomingCall = {
   response_status: string | null;
 };
 
+// --- CRE-14: cross-company / cross-show conflict detection ---
+// Operates only on THIS person's own calls (from get_upcoming_calls across every
+// org they belong to), so it never exposes one org's schedule to another — the
+// person already sees both sides. Flags upcoming calls in DIFFERENT productions
+// whose times overlap on the same day; tags whether they span two companies.
+const DEFAULT_CALL_MIN = 180; // assumed length when a call has no end time
+function callMinutes(t: string | null): number | null {
+  if (!t) return null;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+type CallConflict = { a: UpcomingCall; b: UpcomingCall; crossCompany: boolean };
+function findCallConflicts(calls: UpcomingCall[]): CallConflict[] {
+  const byDate = new Map<string, UpcomingCall[]>();
+  for (const c of calls) {
+    const arr = byDate.get(c.event_date) || [];
+    arr.push(c);
+    byDate.set(c.event_date, arr);
+  }
+  const out: CallConflict[] = [];
+  for (const day of byDate.values()) {
+    for (let i = 0; i < day.length; i++) {
+      for (let j = i + 1; j < day.length; j++) {
+        const a = day[i], b = day[j];
+        if (a.production_id === b.production_id) continue; // same show: its own callboard already shows it
+        const as = callMinutes(a.start_time), bs = callMinutes(b.start_time);
+        let overlap: boolean;
+        if (as == null || bs == null) {
+          overlap = true; // an all-day (untimed) call clashes with anything that day
+        } else {
+          const ae = callMinutes(a.end_time) ?? as + DEFAULT_CALL_MIN;
+          const be = callMinutes(b.end_time) ?? bs + DEFAULT_CALL_MIN;
+          overlap = as < be && bs < ae;
+        }
+        if (overlap) out.push({ a, b, crossCompany: a.org_id !== b.org_id });
+      }
+    }
+  }
+  return out.sort(
+    (x, y) => Number(y.crossCompany) - Number(x.crossCompany) || x.a.event_date.localeCompare(y.a.event_date)
+  );
+}
+
 function fmtDate(date: string): string {
   return new Date(date + "T00:00:00").toLocaleDateString("en-US", {
     weekday: "short",
@@ -171,6 +214,7 @@ export default async function HomePage() {
     p_person_id: person!.id,
   });
   const upcoming = (upcomingData as unknown as UpcomingCall[]) || [];
+  const callConflicts = findCallConflicts(upcoming);
 
   // Hero = the soonest call (any status). Needs-response = unanswered (minus hero).
   // Coming up = everything already responded to (minus hero). Disjoint by design.
@@ -209,6 +253,37 @@ export default async function HomePage() {
           </a>
         )}
       </div>
+
+      {/* CRE-14: schedule conflicts across shows/companies */}
+      {callConflicts.length > 0 && (
+        <div className="mb-8 bg-conflict/5 border border-conflict/30 rounded-card px-5 py-4">
+          <p className="text-body-sm font-semibold text-conflict mb-2">
+            {callConflicts.length === 1 ? "Schedule conflict" : `${callConflicts.length} schedule conflicts`}
+          </p>
+          <div className="space-y-2">
+            {callConflicts.slice(0, 5).map((cf, i) => {
+              const showOrg = (c: UpcomingCall) => cf.crossCompany || showOrgOnCalls ? ` · ${c.org_name}` : "";
+              const line = (c: UpcomingCall) =>
+                `${c.event_title} (${c.production_title}${showOrg(c)}${c.start_time ? `, ${fmtTime(c.start_time)}` : ", all day"})`;
+              return (
+                <div key={i} className="text-body-xs">
+                  <span className="font-medium text-ink">{fmtDate(cf.a.event_date)}</span>
+                  <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider ${cf.crossCompany ? "bg-conflict/15 text-conflict" : "bg-tentative/15 text-tentative"}`}>
+                    {cf.crossCompany ? "Across companies" : "Across shows"}
+                  </span>
+                  <div className="text-ash mt-0.5">{line(cf.a)} <span className="text-muted">overlaps</span> {line(cf.b)}</div>
+                </div>
+              );
+            })}
+            {callConflicts.length > 5 && (
+              <p className="text-body-xs text-muted">+{callConflicts.length - 5} more</p>
+            )}
+          </div>
+          <p className="text-body-xs text-muted mt-2">
+            These calls overlap. Open the affected call to flag a conflict, or set your availability.
+          </p>
+        </div>
+      )}
 
       {/* Welcome checklist for new users */}
       {activeProductions.length > 0 && (
