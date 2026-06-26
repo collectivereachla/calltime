@@ -99,26 +99,24 @@ export async function submitInvoice(input: {
     if (existing.contract_id) {
       return { error: "You've already submitted an invoice for this production." };
     }
-    const { data: upg, error: upgErr } = await supabase
-      .from("invoices")
-      .update({
-        contract_id: contract.id,
-        payer_id: payerId,
-        base_amount: baseAmount,
-        payment_method: input.paymentMethod || null,
-        payment_details: input.paymentDetails?.trim() || null,
-        w9_required: w9Required,
-        payee_name: me.preferred_name || me.full_name,
-        payee_address: payeeAddress,
-        payee_email: me.email,
-        payee_phone: me.phone,
-      })
-      .eq("id", existing.id)
-      .select("id")
-      .single();
+    // Members have no RLS UPDATE on invoices, so a direct update silently no-ops.
+    // Upgrade the reimbursement-only invoice in place via a SECURITY DEFINER RPC
+    // that re-checks ownership + that the contract is the caller's and countersigned.
+    const { error: upgErr } = await supabase.rpc("upgrade_member_invoice", {
+      p_invoice_id: existing.id,
+      p_contract_id: contract.id,
+      p_payer_id: payerId,
+      p_base: baseAmount,
+      p_method: input.paymentMethod || "",
+      p_details: input.paymentDetails || "",
+      p_w9: w9Required,
+      p_payee_name: me.preferred_name || me.full_name,
+      p_payee_address: payeeAddress || "",
+      p_payee_email: me.email || "",
+      p_payee_phone: me.phone || "",
+    });
     if (upgErr) return { error: upgErr.message };
-    if (!upg) return { error: "The invoice didn't save. Refresh and try again, or reach out to production." };
-    invoiceId = upg.id;
+    invoiceId = existing.id;
   } else {
     // Invoice number: atomic, org-scoped counter (SECURITY DEFINER RPC).
     // A client-side count() is wrong here — RLS only shows the member their own
