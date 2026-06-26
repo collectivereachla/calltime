@@ -323,3 +323,27 @@ export async function donateContractPayment(input: { contractId: string }) {
   revalidatePath("/ledger");
   return { success: true };
 }
+
+
+export async function updateInvoicePayment(input: { invoiceId: string; paymentMethod: string; paymentDetails: string }) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "You're not signed in." };
+  const { data: me } = await supabase.from("people").select("id").eq("user_id", user.id).single();
+  if (!me) return { error: "We couldn't find your member profile." };
+
+  const { data: inv } = await supabase.from("invoices").select("id, person_id, status").eq("id", input.invoiceId).maybeSingle();
+  if (!inv) return { error: "Invoice not found." };
+  if (inv.person_id !== me.id) return { error: "You can only update your own invoice." };
+  if (inv.status !== "submitted") return { error: "This invoice can no longer be edited." };
+
+  const { error } = await supabase
+    .from("invoices")
+    .update({ payment_method: input.paymentMethod || null, payment_details: input.paymentDetails?.trim() || null })
+    .eq("id", input.invoiceId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/ledger");
+  return { success: true };
+}

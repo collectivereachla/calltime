@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { submitInvoice, setInvoiceStatus, addInvoiceLine, deleteInvoiceLine, donateContractPayment } from "./invoice-actions";
+import { submitInvoice, setInvoiceStatus, addInvoiceLine, deleteInvoiceLine, donateContractPayment, updateInvoicePayment } from "./invoice-actions";
 import { ProductSurvey } from "./product-survey";
 import { submitReceipt, reviewReceipt, deleteReceipt, getReceiptSignedUrl } from "./receipt-actions";
 import { PaymentSettings } from "./payment-settings";
@@ -432,10 +432,16 @@ export function InvoicesView(props: Props) {
   const [surveyDone, setSurveyDone] = useState(props.surveyDone);
   const [donating, setDonating] = useState(false);
   const [showDonate, setShowDonate] = useState(false);
+  const [payEdit, setPayEdit] = useState(false);
+  const [payMethod, setPayMethod] = useState("");
+  const [payDetails, setPayDetails] = useState("");
+  const [paySaving, setPaySaving] = useState(false);
 
   const alreadySubmitted = myContract ? invoices.some((i) => i.person_id === personId && i.status !== "void") : false;
   const myInvoice = invoices.find((i) => i.person_id === personId && i.status !== "void");
   const isDonated = myInvoice?.status === "donated";
+  const paySelected = paymentMethods.find((m) => m.method === payMethod);
+  const payNeedsDetails = !!paySelected && paySelected.method !== "check" && paySelected.method !== "cash";
   const base = myContract?.baseAmount ?? null;
   const w9Required = base !== null && base >= w9Threshold;
   const w9Blocked = w9Required && !w9OnFile;
@@ -462,6 +468,15 @@ export function InvoicesView(props: Props) {
     router.refresh();
   }
 
+  async function savePayment() {
+    if (!myInvoice) return;
+    setPaySaving(true); setError(null);
+    const result = await updateInvoicePayment({ invoiceId: myInvoice.id, paymentMethod: payMethod, paymentDetails: payDetails });
+    setPaySaving(false);
+    if (result?.error) { setError(result.error); return; }
+    setPayEdit(false); router.refresh();
+  }
+
   return (
     <div className="space-y-8">
       {!myContract ? (
@@ -476,6 +491,45 @@ export function InvoicesView(props: Props) {
           <div className="bg-confirmed/5 border border-confirmed/20 rounded-card px-4 py-3">
             <p className="text-body-sm text-ink">{isDonated ? "Thank you for donating your payment back to Black Theatre Experience and the SWLA Juneteenth Committee. It goes straight into building what\u2019s next." : "Your invoice has been submitted. You can see its status below."}</p>
           </div>
+
+          {!isDonated && (
+            <div className="bg-card border border-bone rounded-card p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-body-xs text-muted">How you'll be paid</p>
+                  <p className="text-body-sm text-ink">{myInvoice?.payment_method ? (paymentMethods.find((m) => m.method === myInvoice!.payment_method)?.label || myInvoice!.payment_method) : "Not set"}{myInvoice?.payment_details ? ` (${myInvoice.payment_details})` : ""}</p>
+                </div>
+                {!payEdit && (
+                  <button onClick={() => { setPayMethod(myInvoice?.payment_method || paymentMethods[0]?.method || ""); setPayDetails(myInvoice?.payment_details || ""); setError(null); setPayEdit(true); }} className="text-body-xs font-medium text-brick hover:underline whitespace-nowrap">Change</button>
+                )}
+              </div>
+              {payEdit && (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="text-body-xs text-muted block mb-1">How would you like to be paid?</label>
+                    {paymentMethods.length === 0 ? (
+                      <p className="text-body-sm text-ash">No payment methods are set up for this production yet.</p>
+                    ) : (
+                      <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick">
+                        {paymentMethods.map((m) => <option key={m.method} value={m.method}>{m.label || m.method}</option>)}
+                      </select>
+                    )}
+                  </div>
+                  {payNeedsDetails && (
+                    <div>
+                      <label className="text-body-xs text-muted block mb-1">{paySelected?.label || "Payment"} details (where should it go?)</label>
+                      <input value={payDetails} onChange={(e) => setPayDetails(e.target.value)} className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick" />
+                    </div>
+                  )}
+                  {error && <p className="text-body-sm text-brick">{error}</p>}
+                  <div className="flex gap-2">
+                    <button onClick={savePayment} disabled={paySaving || !payMethod} className="px-3 py-1.5 text-body-sm font-medium rounded-card bg-ink text-paper hover:bg-ink/90 disabled:opacity-50">{paySaving ? "Saving\u2026" : "Save"}</button>
+                    <button onClick={() => { setPayEdit(false); setError(null); }} className="px-3 py-1.5 text-body-sm rounded-card border border-bone text-ash hover:text-ink">Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="bg-card border border-bone rounded-card p-5">
             <h3 className="text-body-md font-medium text-ink">Help shape Calltime</h3>
