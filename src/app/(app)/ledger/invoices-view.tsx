@@ -59,6 +59,17 @@ const STATUS_STYLE: Record<string, string> = {
   void: "bg-ash/10 text-ash",
 };
 
+function paymentHint(method?: string | null): string {
+  switch ((method || "").toLowerCase()) {
+    case "zelle": return "Zelle phone number or email";
+    case "cashapp": return "$Cashtag";
+    case "venmo": return "@username";
+    case "paypal": return "PayPal email";
+    case "check": return "";
+    default: return "Account / handle";
+  }
+}
+
 function InvoiceCard({ inv, canManage }: { inv: InvoiceRow; canManage: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -518,7 +529,7 @@ export function InvoicesView(props: Props) {
                   {payNeedsDetails && (
                     <div>
                       <label className="text-body-xs text-muted block mb-1">{paySelected?.label || "Payment"} details (where should it go?)</label>
-                      <input value={payDetails} onChange={(e) => setPayDetails(e.target.value)} className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick" />
+                      <input value={payDetails} onChange={(e) => setPayDetails(e.target.value)} placeholder={paymentHint(paySelected?.method)} className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick" />
                     </div>
                   )}
                   {error && <p className="text-body-sm text-brick">{error}</p>}
@@ -628,7 +639,7 @@ export function InvoicesView(props: Props) {
               {needsDetails && (
                 <div className="mb-3">
                   <label className="text-body-xs text-muted block mb-1">{selectedMethod?.label || "Payment"} details (where should it go?)</label>
-                  <input value={details} onChange={(e) => setDetails(e.target.value)} placeholder={selectedMethod?.method === "cashapp" ? "$YourCashtag" : "Account / handle"} className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick" />
+                  <input value={details} onChange={(e) => setDetails(e.target.value)} placeholder={paymentHint(selectedMethod?.method)} className="w-full px-3 py-2 text-body-sm rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick" />
                 </div>
               )}
               {w9Required && w9OnFile && <p className="text-body-xs text-confirmed mb-3">W-9 on file ✓ (required at {money(w9Threshold)}+)</p>}
