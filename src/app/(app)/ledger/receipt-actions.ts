@@ -107,10 +107,21 @@ export async function reviewReceipt(receiptId: string, decision: "approve" | "re
     p_note: note?.trim() || null,
   });
   if (error) return { error: error.message };
-  const res = data as { error: string | null } | null;
+  const res = data as {
+    error: string | null; status?: string; invoice_number?: string;
+    amount?: number; payee?: string; created?: boolean;
+  } | null;
   if (res?.error) return { error: res.error };
+  let confirmation: string | null = null;
+  if (decision === "approve" && res?.invoice_number) {
+    const amt = res.amount != null ? `$${Number(res.amount).toFixed(2)}` : "";
+    const who = res.payee || "this member";
+    confirmation = res.created
+      ? `Created ${res.invoice_number} for ${who} — ${amt} reimbursement.`
+      : `Added a ${amt} reimbursement to ${res.invoice_number} for ${who}.`;
+  }
   revalidatePath("/ledger");
-  return { error: null };
+  return { error: null, confirmation };
 }
 
 // A member may withdraw their own still-pending receipt (RLS enforces this).

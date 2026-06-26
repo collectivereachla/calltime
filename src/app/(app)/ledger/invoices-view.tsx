@@ -191,6 +191,7 @@ function ReceiptReviewCard({ r }: { r: ReceiptRow }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
   const [note, setNote] = useState("");
 
   async function decide(decision: "approve" | "reject") {
@@ -198,6 +199,12 @@ function ReceiptReviewCard({ r }: { r: ReceiptRow }) {
     const res = await reviewReceipt(r.id, decision, note);
     setBusy(false);
     if (res?.error) { setErr(res.error); return; }
+    if (decision === "approve" && res?.confirmation) {
+      // Show what was created/updated, then refresh the ledger so it appears.
+      setDone(res.confirmation);
+      setTimeout(() => router.refresh(), 1600);
+      return;
+    }
     router.refresh();
   }
 
@@ -217,20 +224,26 @@ function ReceiptReviewCard({ r }: { r: ReceiptRow }) {
           <ReceiptViewLink path={r.receipt_path} />
         </div>
       </div>
-      <div className="mt-3 pt-2 border-t border-bone/60 flex items-center gap-2 flex-wrap">
-        <input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Note (optional)"
-          className="px-2 py-1 text-body-xs rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick flex-1 min-w-[8rem]"
-        />
-        <button onClick={() => decide("approve")} disabled={busy} className="px-2.5 py-1 text-body-xs font-medium rounded bg-ink text-paper hover:bg-ink/90 disabled:opacity-50">
-          Approve → add to invoice
-        </button>
-        <button onClick={() => decide("reject")} disabled={busy} className="px-2.5 py-1 text-body-xs font-medium rounded border border-bone text-ash hover:text-brick hover:border-brick disabled:opacity-50">
-          Reject
-        </button>
-      </div>
+      {done ? (
+        <div className="mt-3 pt-2 border-t border-bone/60">
+          <p className="text-body-xs text-confirmed">✓ {done}</p>
+        </div>
+      ) : (
+        <div className="mt-3 pt-2 border-t border-bone/60 flex items-center gap-2 flex-wrap">
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Note (optional)"
+            className="px-2 py-1 text-body-xs rounded border border-bone bg-paper text-ink focus:outline-none focus:border-brick flex-1 min-w-[8rem]"
+          />
+          <button onClick={() => decide("approve")} disabled={busy} className="px-2.5 py-1 text-body-xs font-medium rounded bg-ink text-paper hover:bg-ink/90 disabled:opacity-50">
+            Approve → add to invoice
+          </button>
+          <button onClick={() => decide("reject")} disabled={busy} className="px-2.5 py-1 text-body-xs font-medium rounded border border-bone text-ash hover:text-brick hover:border-brick disabled:opacity-50">
+            Reject
+          </button>
+        </div>
+      )}
       {err && <p className="text-body-xs text-brick mt-1">{err}</p>}
     </div>
   );
