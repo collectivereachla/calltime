@@ -13,6 +13,7 @@ interface CalendarEvent {
   notes: string | null;
   production_title: string;
   org_name: string;
+  timezone: string;
 }
 
 function icsStamp(): string {
@@ -57,6 +58,7 @@ export async function GET(
   }
 
   const calEvents = (events as CalendarEvent[]) || [];
+  const calTz = calEvents[0]?.timezone || "America/Chicago";
 
   // Build ICS
   const lines: string[] = [
@@ -66,7 +68,7 @@ export async function GET(
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "X-WR-CALNAME:Calltime",
-    "X-WR-TIMEZONE:America/Chicago",
+    `X-WR-TIMEZONE:${calTz}`,
   ];
 
   for (const event of calEvents) {
@@ -89,11 +91,11 @@ export async function GET(
 
     if (event.start_time) {
       lines.push(
-        `DTSTART;TZID=America/Chicago:${formatICSDate(event.event_date, event.start_time)}`
+        `DTSTART;TZID=${event.timezone}:${formatICSDate(event.event_date, event.start_time)}`
       );
       if (event.end_time) {
         lines.push(
-          `DTEND;TZID=America/Chicago:${formatICSDate(event.event_date, event.end_time)}`
+          `DTEND;TZID=${event.timezone}:${formatICSDate(event.event_date, event.end_time)}`
         );
       }
     } else {
