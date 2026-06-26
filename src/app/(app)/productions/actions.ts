@@ -184,3 +184,26 @@ export async function updateOpenCall(
   revalidatePath(`/productions/${productionId}`);
   return { success: true };
 }
+
+// CRE-23 Director's Letter — leadership writes/publishes (SECDEF RPC re-checks role).
+export async function upsertDirectorLetter(productionId: string, title: string, body: string, published: boolean) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("upsert_director_letter", {
+    p_production_id: productionId, p_title: title || "", p_body: body || "", p_published: !!published,
+  });
+  if (error) return { error: error.message };
+  revalidatePath(`/productions/${productionId}`);
+  revalidatePath("/home");
+  return { id: data as string, error: null };
+}
+
+// A reader records that they've read the letter. Blocked in preview (read-only),
+// so a previewing owner never pollutes another person's read count.
+export async function markLetterRead(letterId: string) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("mark_letter_read", { p_letter_id: letterId });
+  if (error) return { error: error.message };
+  return { error: null };
+}

@@ -220,6 +220,24 @@ export default async function HomePage() {
   const upcoming = (upcomingData as unknown as UpcomingCall[]) || [];
   const callConflicts = findCallConflicts(upcoming);
 
+  // Director's letters (CRE-23): published letters for the person's active shows.
+  const prodTitleById = new Map(activeProductions.map((p) => [p.productions.id, p.productions.title]));
+  const activeProdIds = activeProductions.map((p) => p.productions.id);
+  let directorLetters: { production_id: string; title: string | null; body: string; prodTitle: string }[] = [];
+  if (activeProdIds.length > 0) {
+    const { data: dls } = await supabase
+      .from("director_letters")
+      .select("production_id, title, body, published")
+      .in("production_id", activeProdIds)
+      .eq("published", true);
+    directorLetters = (dls || []).map((d) => ({
+      production_id: d.production_id as string,
+      title: (d.title as string | null) ?? null,
+      body: (d.body as string) || "",
+      prodTitle: prodTitleById.get(d.production_id as string) || "",
+    }));
+  }
+
   // Hero = the soonest call (any status). Needs-response = unanswered (minus hero).
   // Coming up = everything already responded to (minus hero). Disjoint by design.
   const hero = upcoming[0] || null;
@@ -257,6 +275,22 @@ export default async function HomePage() {
           </a>
         )}
       </div>
+
+      {/* Director's letter (CRE-23) — surfaced to everyone assigned */}
+      {directorLetters.map((dl) => (
+        <a
+          key={dl.production_id}
+          href={`/productions/${dl.production_id}`}
+          className="block mb-8 bg-card border border-brick/20 rounded-card px-5 py-4 hover:shadow-card-hover transition-shadow"
+        >
+          <p className="text-body-xs text-muted uppercase tracking-wider mb-1">
+            From the director{showOrgOnCalls || activeProductions.length > 1 ? ` · ${dl.prodTitle}` : ""}
+          </p>
+          {dl.title && <h3 className="font-display text-display-sm text-ink mb-1">{dl.title}</h3>}
+          <p className="text-body-sm text-ash line-clamp-3 whitespace-pre-wrap">{dl.body}</p>
+          <span className="text-body-xs text-brick mt-2 inline-block">Read the letter &rarr;</span>
+        </a>
+      ))}
 
       {/* CRE-14: schedule conflicts across shows/companies */}
       {callConflicts.length > 0 && (

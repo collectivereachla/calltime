@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { AddPersonForm } from "./add-person-form";
 import { OpenCallCard } from "./open-call-card";
+import { DirectorLetter } from "./director-letter";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -96,6 +97,22 @@ export default async function ProductionPage({ params }: Props) {
       .eq("production_id", id)
       .eq("status", "submitted");
     pendingApplications = count || 0;
+  }
+
+  // Director's letter (CRE-23): leadership sees draft+published; members see published only (RLS).
+  const { data: letterRow } = await supabase
+    .from("director_letters")
+    .select("id, title, body, published")
+    .eq("production_id", id)
+    .maybeSingle();
+  const assignedCount = assignments?.length || 0;
+  let letterReadCount = 0;
+  if (canManage && letterRow?.id) {
+    const { count: rc } = await supabase
+      .from("director_letter_reads")
+      .select("id", { count: "exact", head: true })
+      .eq("letter_id", letterRow.id);
+    letterReadCount = rc || 0;
   }
 
   // Group assignments by department
@@ -217,6 +234,15 @@ export default async function ProductionPage({ params }: Props) {
           </div>
         </div>
       )}
+
+      {/* Director's letter (CRE-23) */}
+      <DirectorLetter
+        productionId={id}
+        canManage={canManage}
+        letter={letterRow ? { id: letterRow.id, title: letterRow.title, body: letterRow.body, published: letterRow.published } : null}
+        readCount={letterReadCount}
+        assignedCount={assignedCount}
+      />
 
       {/* Company (assignments) */}
       <div className="mb-8">
