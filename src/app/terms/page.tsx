@@ -114,8 +114,8 @@ export default function TermsPage() {
             <h2 className="font-display text-display-sm mb-3">Contact</h2>
             <p>
               Questions about these terms? Reach us at{" "}
-              <a href="mailto:inspire@heritageparc.org" className="text-brick hover:underline">
-                inspire@heritageparc.org
+              <a href="mailto:collectivereachla@gmail.com" className="text-brick hover:underline">
+                collectivereachla@gmail.com
               </a>.
             </p>
           </section>
