@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, type ReactElement } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { notifyGreenroomMessage, notifyMentions } from "./actions";
+import { notifyGreenroomMessage, notifyMentions, notifyDM } from "./actions";
 
 interface Message {
   id: string;
@@ -101,10 +101,12 @@ export function GreenroomChat(props: WrapperProps) {
     rooms.push({ key: "org:" + props.orgId, kind: "org", label: "Company", productionId: null });
   }
 
-  const [activeKey, setActiveKey] = useState(rooms[0]?.key ?? "");
-  const active = rooms.find((r) => r.key === activeKey) || rooms[0];
+  const tabs = [...rooms, { key: "direct", kind: "direct" as const, label: "Direct", productionId: null }];
+  const [activeKey, setActiveKey] = useState(rooms[0]?.key ?? "direct");
+  const isDirect = activeKey === "direct";
+  const active = rooms.find((r) => r.key === activeKey) || rooms[0] || null;
 
-  if (!active) {
+  if (rooms.length === 0) {
     return (
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
         <p className="text-body-md text-ash">No greenroom available.</p>
@@ -116,40 +118,45 @@ export function GreenroomChat(props: WrapperProps) {
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-2rem)]">
       <div className="px-4 md:px-8 pt-3 border-b border-bone shrink-0">
         <h1 className="font-display text-display-xs text-ink">Greenroom</h1>
-        {rooms.length > 1 ? (
-          <div className="flex gap-5 mt-1">
-            {rooms.map((r) => (
-              <button
-                key={r.key}
-                onClick={() => setActiveKey(r.key)}
-                className={`pb-2 text-body-sm border-b-2 -mb-px transition-colors ${
-                  active.key === r.key
-                    ? "border-brick text-ink font-medium"
-                    : "border-transparent text-muted hover:text-ash"
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="text-body-xs text-muted pb-2">
-            {active.kind === "org" ? props.orgName : active.label}
-          </p>
-        )}
+        <div className="flex gap-5 mt-1">
+          {tabs.map((r) => (
+            <button
+              key={r.key}
+              onClick={() => setActiveKey(r.key)}
+              className={`pb-2 text-body-sm border-b-2 -mb-px transition-colors ${
+                activeKey === r.key
+                  ? "border-brick text-ink font-medium"
+                  : "border-transparent text-muted hover:text-ash"
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <ChatRoom
-        key={active.key}
-        members={props.members}
-        roomKind={active.kind}
-        orgId={props.orgId}
-        productionId={active.productionId}
-        canManage={props.canManage}
-        personId={props.personId}
-        personName={props.personName}
-        personHeadshot={props.personHeadshot}
-      />
+      {isDirect ? (
+        <DMPane
+          orgId={props.orgId}
+          members={props.members}
+          canManage={props.canManage}
+          personId={props.personId}
+          personName={props.personName}
+          personHeadshot={props.personHeadshot}
+        />
+      ) : active ? (
+        <ChatRoom
+          key={active.key}
+          members={props.members}
+          roomKind={active.kind}
+          orgId={props.orgId}
+          productionId={active.productionId}
+          canManage={props.canManage}
+          personId={props.personId}
+          personName={props.personName}
+          personHeadshot={props.personHeadshot}
+        />
+      ) : null}
     </div>
   );
 }
@@ -158,6 +165,8 @@ export function GreenroomChat(props: WrapperProps) {
 
 interface RoomProps {
   members: { id: string; name: string }[];
+  conversationId?: string | null;
+  convOrgId?: string;
   roomKind: "org" | "production";
   orgId: string;
   productionId: string | null;
@@ -167,7 +176,7 @@ interface RoomProps {
   personHeadshot: string | null;
 }
 
-function ChatRoom({ members, roomKind, orgId, productionId, canManage, personId, personName, personHeadshot }: RoomProps) {
+function ChatRoom({ members, conversationId = null, convOrgId, roomKind, orgId, productionId, canManage, personId, personName, personHeadshot }: RoomProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [reactions, setReactions] = useState<Map<string, Reaction[]>>(new Map());
   const [input, setInput] = useState("");
@@ -223,8 +232,13 @@ function ChatRoom({ members, roomKind, orgId, productionId, canManage, personId,
   // Scope a messages query to this room.
   const scopeQuery = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (q: any) => (productionId ? q.eq("production_id", productionId) : q.eq("org_id", orgId).is("production_id", null)),
-    [productionId, orgId]
+    (q: any) =>
+      conversationId
+        ? q.eq("conversation_id", conversationId)
+        : productionId
+          ? q.eq("production_id", productionId).is("conversation_id", null)
+          : q.eq("org_id", orgId).is("production_id", null).is("conversation_id", null),
+    [productionId, orgId, conversationId]
   );
 
   // Initial load for this room.
@@ -277,8 +291,10 @@ function ChatRoom({ members, roomKind, orgId, productionId, canManage, personId,
 
   // Real-time for THIS room only.
   useEffect(() => {
-    const channelName = `greenroom-${productionId || "org-" + orgId}`;
-    const filter = productionId ? `production_id=eq.${productionId}` : `org_id=eq.${orgId}`;
+    const channelName = conversationId ? `dm-${conversationId}` : `greenroom-${productionId || "org-" + orgId}`;
+    const filter = conversationId
+      ? `conversation_id=eq.${conversationId}`
+      : productionId ? `production_id=eq.${productionId}` : `org_id=eq.${orgId}`;
 
     const channel = supabase
       .channel(channelName)
@@ -288,11 +304,13 @@ function ChatRoom({ members, roomKind, orgId, productionId, canManage, personId,
         async (payload) => {
           const msg = payload.new as {
             id: string; content: string; created_at: string; person_id: string;
-            production_id: string | null; attachment_url: string | null;
+            production_id: string | null; conversation_id: string | null; attachment_url: string | null;
             attachment_name: string | null; attachment_type: string | null;
           };
           // Org room: ignore production messages that share this org_id.
-          if (!productionId && msg.production_id) return;
+          if (!productionId && !conversationId && msg.production_id) return;
+          // In a room, never surface DM/group messages (they share the org_id).
+          if (!conversationId && msg.conversation_id) return;
           const { data: author } = await supabase
             .from("people")
             .select("id, full_name, preferred_name, headshot_url")
@@ -356,7 +374,7 @@ function ChatRoom({ members, roomKind, orgId, productionId, canManage, personId,
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [productionId, orgId, supabase]);
+  }, [productionId, orgId, supabase, conversationId]);
 
   // --- @mention autocomplete + rendering (CRE-49) ---
   const escapeRx = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -413,19 +431,33 @@ function ChatRoom({ members, roomKind, orgId, productionId, canManage, personId,
     setMessages((prev) => [...prev, optimistic]);
     setAutoScroll(true);
 
-    const { error } = await supabase.from("messages").insert({
-      org_id: orgId,
-      production_id: productionId,
-      person_id: personId,
-      content: msgContent,
-      attachment_url: attachmentUrl || null,
-      attachment_name: attachmentName || null,
-      attachment_type: attachmentType || null,
-    });
+    const { error } = await supabase.from("messages").insert(
+      conversationId
+        ? {
+            conversation_id: conversationId,
+            org_id: convOrgId ?? orgId,
+            person_id: personId,
+            content: msgContent,
+            attachment_url: attachmentUrl || null,
+            attachment_name: attachmentName || null,
+            attachment_type: attachmentType || null,
+          }
+        : {
+            org_id: orgId,
+            production_id: productionId,
+            person_id: personId,
+            content: msgContent,
+            attachment_url: attachmentUrl || null,
+            attachment_name: attachmentName || null,
+            attachment_type: attachmentType || null,
+          }
+    );
 
     setSending(false);
     if (error) {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+    } else if (conversationId) {
+      notifyDM(conversationId, personName, msgContent).catch(() => {});
     } else {
       // High-signal @mention notifications (any room).
       if (mentionedIds.length) {
@@ -786,5 +818,159 @@ function ChatRoom({ members, roomKind, orgId, productionId, canManage, personId,
         </div>
       )}
     </>
+  );
+}
+
+// ---- Direct messages pane (CRE-49 Phase B): conversation list + group picker + thread ----
+function DMPane({
+  orgId, members, canManage, personId, personName, personHeadshot,
+}: {
+  orgId: string;
+  members: { id: string; name: string }[];
+  canManage: boolean;
+  personId: string;
+  personName: string;
+  personHeadshot: string | null;
+}) {
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+  const [convs, setConvs] = useState<{ id: string; label: string; isGroup: boolean }[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [newOpen, setNewOpen] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [groupTitle, setGroupTitle] = useState("");
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const { data: cs } = await supabase
+      .from("conversations").select("id, is_group, title").eq("org_id", orgId)
+      .order("created_at", { ascending: false });
+    const ids = (cs || []).map((c) => c.id as string);
+    const byConv = new Map<string, string[]>();
+    if (ids.length > 0) {
+      const { data: parts } = await supabase
+        .from("conversation_participants")
+        .select("conversation_id, person_id, people(full_name, preferred_name)")
+        .in("conversation_id", ids);
+      for (const pr of parts || []) {
+        if (pr.person_id === personId) continue;
+        const pp = pr.people as unknown as { full_name: string; preferred_name: string | null } | null;
+        const arr = byConv.get(pr.conversation_id as string) || [];
+        arr.push(pp?.preferred_name || pp?.full_name || "Someone");
+        byConv.set(pr.conversation_id as string, arr);
+      }
+    }
+    setConvs((cs || []).map((c) => ({
+      id: c.id as string,
+      isGroup: !!c.is_group,
+      label: (c.title as string | null) || (byConv.get(c.id as string) || []).join(", ") || "Conversation",
+    })));
+  }, [orgId, supabase, personId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function toggle(id: string) {
+    setPicked((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
+
+  async function createConv() {
+    if (picked.size === 0) { setErr("Pick at least one person."); return; }
+    setBusy(true); setErr(null);
+    const ids = [...picked];
+    const isGroup = ids.length > 1;
+    const { data, error } = await supabase.rpc("create_conversation", {
+      p_org_id: orgId, p_participant_ids: ids, p_is_group: isGroup, p_title: isGroup ? (groupTitle || null) : null,
+    });
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    setNewOpen(false); setPicked(new Set()); setGroupTitle(""); setQ("");
+    await load();
+    setSelected(data as string);
+  }
+
+  if (selected) {
+    const conv = convs.find((c) => c.id === selected);
+    return (
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className="px-4 md:px-8 py-2 border-b border-bone shrink-0 flex items-center gap-3">
+          <button onClick={() => setSelected(null)} className="text-body-sm text-ash hover:text-brick">&larr; Direct</button>
+          <span className="text-body-sm font-medium text-ink truncate">{conv?.label || "Conversation"}</span>
+        </div>
+        <ChatRoom
+          key={selected}
+          members={members}
+          conversationId={selected}
+          convOrgId={orgId}
+          roomKind="org"
+          orgId={orgId}
+          productionId={null}
+          canManage={canManage}
+          personId={personId}
+          personName={personName}
+          personHeadshot={personHeadshot}
+        />
+      </div>
+    );
+  }
+
+  const filtered = members.filter((m) => m.name.toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto px-4 md:px-8 py-4">
+      <div className="max-w-2xl mx-auto">
+        {!newOpen ? (
+          <button onClick={() => setNewOpen(true)}
+            className="mb-4 px-4 py-2 text-body-sm font-medium rounded-card bg-ink text-paper hover:bg-ink/90">
+            + New message
+          </button>
+        ) : (
+          <div className="mb-4 bg-card border border-bone rounded-card p-4">
+            <p className="text-body-sm font-medium text-ink mb-2">New message</p>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people…"
+              className="w-full px-3 py-2 text-body-sm bg-paper border border-bone rounded-card text-ink focus:border-brick focus:outline-none mb-2" />
+            <div className="max-h-48 overflow-y-auto border border-bone rounded-card divide-y divide-bone mb-2">
+              {filtered.length === 0 ? (
+                <p className="px-3 py-2 text-body-xs text-muted">No matches.</p>
+              ) : filtered.map((m) => (
+                <button key={m.id} onClick={() => toggle(m.id)}
+                  className={`flex w-full items-center justify-between px-3 py-2 text-body-sm text-left ${picked.has(m.id) ? "bg-brick/10 text-ink" : "text-ash hover:bg-paper"}`}>
+                  {m.name}{picked.has(m.id) && <span className="text-brick">✓</span>}
+                </button>
+              ))}
+            </div>
+            {picked.size > 1 && (
+              <input value={groupTitle} onChange={(e) => setGroupTitle(e.target.value)} placeholder="Group name (optional)"
+                className="w-full px-3 py-2 text-body-sm bg-paper border border-bone rounded-card text-ink focus:border-brick focus:outline-none mb-2" />
+            )}
+            {err && <p className="text-body-xs text-brick mb-2">{err}</p>}
+            <div className="flex gap-2">
+              <button onClick={createConv} disabled={busy || picked.size === 0}
+                className="px-4 py-2 text-body-sm font-medium rounded-card bg-ink text-paper hover:bg-ink/90 disabled:opacity-50">
+                {busy ? "…" : picked.size > 1 ? `Start group (${picked.size})` : "Start"}
+              </button>
+              <button onClick={() => { setNewOpen(false); setPicked(new Set()); setErr(null); }} className="text-body-sm text-ash hover:text-ink">Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {convs.length === 0 ? (
+          <p className="text-body-sm text-muted">No direct messages yet. Start one above.</p>
+        ) : (
+          <div className="space-y-1">
+            {convs.map((c) => (
+              <button key={c.id} onClick={() => setSelected(c.id)}
+                className="flex w-full items-center gap-2 px-4 py-3 text-left rounded-card border border-bone bg-card hover:shadow-card-hover transition-shadow">
+                <span className="text-body-sm font-medium text-ink truncate">{c.label}</span>
+                {c.isGroup && <span className="text-body-xs text-muted">· group</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
