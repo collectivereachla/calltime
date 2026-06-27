@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { upsertDirectorLetter, markLetterRead } from "../actions";
+import { renderRichText } from "@/lib/rich-text";
 
 type Letter = {
   id: string;
@@ -42,7 +43,7 @@ export function DirectorLetter({
       <section className="mb-8 bg-card border border-bone rounded-card p-6">
         <p className="text-body-xs text-muted uppercase tracking-wider mb-2">From the director</p>
         {letter.title && <h2 className="font-display text-display-sm text-ink mb-3">{letter.title}</h2>}
-        <div className="text-body-md text-ink whitespace-pre-wrap leading-relaxed">{letter.body}</div>
+        <div className="text-body-md text-ink leading-relaxed">{renderRichText(letter.body)}</div>
       </section>
     );
   }
@@ -96,7 +97,7 @@ function DirectorLetterEditor({
         <>
           {letter.title && <h2 className="font-display text-display-sm text-ink mb-2">{letter.title}</h2>}
           {letter.body
-            ? <div className="text-body-md text-ink whitespace-pre-wrap leading-relaxed">{letter.body}</div>
+            ? <div className="text-body-md text-ink leading-relaxed">{renderRichText(letter.body)}</div>
             : <p className="text-body-sm text-muted italic">No letter written yet.</p>}
           <div className="mt-4 flex items-center gap-3 flex-wrap">
             <span className={`text-body-xs px-2 py-0.5 rounded-full ${letter.published ? "bg-confirmed/10 text-confirmed" : "bg-bone/40 text-muted"}`}>
@@ -120,6 +121,7 @@ function DirectorLetterEditor({
             placeholder="Write your letter to the company…"
             className="w-full px-3 py-2 text-body-md bg-paper border border-bone rounded-card text-ink focus:border-brick focus:outline-none resize-y leading-relaxed"
           />
+          <p className="text-body-xs text-muted">Formatting: **bold**, *italic*, # heading, - list, [link](https://…)</p>
           <label className="flex items-center gap-2 text-body-sm text-ink">
             <input type="checkbox" checked={published} onChange={(e) => setPublished(e.target.checked)} />
             Published (visible to everyone assigned)

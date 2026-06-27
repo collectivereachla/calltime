@@ -10,6 +10,7 @@ import { CallboardTabs } from "./callboard-tabs";
 import { PrintButton } from "./print-button";
 import { PersonFilter } from "./person-filter";
 import { PublishWeekButton } from "./publish-week-button";
+import { renderRichText } from "@/lib/rich-text";
 import { getActiveProductionId } from "@/lib/active-production";
 
 function formatTime(time: string): string {
@@ -478,9 +479,9 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
                             </p>
                           )}
                           {event.notes && (
-                            <p className="text-body-xs text-ash mt-2">
-                              {event.notes}
-                            </p>
+                            <div className="text-body-xs text-ash mt-2">
+                              {renderRichText(event.notes)}
+                            </div>
                           )}
                         </div>
 
