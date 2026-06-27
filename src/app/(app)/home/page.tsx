@@ -5,6 +5,7 @@ import { WhatChanged, type WhatChangedProduction } from "@/components/what-chang
 import { ShowLink } from "@/components/show-link";
 import { ProductionHealth } from "./production-health";
 import { WelcomeChecklist } from "./welcome-checklist";
+import { RoleOfferCard } from "@/components/role-offer-card";
 
 type UpcomingCall = {
   event_id: string;
@@ -223,6 +224,20 @@ export default async function HomePage() {
   // Director's letters (CRE-23): published letters for the person's active shows.
   const prodTitleById = new Map(activeProductions.map((p) => [p.productions.id, p.productions.title]));
   const activeProdIds = activeProductions.map((p) => p.productions.id);
+  // Pending role offers for this person (CRE-45).
+  const { data: offerRows } = await supabase
+    .from("role_offers")
+    .select("id, role_title, compensation, message, production_id, productions(title)")
+    .eq("person_id", person!.id)
+    .eq("status", "pending");
+  const roleOffers = (offerRows || []).map((o) => ({
+    id: o.id as string,
+    role: o.role_title as string,
+    productionTitle: ((o.productions as unknown as { title: string } | null)?.title) || "",
+    compensation: (o.compensation as string | null) ?? null,
+    message: (o.message as string | null) ?? null,
+  }));
+
   let directorLetters: { production_id: string; title: string | null; body: string; prodTitle: string }[] = [];
   if (activeProdIds.length > 0) {
     const { data: dls } = await supabase
@@ -275,6 +290,11 @@ export default async function HomePage() {
           </a>
         )}
       </div>
+
+      {/* Pending role offers (CRE-45) — highest priority, top of Home */}
+      {roleOffers.map((o) => (
+        <RoleOfferCard key={o.id} offerId={o.id} role={o.role} productionTitle={o.productionTitle} compensation={o.compensation} message={o.message} />
+      ))}
 
       {/* Director's letter (CRE-23) — surfaced to everyone assigned */}
       {directorLetters.map((dl) => (

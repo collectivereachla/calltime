@@ -204,3 +204,46 @@ export async function declineApplication(applicationId: string) {
   revalidatePath("/applications");
   return { success: true };
 }
+
+// CRE-45 Phase 2: formal role offers (offer -> accept/decline).
+export async function makeRoleOffer(input: {
+  productionId: string; personId: string; role: string; department: string;
+  accessTier: string; compensation: string; message: string; applicationId: string | null;
+}) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("make_role_offer", {
+    p_production_id: input.productionId,
+    p_person_id: input.personId,
+    p_role_title: input.role,
+    p_department: input.department || null,
+    p_access_tier: input.accessTier || "member",
+    p_compensation: input.compensation || null,
+    p_message: input.message || null,
+    p_application_id: input.applicationId,
+  });
+  if (error) return { error: error.message };
+  const { data: prod } = await supabase.from("productions").select("title, org_id").eq("id", input.productionId).single();
+  if (prod) {
+    createNotification({
+      personId: input.personId,
+      orgId: prod.org_id as string,
+      type: "role_offer",
+      title: "You've been offered a role",
+      body: `${input.role} in ${prod.title}`,
+      link: "/home",
+    }).catch(() => {});
+  }
+  revalidatePath("/applications");
+  return { id: data as string, error: null };
+}
+
+export async function respondToRoleOffer(offerId: string, accept: boolean) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("respond_to_role_offer", { p_offer_id: offerId, p_accept: accept });
+  if (error) return { error: error.message };
+  revalidatePath("/home");
+  revalidatePath("/applications");
+  return { error: null };
+}

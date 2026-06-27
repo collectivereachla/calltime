@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { approveApplication, declineApplication } from "./actions";
+import { approveApplication, declineApplication, makeRoleOffer } from "./actions";
 
 const DEPARTMENTS = [
   { value: "cast", label: "Cast" },
@@ -21,6 +21,7 @@ const ACCESS_TIERS = [
 ];
 
 interface Props {
+  personId: string;
   application: {
     id: string;
     type: string;
@@ -51,13 +52,15 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-export function ApplicationReview({ application, person, production }: Props) {
+export function ApplicationReview({ personId, application, person, production }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [role, setRole] = useState(application.roleInterest || "");
   const [department, setDepartment] = useState(application.departmentInterest || "cast");
   const [accessTier, setAccessTier] = useState("member");
   const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState<"accepted" | "declined" | null>(null);
+  const [compensation, setCompensation] = useState("");
+  const [offerNote, setOfferNote] = useState("");
+  const [done, setDone] = useState<"accepted" | "declined" | "offered" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const inputClass =
@@ -91,6 +94,18 @@ export function ApplicationReview({ application, person, production }: Props) {
     }
   }
 
+  async function handleOffer() {
+    if (!role.trim()) { setError("Add a role before sending an offer."); return; }
+    setError(null);
+    setLoading(true);
+    const result = await makeRoleOffer({
+      productionId: production.id, personId, role: role.trim(), department,
+      accessTier, compensation, message: offerNote, applicationId: application.id,
+    });
+    setLoading(false);
+    if (result.error) { setError(result.error); } else { setDone("offered"); }
+  }
+
   if (done) {
     return (
       <div className={`bg-card border rounded-card p-4 ${
@@ -102,9 +117,9 @@ export function ApplicationReview({ application, person, production }: Props) {
             <span className="text-body-sm text-muted">{production.title}</span>
           </div>
           <span className={`text-body-xs px-2 py-0.5 rounded-full ${
-            done === "accepted" ? "bg-confirmed/10 text-confirmed" : "bg-brick/10 text-brick"
+            done === "declined" ? "bg-brick/10 text-brick" : "bg-confirmed/10 text-confirmed"
           }`}>
-            {done === "accepted" ? `Approved → ${role}` : "Declined"}
+            {done === "accepted" ? `Approved → ${role}` : done === "offered" ? `Offer sent → ${role}` : "Declined"}
           </span>
         </div>
       </div>
@@ -202,14 +217,33 @@ export function ApplicationReview({ application, person, production }: Props) {
             </div>
           </div>
 
+          {/* Optional offer details (used by "Send offer") */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-body-xs text-muted mb-1">Compensation <span className="text-muted/70">(for offer)</span></label>
+              <input type="text" value={compensation} onChange={(e) => setCompensation(e.target.value)} placeholder="$300, stipend, volunteer…" className={inputClass} />
+            </div>
+            <div>
+              <label className="block text-body-xs text-muted mb-1">Offer note <span className="text-muted/70">(optional)</span></label>
+              <input type="text" value={offerNote} onChange={(e) => setOfferNote(e.target.value)} placeholder="A line to them with the offer" className={inputClass} />
+            </div>
+          </div>
+
           {/* Actions */}
-          <div className="flex gap-3 pt-1">
+          <div className="flex gap-3 pt-1 flex-wrap">
             <button
               onClick={handleApprove}
               disabled={loading}
               className="px-5 py-2 bg-confirmed text-paper text-body-sm font-medium rounded-card hover:bg-confirmed/90 transition-colors disabled:opacity-50"
             >
-              {loading ? "..." : "Approve"}
+              {loading ? "..." : "Approve now"}
+            </button>
+            <button
+              onClick={handleOffer}
+              disabled={loading}
+              className="px-5 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 transition-colors disabled:opacity-50"
+            >
+              Send offer
             </button>
             <button
               onClick={handleDecline}

@@ -82,6 +82,7 @@ export default async function ApplicationsPage() {
               return (
                 <ApplicationReview
                   key={app.id}
+                  personId={person.id}
                   application={{
                     id: app.id,
                     type: app.type,
