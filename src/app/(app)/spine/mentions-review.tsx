@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, ReactNode } from "react";
+import { toRoman } from "@/lib/roman";
 import { useRouter } from "next/navigation";
 import {
   scanMentions,
@@ -32,7 +33,7 @@ interface Props {
 
 function sceneLabel(act: number | null, scene: number | null): string {
   if (!act || !scene) return "";
-  return `Act ${act === 1 ? "I" : "II"} · Sc ${scene}`;
+  return `Act ${toRoman(act)} · Sc ${scene}`;
 }
 
 // Highlight the matched alias within the line so the reviewer sees exactly what

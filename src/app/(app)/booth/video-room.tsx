@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { toRoman } from "@/lib/roman";
 import { useRouter } from "next/navigation";
 import {
   saveVideoShot, updateShotStatus, deleteVideoShot,
@@ -68,7 +69,7 @@ const DEST = { marquee: "→ Marquee", archive: "→ Archive", both: "→ Marque
 
 const inputCls = "w-full px-3 py-2 bg-paper border border-bone rounded-card text-body-sm text-ink placeholder:text-muted focus:border-brick focus:outline-none";
 
-function sceneLabel(s: Scene) { return `${s.act === 1 ? "I" : "II"}.${s.scene_number}`; }
+function sceneLabel(s: Scene) { return `${toRoman(s.act)}.${s.scene_number}`; }
 
 export function VideoRoom({ productionId, scenes, crew, orgPeople, shots, deliverables, releases, references, canManage }: Props) {
   const router = useRouter();

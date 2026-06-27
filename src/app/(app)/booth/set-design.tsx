@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { toRoman } from "@/lib/roman";
 import { useRouter } from "next/navigation";
 import {
   saveDesignElement, deleteDesignElement, uploadDesignImage,
@@ -92,7 +93,7 @@ const REF_CATEGORIES = [
 ];
 
 function sceneLabel(s: Scene): string {
-  return `${s.act === 1 ? "I" : "II"}.${s.scene_number}`;
+  return `${toRoman(s.act)}.${s.scene_number}`;
 }
 
 export function SetDesign({ productionId, scenes, elements, references, milestones, sceneNotes, stageConfig, canManage }: Props) {

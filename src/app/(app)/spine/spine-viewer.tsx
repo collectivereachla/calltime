@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo, ReactNode } from "react";
+import { toRoman } from "@/lib/roman";
 import { createBrowserClient } from "@supabase/ssr";
 import { addAnnotation, deleteAnnotation, updateAnnotation, searchScript, updateScriptLine, deleteScriptLine } from "./spine-actions";
 import { useRouter } from "next/navigation";
@@ -612,7 +613,7 @@ export function SpineViewer({
 
   function getActLabel(act: number) {
     if (act === 0) return "";
-    return `Act ${act === 1 ? "I" : "II"}`;
+    return `Act ${toRoman(act)}`;
   }
 
   // Note view labels
@@ -766,7 +767,7 @@ export function SpineViewer({
           onClick={() => setShowNav(!showNav)}
           className="bg-ink text-paper px-3 py-2 rounded-full text-body-sm font-medium shadow-lg"
         >
-          {actNum > 0 ? `Act ${actNum === 1 ? "I" : "II"} · Scene ${sceneNum}` : "Scenes"}
+          {actNum > 0 ? `Act ${toRoman(actNum)} · Scene ${sceneNum}` : "Scenes"}
         </button>
       </div>
 
@@ -892,7 +893,7 @@ export function SpineViewer({
                         className="group/scene mb-3 flex items-baseline gap-2 text-left"
                       >
                         <span className="font-mono text-data-sm text-muted uppercase tracking-wider group-hover/scene:text-brick transition-colors">
-                          {a > 0 ? `Act ${a === 1 ? "I" : "II"} · Scene ${s}` : scriptTitle}
+                          {a > 0 ? `Act ${toRoman(a)} · Scene ${s}` : scriptTitle}
                         </span>
                         {g.meta?.title && <span className="text-body-sm text-ash">— {g.meta.title}</span>}
                         <span className="text-body-xs text-muted opacity-0 group-hover/scene:opacity-100 transition-opacity">open →</span>
@@ -938,7 +939,7 @@ export function SpineViewer({
             <div className="flex items-center gap-3">
               <span className="font-mono text-data-sm text-muted">
                 {actNum > 0
-                  ? `Act ${actNum === 1 ? "I" : "II"} · Scene ${sceneNum}`
+                  ? `Act ${toRoman(actNum)} · Scene ${sceneNum}`
                   : scriptTitle}
               </span>
               {currentMeta?.title && (
@@ -1353,7 +1354,7 @@ export function SpineViewer({
                 {/* Scene header */}
                 <div className="mb-4 pb-2 border-b border-bone">
                   <span className="font-mono text-data-sm text-muted">
-                    {a > 0 ? `Act ${a === 1 ? "I" : "II"} · Scene ${s}` : scriptTitle}
+                    {a > 0 ? `Act ${toRoman(a)} · Scene ${s}` : scriptTitle}
                   </span>
                   {meta?.title && (
                     <span className="text-body-sm text-ash ml-2">— {meta.title}</span>

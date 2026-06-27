@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 
+import { toRoman } from "@/lib/roman";
 interface ScriptLine {
   id: string;
   line_number: number;
@@ -77,7 +78,7 @@ export function ScriptReports({ lines, annotations, allCharacters }: Props) {
     const sceneLabels: Record<string, string> = {};
     for (const k of sceneKeys) {
       const [a, s] = k.split(".").map(Number);
-      sceneLabels[k] = (a === 1 ? "I" : "II") + "." + s;
+      sceneLabels[k] = toRoman(a) + "." + s;
     }
 
     // Characters (exclude compound names, ALL, BOTH, SOLDIER)

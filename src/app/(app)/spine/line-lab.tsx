@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { toRoman } from "@/lib/roman";
 import { MonologueLab } from "./monologue-lab";
 
 interface ScriptLine {
@@ -273,7 +274,7 @@ export function LineLab({ lines, annotations, myCharacters, allCharacters, scrip
             <div className="space-y-4">
               {/* Location badge */}
               <div className="font-mono text-data-sm text-muted">
-                Act {currentCard.act === 1 ? "I" : "II"} · Scene {currentCard.scene} · Card {currentCardIdx + 1} of {totalCards}
+                Act {toRoman(currentCard.act)} · Scene {currentCard.scene} · Card {currentCardIdx + 1} of {totalCards}
               </div>
 
               {/* Cue line */}
@@ -358,7 +359,7 @@ export function LineLab({ lines, annotations, myCharacters, allCharacters, scrip
           {firstLetterScenes.map((scene) => (
             <div key={`${scene.act}-${scene.scene}`}>
               <h3 className="font-mono text-data-sm text-muted uppercase tracking-wider mb-3">
-                Act {scene.act === 1 ? "I" : "II"} · Scene {scene.scene}
+                Act {toRoman(scene.act)} · Scene {scene.scene}
               </h3>
               <div className="space-y-3">
                 {scene.lines.map((line, idx) => (
