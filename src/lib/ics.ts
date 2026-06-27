@@ -36,7 +36,9 @@ export function buildEventIcs(opts: {
   sequence: number;
   method: "REQUEST" | "CANCEL";
   attendeeEmail?: string | null;
+  timezone?: string | null;
 }): string {
+  const tz = opts.timezone || "America/Chicago";
   const uid = `${opts.eventId}@${DOMAIN}`;
   const summary = `${opts.title} — ${opts.productionTitle}`;
   const desc = [
@@ -70,9 +72,9 @@ export function buildEventIcs(opts: {
   }
 
   if (opts.startTime) {
-    lines.push(`DTSTART;TZID=America/Chicago:${icsDate(opts.date, opts.startTime)}`);
+    lines.push(`DTSTART;TZID=${tz}:${icsDate(opts.date, opts.startTime)}`);
     if (opts.endTime) {
-      lines.push(`DTEND;TZID=America/Chicago:${icsDate(opts.date, opts.endTime)}`);
+      lines.push(`DTEND;TZID=${tz}:${icsDate(opts.date, opts.endTime)}`);
     }
   } else {
     lines.push(`DTSTART;VALUE=DATE:${icsDate(opts.date, null)}`);

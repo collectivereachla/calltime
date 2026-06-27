@@ -56,6 +56,7 @@ interface Props {
   weapons: WeaponProp[];
   custodyEntries: CustodyEntry[];
   custodyRoster: RosterPerson[];
+  orgTz: string;
 }
 
 const TABS = ["Today", "Run Sheet", "Calling Script", "Tracking", "Weapons Log", "Reports", "Work Log"] as const;
@@ -93,7 +94,7 @@ const RUN_CATEGORIES = [
 
 const inputClass = "w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors";
 
-export function RunLayout({ production, canManage, personId, today, todayEvents, runSheetItems, reports, scenes, workLog, trackingScenes, stageProps, actionItems, cast, callingLines, callingCues, scriptVersionLabel, weapons, custodyEntries, custodyRoster }: Props) {
+export function RunLayout({ production, canManage, personId, today, todayEvents, runSheetItems, reports, scenes, workLog, trackingScenes, stageProps, actionItems, cast, callingLines, callingCues, scriptVersionLabel, weapons, custodyEntries, custodyRoster, orgTz }: Props) {
   const [tab, setTab] = useState<typeof TABS[number]>("Today");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -269,6 +270,7 @@ export function RunLayout({ production, canManage, personId, today, todayEvents,
           weapons={weapons}
           entries={custodyEntries}
           roster={custodyRoster}
+          orgTz={orgTz}
         />
       )}
 

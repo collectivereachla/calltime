@@ -46,7 +46,8 @@ export default async function RunPage() {
   }
 
   // Today's date in CT
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: await getOrgTimezone(orgId) });
+  const orgTz = await getOrgTimezone(orgId);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: orgTz });
 
   // Today's events + calls + responses
   const { data: todayEvents } = await supabase
@@ -232,6 +233,7 @@ export default async function RunPage() {
       weapons={weapons}
       custodyEntries={custodyEntries}
       custodyRoster={custodyRoster}
+      orgTz={orgTz}
       trackingScenes={(trackingScenes || []) as never[]}
       stageProps={(propsData || []) as never[]}
       actionItems={(actionItemsData || []) as never[]}

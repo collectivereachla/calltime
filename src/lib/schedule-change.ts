@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotification } from "@/lib/notifications";
 import { sendEmail } from "@/lib/email";
 import { buildEventIcs, icsAttachment } from "@/lib/ics";
+import { getOrgTimezone } from "@/lib/timezone";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://checkcalltime.art";
 const WINDOW_MS = 48 * 60 * 60 * 1000;
@@ -182,6 +183,7 @@ export async function notifyScheduleChange(opts: {
       .from("people")
       .select("id, full_name, preferred_name, email")
       .in("id", opts.personIds);
+    const scTz = await getOrgTimezone(opts.orgId);
     for (const p of ppl || []) {
       if (!p.email) continue;
       const name = p.preferred_name || p.full_name.split(" ")[0];
@@ -197,6 +199,7 @@ export async function notifyScheduleChange(opts: {
                 title: opts.title,
                 productionTitle: opts.productionTitle!,
                 orgName: opts.orgName!,
+                timezone: scTz,
                 eventType: opts.eventType,
                 date: icsDate,
                 startTime: icsStart,

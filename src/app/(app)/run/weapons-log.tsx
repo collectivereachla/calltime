@@ -36,14 +36,15 @@ interface Props {
   weapons: WeaponProp[];
   entries: CustodyEntry[];
   roster: RosterPerson[];
+  orgTz: string;
 }
 
 const inputClass =
   "w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors";
 
-function formatStamp(iso: string) {
+function formatStamp(iso: string, tz: string) {
   return new Date(iso).toLocaleString("en-US", {
-    timeZone: "America/Chicago",
+    timeZone: tz,
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -51,7 +52,7 @@ function formatStamp(iso: string) {
   });
 }
 
-export function WeaponsLog({ productionId, weapons, entries, roster }: Props) {
+export function WeaponsLog({ productionId, weapons, entries, roster, orgTz }: Props) {
   const router = useRouter();
   const [selectedWeapon, setSelectedWeapon] = useState<string>(weapons[0]?.id || "");
   const [saving, setSaving] = useState(false);
@@ -143,7 +144,7 @@ export function WeaponsLog({ productionId, weapons, entries, roster }: Props) {
         {latest && (
           <p className="text-body-xs text-muted mt-3">
             Last entry: {latest.action === "check_out" ? "checked out" : "checked in"}
-            {latest.custodian_name ? ` to ${latest.custodian_name}` : ""} · {formatStamp(latest.occurred_at)}
+            {latest.custodian_name ? ` to ${latest.custodian_name}` : ""} · {formatStamp(latest.occurred_at, orgTz)}
           </p>
         )}
       </div>
@@ -236,7 +237,7 @@ export function WeaponsLog({ productionId, weapons, entries, roster }: Props) {
                   >
                     {e.action === "check_out" ? "OUT" : "IN"}
                   </span>
-                  <span className="font-mono text-data-sm text-ash">{formatStamp(e.occurred_at)}</span>
+                  <span className="font-mono text-data-sm text-ash">{formatStamp(e.occurred_at, orgTz)}</span>
                 </div>
                 <p className="text-body-sm text-ink mt-2">
                   {e.custodian_name

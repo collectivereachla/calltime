@@ -5,6 +5,7 @@ import {
   buildWelcomeEmail,
 } from "@/lib/email";
 import { buildEventIcs, icsAttachment } from "@/lib/ics";
+import { getOrgTimezone } from "@/lib/timezone";
 
 const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL || "https://checkcalltime.art";
@@ -34,7 +35,7 @@ export async function sendEventCallEmails(eventId: string) {
         schedule_events!inner (
           id, ics_sequence, title, event_type, event_date, start_time, end_time, location,
           productions!inner ( title ),
-          organizations!inner ( name )
+          organizations!inner ( id, name )
         )
       `
       )
@@ -90,6 +91,7 @@ export async function sendEventCallEmails(eventId: string) {
         callboardUrl: `${APP_URL}/callboard`,
       });
 
+      const orgTz = await getOrgTimezone((event.organizations as unknown as { id: string } | null)?.id ?? null);
       const ics = buildEventIcs({
         eventId: event.id,
         title: event.title,
@@ -103,6 +105,7 @@ export async function sendEventCallEmails(eventId: string) {
         sequence: event.ics_sequence ?? 0,
         method: "REQUEST",
         attendeeEmail: person.email,
+        timezone: orgTz,
       });
 
       const result = await sendEmail({
