@@ -207,3 +207,31 @@ export async function markLetterRead(letterId: string) {
   if (error) return { error: error.message };
   return { error: null };
 }
+
+// CRE-45 Phase 1: audition slot management (leadership). SECDEF RPCs re-check role.
+export async function createAuditionSlot(input: {
+  productionId: string; startsAt: string; durationMin: number; location: string; capacity: number; notes: string;
+}) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_audition_slot", {
+    p_production_id: input.productionId,
+    p_starts_at: input.startsAt,
+    p_duration_min: input.durationMin || 15,
+    p_location: input.location || "",
+    p_capacity: input.capacity || 1,
+    p_notes: input.notes || "",
+  });
+  if (error) return { error: error.message };
+  revalidatePath(`/productions/${input.productionId}`);
+  return { id: data as string, error: null };
+}
+
+export async function deleteAuditionSlot(slotId: string, productionId: string) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("delete_audition_slot", { p_slot_id: slotId });
+  if (error) return { error: error.message };
+  revalidatePath(`/productions/${productionId}`);
+  return { error: null };
+}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AddPersonForm } from "./add-person-form";
 import { OpenCallCard } from "./open-call-card";
 import { DirectorLetter } from "./director-letter";
+import { AuditionsCard } from "./auditions-card";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -113,6 +114,40 @@ export default async function ProductionPage({ params }: Props) {
       .select("id", { count: "exact", head: true })
       .eq("letter_id", letterRow.id);
     letterReadCount = rc || 0;
+  }
+
+  // Audition slots + signups (CRE-45), leadership view.
+  type AudSlot = { id: string; starts_at: string; duration_min: number; location: string | null; capacity: number; notes: string | null; signups: { person_id: string; name: string }[] };
+  let auditionSlots: AudSlot[] = [];
+  if (canManage) {
+    const { data: slots } = await supabase
+      .from("audition_slots")
+      .select("id, starts_at, duration_min, location, capacity, notes")
+      .eq("production_id", id)
+      .order("starts_at", { ascending: true });
+    const slotIds = (slots || []).map((sl) => sl.id as string);
+    const signupsBySlot = new Map<string, { person_id: string; name: string }[]>();
+    if (slotIds.length > 0) {
+      const { data: sus } = await supabase
+        .from("audition_signups")
+        .select("slot_id, person_id, people(full_name, preferred_name)")
+        .in("slot_id", slotIds);
+      for (const su of sus || []) {
+        const pp = su.people as unknown as { full_name: string; preferred_name: string | null } | null;
+        const arr = signupsBySlot.get(su.slot_id as string) || [];
+        arr.push({ person_id: su.person_id as string, name: pp?.preferred_name || pp?.full_name || "—" });
+        signupsBySlot.set(su.slot_id as string, arr);
+      }
+    }
+    auditionSlots = (slots || []).map((sl) => ({
+      id: sl.id as string,
+      starts_at: sl.starts_at as string,
+      duration_min: sl.duration_min as number,
+      location: (sl.location as string | null) ?? null,
+      capacity: sl.capacity as number,
+      notes: (sl.notes as string | null) ?? null,
+      signups: signupsBySlot.get(sl.id as string) || [],
+    }));
   }
 
   // Group assignments by department
@@ -319,6 +354,9 @@ export default async function ProductionPage({ params }: Props) {
           pendingCount={pendingApplications}
         />
       )}
+
+      {/* Auditions (CRE-45) — owner/production only */}
+      {canManage && <AuditionsCard productionId={id} slots={auditionSlots} />}
     </div>
   );
 }

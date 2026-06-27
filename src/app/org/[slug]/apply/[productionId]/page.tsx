@@ -166,8 +166,14 @@ export default function ApplyPage() {
           </p>
           <div className="space-y-3">
             <Link
-              href={`/org/${slug}`}
+              href={`/org/${slug}/auditions/${productionId}`}
               className="block w-full py-2.5 bg-ink text-paper text-body-md font-medium rounded-card hover:bg-ink/90 transition-colors text-center"
+            >
+              Pick an audition time
+            </Link>
+            <Link
+              href={`/org/${slug}`}
+              className="block w-full py-2.5 text-ash text-body-md hover:text-brick transition-colors text-center"
             >
               Back to {orgName}
             </Link>
