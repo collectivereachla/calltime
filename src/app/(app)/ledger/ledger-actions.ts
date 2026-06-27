@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createNotification, notifyOrgOwners } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity-log";
 import { logAudit } from "@/lib/audit-log";
-import { getRoleInOrg, isOwnerRole, isLeadershipRole, orgIdForProduction, orgIdForRow } from "@/lib/membership";
+import { canManageFinance, orgIdForProduction, orgIdForRow } from "@/lib/membership";
 
 export async function signContract(formData: FormData) {
   await assertNotPreviewing();
@@ -219,8 +219,7 @@ export async function updateContract(formData: FormData) {
     .from("people").select("id").eq("user_id", user.id).single();
   const id = formData.get("id") as string;
   const orgId = await orgIdForRow("contracts", id);
-  const role = orgId ? await getRoleInOrg(person!.id, orgId) : null;
-  if (!isOwnerRole(role)) return { error: "Only owners can edit contracts" };
+  if (!(await canManageFinance(person!.id, orgId))) return { error: "Only finance can edit contracts" };
   const updates: Record<string, unknown> = {};
 
   for (const [key, value] of formData.entries()) {
@@ -253,8 +252,7 @@ export async function deleteContract(id: string) {
   const { data: person } = await supabase
     .from("people").select("id").eq("user_id", user.id).single();
   const orgId = await orgIdForRow("contracts", id);
-  const role = orgId ? await getRoleInOrg(person!.id, orgId) : null;
-  if (!isOwnerRole(role)) return { error: "Only owners can delete contracts" };
+  if (!(await canManageFinance(person!.id, orgId))) return { error: "Only finance can delete contracts" };
 
   const { error } = await supabase.from("contracts").delete().eq("id", id);
   if (error) return { error: error.message };
@@ -271,8 +269,7 @@ export async function voidContract(id: string) {
   const { data: person } = await supabase
     .from("people").select("id").eq("user_id", user.id).single();
   const orgId = await orgIdForRow("contracts", id);
-  const role = orgId ? await getRoleInOrg(person!.id, orgId) : null;
-  if (!isLeadershipRole(role)) return { error: "Not authorized" };
+  if (!(await canManageFinance(person!.id, orgId))) return { error: "Not authorized" };
 
   const { error } = await supabase
     .from("contracts")
@@ -302,8 +299,7 @@ export async function updateTemplate(formData: FormData) {
     .from("people").select("id").eq("user_id", user.id).single();
   const id = formData.get("id") as string;
   const orgId = await orgIdForRow("contract_templates", id);
-  const role = orgId ? await getRoleInOrg(person!.id, orgId) : null;
-  if (!isOwnerRole(role)) return { error: "Only owners can edit templates" };
+  if (!(await canManageFinance(person!.id, orgId))) return { error: "Only finance can edit templates" };
   const title = formData.get("title") as string;
   const body_markdown = formData.get("body_markdown") as string;
 
@@ -329,8 +325,7 @@ export async function createTemplate(formData: FormData) {
     .from("people").select("id").eq("user_id", user.id).single();
   const productionId = formData.get("production_id") as string;
   const orgId = await orgIdForProduction(productionId);
-  const role = orgId ? await getRoleInOrg(person!.id, orgId) : null;
-  if (!isOwnerRole(role)) return { error: "Only owners can create templates" };
+  if (!(await canManageFinance(person!.id, orgId))) return { error: "Only finance can create templates" };
   const contractType = formData.get("contract_type") as string;
   const title = formData.get("title") as string;
   const bodyMarkdown = formData.get("body_markdown") as string;
@@ -360,8 +355,7 @@ export async function deleteTemplate(id: string) {
   const { data: person } = await supabase
     .from("people").select("id").eq("user_id", user.id).single();
   const orgId = await orgIdForRow("contract_templates", id);
-  const role = orgId ? await getRoleInOrg(person!.id, orgId) : null;
-  if (!isOwnerRole(role)) return { error: "Only owners can delete templates" };
+  if (!(await canManageFinance(person!.id, orgId))) return { error: "Only finance can delete templates" };
 
   // Check for existing contracts using this template
   const { count } = await supabase
@@ -389,8 +383,7 @@ export async function addStaffMember(formData: FormData) {
     .from("people").select("id").eq("user_id", user.id).single();
   const productionId = formData.get("production_id") as string;
   const orgId = await orgIdForProduction(productionId);
-  const role = orgId ? await getRoleInOrg(person!.id, orgId) : null;
-  if (!isOwnerRole(role)) return { error: "Only owners can add staff" };
+  if (!(await canManageFinance(person!.id, orgId))) return { error: "Only finance can add staff" };
   const personName = formData.get("person_name") as string;
   const roleTitle = formData.get("role_title") as string;
   const compensation = formData.get("compensation") as string;

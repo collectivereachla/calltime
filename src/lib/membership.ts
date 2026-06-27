@@ -108,3 +108,25 @@ export async function resolveActingOrgId(
   if (owned) return owned.org_id as string;
   return data[0].org_id as string;
 }
+
+/**
+ * Finance access for ONE org: the org owner, or anyone explicitly granted
+ * finance_access (e.g. a producer who runs the budget but isn't an owner and
+ * must never see the donor Rolodex). This is the gate for the whole /ledger
+ * domain — budget, invoices, receipts, contracts, payers, payment settings.
+ */
+export async function canManageFinance(
+  personId: string,
+  orgId: string | null
+): Promise<boolean> {
+  if (!orgId) return false;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("org_memberships")
+    .select("role, finance_access")
+    .eq("person_id", personId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (!data) return false;
+  return data.role === "owner" || data.finance_access === true;
+}

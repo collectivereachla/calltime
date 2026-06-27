@@ -2,7 +2,7 @@
 import { assertNotPreviewing } from "@/lib/viewer";
 
 import { createClient } from "@/lib/supabase/server";
-import { getRoleInOrg, isOwnerRole, orgIdForProduction, orgIdForRow } from "@/lib/membership";
+import { canManageFinance, orgIdForProduction, orgIdForRow } from "@/lib/membership";
 
 // Authorize the current user as an OWNER of the org that owns this budget item.
 // orgId is derived from the entity/production, never from an arbitrary membership.
@@ -14,8 +14,7 @@ async function requireOwner(orgId: string | null, message: string) {
   const { data: person } = await supabase
     .from("people").select("id").eq("user_id", user.id).single();
   if (!person) return { supabase, ok: false as const, error: "No person record" };
-  const role = await getRoleInOrg(person.id, orgId);
-  if (!isOwnerRole(role)) return { supabase, ok: false as const, error: message };
+  if (!(await canManageFinance(person.id, orgId))) return { supabase, ok: false as const, error: message };
   return { supabase, ok: true as const, error: null };
 }
 

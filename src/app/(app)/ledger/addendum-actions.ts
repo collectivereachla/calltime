@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotification, notifyOrgOwners } from "@/lib/notifications";
-import { getRoleInOrg, isOwnerRole, orgIdForProduction } from "@/lib/membership";
+import { canManageFinance, orgIdForProduction } from "@/lib/membership";
 
 async function currentPersonId(): Promise<string | null> {
   const supabase = await createClient();
@@ -51,8 +51,7 @@ export async function createAddendum(formData: FormData) {
   }
 
   const orgId = await orgIdForProduction(contract.production_id);
-  const role = orgId ? await getRoleInOrg(personId, orgId) : null;
-  if (!isOwnerRole(role)) return { error: "Only owners can propose a contract change." };
+  if (!(await canManageFinance(personId, orgId))) return { error: "Only owners can propose a contract change." };
 
   // The "from" figure is the current effective one: the latest executed addendum, else the contract.
   const { data: priorCs } = await admin
@@ -173,8 +172,7 @@ export async function countersignAddendum(formData: FormData) {
   if (add.status !== "signed") return { error: "This addendum is not awaiting countersignature." };
 
   const orgId = await orgIdForProduction(contract.production_id);
-  const role = orgId ? await getRoleInOrg(personId, orgId) : null;
-  if (!isOwnerRole(role)) return { error: "Only owners can countersign." };
+  if (!(await canManageFinance(personId, orgId))) return { error: "Only owners can countersign." };
 
   const { error } = await admin
     .from("contract_addendums")
@@ -218,8 +216,7 @@ export async function voidAddendum(addendumId: string) {
   if (!add) return { error: "Addendum not found" };
   const contract = oneContract(add.contracts as EmbeddedContract | EmbeddedContract[] | null);
   const orgId = contract ? await orgIdForProduction(contract.production_id) : null;
-  const role = orgId ? await getRoleInOrg(personId, orgId) : null;
-  if (!isOwnerRole(role)) return { error: "Only owners can void an addendum." };
+  if (!(await canManageFinance(personId, orgId))) return { error: "Only owners can void an addendum." };
   if (add.status === "countersigned") {
     return { error: "An executed addendum can't be voided. Create a new addendum to change the figure again." };
   }

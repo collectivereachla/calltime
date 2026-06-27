@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { resolveActingOrgId, getRoleInOrg, isLeadershipRole } from "@/lib/membership";
+import { resolveActingOrgId, canManageFinance } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 
 export const dynamic = "force-dynamic";
@@ -29,8 +29,7 @@ export async function GET(req: Request) {
 
   const orgId = await resolveActingOrgId(person.id);
   if (!orgId) return new Response("No organization", { status: 403 });
-  const role = await getRoleInOrg(person.id, orgId);
-  if (!isLeadershipRole(role)) return new Response("Forbidden", { status: 403 });
+  if (!(await canManageFinance(person.id, orgId))) return new Response("Forbidden", { status: 403 });
 
   const url = new URL(req.url);
   const type = url.searchParams.get("type") || "invoices";

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
-import { getRoleInOrg, isOwnerRole, resolveActingOrgId } from "@/lib/membership";
+import { getRoleInOrg, isOwnerRole, canManageFinance, resolveActingOrgId } from "@/lib/membership";
 import { LedgerLayout } from "./ledger-layout";
 import { getActiveProductionId } from "@/lib/active-production";
 import { parseCompensationAmount } from "./invoice-utils";
@@ -31,10 +31,13 @@ export default async function LedgerPage() {
   }
 
   const role = await getRoleInOrg(person!.id, orgId);
-  // The Ledger (contracts + budget + invoices + payers) is owner-only. Everyone
-  // below owner sees only their own contracts/invoices via the non-manage paths.
-  const canManage = isOwnerRole(role);
-  const canSeeContent = isOwnerRole(role);
+  // The Ledger (contracts + budget + invoices + payers) is finance-only: org
+  // owners plus anyone granted finance access (e.g. a producer). Everyone else
+  // sees only their own contracts/invoices via the non-manage paths.
+  void role;
+  const canFinance = await canManageFinance(person!.id, orgId);
+  const canManage = canFinance;
+  const canSeeContent = canFinance;
 
   const { data: orgRow } = await supabase
     .from("organizations").select("name").eq("id", orgId).maybeSingle();

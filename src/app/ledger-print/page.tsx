@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { resolveActingOrgId, getRoleInOrg, isLeadershipRole } from "@/lib/membership";
+import { resolveActingOrgId, canManageFinance } from "@/lib/membership";
 import { redirect } from "next/navigation";
 import { getActiveProductionId } from "@/lib/active-production";
 import { PrintButton } from "./print-button";
@@ -26,8 +26,7 @@ export default async function LedgerPrintPage() {
   const orgId = await resolveActingOrgId(person.id);
   if (!orgId) redirect("/ledger");
 
-  const role = await getRoleInOrg(person.id, orgId);
-  if (!isLeadershipRole(role)) redirect("/ledger");
+  if (!(await canManageFinance(person.id, orgId))) redirect("/ledger");
 
   let pid = await getActiveProductionId();
   if (pid) {
