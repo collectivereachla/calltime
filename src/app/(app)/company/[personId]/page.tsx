@@ -5,6 +5,7 @@ import { getViewer } from "@/lib/viewer";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { EditProfile } from "./edit-profile";
+import { MergeDuplicate } from "./merge-duplicate";
 import { W9Download } from "./w9-download";
 
 const MONTHS = [
@@ -58,7 +59,7 @@ export default async function MemberDetailPage({
 
   const { data: person } = await supabase
     .from("people")
-    .select("id, full_name, preferred_name, pronouns, email, phone, headshot_url, bio, birth_month, birth_day, is_minor")
+    .select("id, full_name, preferred_name, pronouns, email, phone, headshot_url, bio, birth_month, birth_day, is_minor, user_id")
     .eq("id", personId)
     .single();
 
@@ -304,6 +305,18 @@ export default async function MemberDetailPage({
             w9_submitted_at: details.w9_submitted_at,
           } : null}
         />
+      )}
+
+      {/* Merge a duplicate person — owners only */}
+      {viewerMembership.role === "owner" && (
+        <div className="mt-2">
+          <MergeDuplicate
+            keepId={person.id}
+            keepName={person.preferred_name || person.full_name}
+            keepEmail={person.email}
+            keepUserId={(person as { user_id: string | null }).user_id}
+          />
+        </div>
       )}
     </div>
   );

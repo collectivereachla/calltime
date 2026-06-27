@@ -226,3 +226,32 @@ export async function removeFromProduction(
   revalidatePath("/ledger");
   return { success: true };
 }
+
+// ── Duplicate-person merge (owner-only; merge_person RPC enforces the role) ──
+export async function searchMergeCandidates(keepId: string, query: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("find_merge_candidates", {
+    p_keep: keepId,
+    p_query: query,
+  });
+  if (error) return { error: error.message, candidates: [] };
+  return { error: null, candidates: (data ?? []) };
+}
+
+export async function mergeDuplicate(
+  keepId: string,
+  loseId: string,
+  survivorUserId: string | null
+) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("merge_person", {
+    p_keep: keepId,
+    p_lose: loseId,
+    p_survivor_user_id: survivorUserId,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/company");
+  revalidatePath(`/company/${keepId}`);
+  return { error: null, result: data };
+}

@@ -137,7 +137,7 @@ export default function OnboardingPage() {
 
     const { data: pid, error: profileError } = await supabase.rpc(
       "ensure_person_profile",
-      { p_full_name: fullName, p_email: null }
+      { p_full_name: fullName, p_email: null, p_phone: phone || null }
     );
 
     if (profileError) { setError(profileError.message); setLoading(false); return; }
