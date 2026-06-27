@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
-import { getRoleInOrg, isLeadershipRole } from "@/lib/membership";
+import { getRoleInOrg, isLeadershipRole, canLeadProduction } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 import { SeatingRoom } from "./seating-room";
 
@@ -28,7 +28,7 @@ export default async function SeatingPage() {
   if (!production) return empty("Production not found.");
 
   const role = personId ? await getRoleInOrg(personId, production.org_id as string) : null;
-  const canEdit = isLeadershipRole(role);
+  const canEdit = isLeadershipRole(role) || (personId ? await canLeadProduction(personId, activeProductionId) : false);
 
   // Front-of-house room: owner/production org role, or a production/staff-tier
   // assignment on this show (Stage Management, TD, House Manager, FOH staff).

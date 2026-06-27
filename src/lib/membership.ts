@@ -130,3 +130,58 @@ export async function canManageFinance(
   if (!data) return false;
   return data.role === "owner" || data.finance_access === true;
 }
+
+/**
+ * Per-show leadership for ONE production: org owner of its org, the (transitional)
+ * org 'production' role, or an active lead-tier (owner/admin) assignment on that
+ * production. Mirrors the DB is_production_leader() predicate. This is the gate for
+ * show-scoped management (director's letter, offers, callboard, run, blocking,
+ * spine, seating, applications, assignments) — it resets every show.
+ */
+export async function canLeadProduction(
+  personId: string,
+  productionId: string | null
+): Promise<boolean> {
+  if (!productionId) return false;
+  const supabase = await createClient();
+  const orgId = await orgIdForProduction(productionId);
+  if (orgId) {
+    const { data: m } = await supabase
+      .from("org_memberships").select("role")
+      .eq("person_id", personId).eq("org_id", orgId).maybeSingle();
+    const role = (m?.role as string | undefined) ?? null;
+    if (role === "owner" || role === "production") return true;
+  }
+  const { data: a } = await supabase
+    .from("production_assignments").select("access_tier")
+    .eq("person_id", personId).eq("production_id", productionId).eq("active", true);
+  return (a || []).some((x) => ["owner", "admin"].includes(x.access_tier as string));
+}
+
+/**
+ * Org-level show leadership: owner/production org role, or any active lead-tier
+ * (owner/admin) assignment anywhere in the org. Mirrors DB is_org_show_leader().
+ * Gate for org-scoped show surfaces (callboard, greenroom moderation, company,
+ * playbill, inventory) where the page acts on the whole org rather than one show.
+ */
+export async function canLeadOrgShows(
+  personId: string,
+  orgId: string | null
+): Promise<boolean> {
+  if (!orgId) return false;
+  const supabase = await createClient();
+  const { data: m } = await supabase
+    .from("org_memberships").select("role")
+    .eq("person_id", personId).eq("org_id", orgId).maybeSingle();
+  const role = (m?.role as string | undefined) ?? null;
+  if (role === "owner" || role === "production") return true;
+  const { data: a } = await supabase
+    .from("production_assignments")
+    .select("access_tier, productions!inner(org_id)")
+    .eq("person_id", personId).eq("active", true);
+  return (a || []).some(
+    (x) =>
+      ["owner", "admin"].includes(x.access_tier as string) &&
+      (x.productions as unknown as { org_id: string } | null)?.org_id === orgId
+  );
+}

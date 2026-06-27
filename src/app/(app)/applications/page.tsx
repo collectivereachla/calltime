@@ -3,7 +3,7 @@ import { getViewer } from "@/lib/viewer";
 import { redirect } from "next/navigation";
 import { ApplicationReview } from "./application-review";
 import { getActiveProductionId } from "@/lib/active-production";
-import { orgIdForProduction, getRoleInOrg, isLeadershipRole } from "@/lib/membership";
+import { orgIdForProduction, getRoleInOrg, isLeadershipRole, canLeadProduction } from "@/lib/membership";
 
 export default async function ApplicationsPage() {
   const supabase = await createClient();
@@ -31,7 +31,7 @@ export default async function ApplicationsPage() {
   const orgId = await orgIdForProduction(activeProductionId);
   if (!orgId) redirect("/home");
 
-  if (!isLeadershipRole(await getRoleInOrg(person.id, orgId))) {
+  if (!isLeadershipRole(await getRoleInOrg(person.id, orgId)) && !(await canLeadProduction(person.id, activeProductionId))) {
     redirect("/home");
   }
 

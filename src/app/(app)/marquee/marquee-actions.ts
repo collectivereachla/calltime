@@ -1,6 +1,8 @@
 "use server";
 import { assertNotPreviewing } from "@/lib/viewer";
 
+import { canLeadOrgShows } from "@/lib/membership";
+
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -233,7 +235,7 @@ export async function deletePromoAsset(id: string) {
   if (!allowed) {
     const { data: mem } = await supabase
       .from("org_memberships").select("role").eq("person_id", me.id).eq("org_id", asset.org_id).maybeSingle();
-    allowed = !!mem && (mem.role === "owner" || mem.role === "production");
+    allowed = (!!mem && (mem.role === "owner" || mem.role === "production")) || (await canLeadOrgShows(me.id, asset.org_id));
   }
   if (!allowed) return { error: "You can only remove files you uploaded." };
 

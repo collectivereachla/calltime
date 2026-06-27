@@ -3,7 +3,7 @@ import { getViewer } from "@/lib/viewer";
 import { SpineLayout } from "./spine-layout";
 import { ImportScript } from "./import-script";
 import { getActiveProductionId } from "@/lib/active-production";
-import { orgIdForProduction, resolveActingOrgId, getRoleInOrg, isLeadershipRole } from "@/lib/membership";
+import { orgIdForProduction, resolveActingOrgId, getRoleInOrg, isLeadershipRole, canLeadProduction } from "@/lib/membership";
 
 interface SearchParams {
   v?: string;
@@ -54,7 +54,7 @@ export default async function SpinePage({
     );
   }
 
-  const canManage = isLeadershipRole(await getRoleInOrg(person!.id, orgId));
+  const canManage = isLeadershipRole(await getRoleInOrg(person!.id, orgId)) || (await canLeadProduction(person!.id, activeProductionId));
 
   // Which production's script: the selected one if it belongs to this org,
   // otherwise the org's first active production.

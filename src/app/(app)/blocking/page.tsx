@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
-import { getRoleInOrg, isLeadershipRole, orgIdForProduction } from "@/lib/membership";
+import { getRoleInOrg, isLeadershipRole, orgIdForProduction, canLeadProduction } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 import { BlockingMap } from "./blocking-map";
 
@@ -22,7 +22,7 @@ export default async function BlockingPage() {
 
   const orgId = await orgIdForProduction(activeProductionId);
   const role = orgId ? await getRoleInOrg(person!.id, orgId) : null;
-  const canManage = isLeadershipRole(role);
+  const canManage = isLeadershipRole(role) || (await canLeadProduction(person!.id, activeProductionId));
 
   const { data: production } = await supabase
     .from("productions").select("id, title").eq("id", activeProductionId).single();

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
 import { GreenroomChat } from "./greenroom-chat";
-import { resolveActingOrgId, getRoleInOrg, isLeadershipRole } from "@/lib/membership";
+import { resolveActingOrgId, getRoleInOrg, isLeadershipRole, canLeadOrgShows } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 
 export default async function GreenroomPage() {
@@ -37,7 +37,7 @@ export default async function GreenroomPage() {
   const orgName = org?.name ?? "";
 
   const role = await getRoleInOrg(person!.id, orgId);
-  const canManage = isLeadershipRole(role);
+  const canManage = isLeadershipRole(role) || (await canLeadOrgShows(person!.id, orgId));
   const isOrgMember = role !== null;
 
   // The production room only appears for the active show, and only if it belongs

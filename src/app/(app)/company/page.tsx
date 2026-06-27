@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { canLeadOrgShows } from "@/lib/membership";
+
 import { PrintButton } from "@/components/print-button";
 import { resolveHeadshots } from "@/lib/headshot";
 import { getViewer } from "@/lib/viewer";
@@ -78,7 +80,7 @@ export default async function CompanyPage() {
     .find((o) => o?.id === orgId) || null;
   const org = { id: orgId, name: orgRecord?.name || "Company" };
   const myRole = roleByOrg.get(orgId) || "member";
-  const canManage = myRole === "owner" || myRole === "production";
+  const canManage = myRole === "owner" || myRole === "production" || (await canLeadOrgShows(person!.id, orgId));
 
   // Banned people (managers only) — org-local bans. Embed names the FK because
   // org_bans has two paths to people (person_id and banned_by_person_id).

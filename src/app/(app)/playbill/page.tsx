@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
-import { getRoleInOrg, isLeadershipRole, resolveActingOrgId } from "@/lib/membership";
+import { getRoleInOrg, isLeadershipRole, resolveActingOrgId, canLeadOrgShows } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 import { ensurePlaybill } from "./actions";
 import { PlaybillEditor } from "./playbill-editor";
@@ -19,7 +19,7 @@ export default async function PlaybillPage() {
   }
 
   const role = await getRoleInOrg(personId!, orgId);
-  if (!isLeadershipRole(role)) {
+  if (!isLeadershipRole(role) && !(await canLeadOrgShows(personId!, orgId))) {
     return <div className="max-w-3xl mx-auto px-4 md:px-8 py-10"><p className="text-body-md text-ash">The playbill builder is for production leadership.</p></div>;
   }
 

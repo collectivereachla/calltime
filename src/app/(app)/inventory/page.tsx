@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
 import { redirect } from "next/navigation";
 import { getActiveProductionId } from "@/lib/active-production";
-import { getRoleInOrg, isLeadershipRole, resolveActingOrgId } from "@/lib/membership";
+import { getRoleInOrg, isLeadershipRole, resolveActingOrgId, canLeadOrgShows } from "@/lib/membership";
 import { InventoryRoom } from "./inventory-room";
 
 export default async function InventoryPage() {
@@ -17,7 +17,7 @@ export default async function InventoryPage() {
   const orgId = await resolveActingOrgId(person.id);
   if (!orgId) redirect("/home");
   const role = await getRoleInOrg(person.id, orgId);
-  if (!isLeadershipRole(role)) redirect("/home");
+  if (!isLeadershipRole(role) && !(await canLeadOrgShows(person.id, orgId))) redirect("/home");
 
   const [{ data: org }, { data: items }, { data: productions }, activePid] = await Promise.all([
     supabase.from("organizations").select("name").eq("id", orgId).maybeSingle(),

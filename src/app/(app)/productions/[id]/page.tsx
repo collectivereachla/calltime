@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { canLeadProduction } from "@/lib/membership";
+
 import { getViewer } from "@/lib/viewer";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -87,7 +89,8 @@ export default async function ProductionPage({ params }: Props) {
 
   const canManage =
     membership?.role === "owner" ||
-    membership?.role === "production";
+    membership?.role === "production" ||
+    (await canLeadProduction(person!.id, id));
 
   // Pending open-call applications awaiting review (owner/production only).
   let pendingApplications = 0;

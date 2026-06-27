@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { resolveHeadshot } from "@/lib/headshot";
-import { resolveActingOrgId } from "@/lib/membership";
+import { resolveActingOrgId, canLeadOrgShows } from "@/lib/membership";
 import { getViewer } from "@/lib/viewer";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -43,7 +43,7 @@ export default async function MemberDetailPage({
 
   if (!viewerMembership) return notFound();
 
-  const isStaff = viewerMembership.role === "owner" || viewerMembership.role === "production";
+  const isStaff = viewerMembership.role === "owner" || viewerMembership.role === "production" || (await canLeadOrgShows(viewer!.id, actingOrgId));
   const isSelf = viewer!.id === personId;
 
   // Fetch the person (must be in same org)

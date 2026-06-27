@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { resolveHeadshots } from "@/lib/headshot";
 import { getViewer } from "@/lib/viewer";
-import { getRoleInOrg, isLeadershipRole, resolveActingOrgId } from "@/lib/membership";
+import { getRoleInOrg, isLeadershipRole, resolveActingOrgId, canLeadOrgShows } from "@/lib/membership";
 import { getActiveProductionId } from "@/lib/active-production";
 import { MarqueeRoom } from "./marquee-room";
 import { ProductionPicker } from "./production-picker";
@@ -30,7 +30,7 @@ export default async function MarqueePage({
   }
 
   const role = await getRoleInOrg(person!.id, orgId);
-  const canManage = isLeadershipRole(role);
+  const canManage = isLeadershipRole(role) || (await canLeadOrgShows(person!.id, orgId));
 
   // The productions this person can see, in the same set/order the rest of the
   // app uses (so Marquee matches the production they're working in everywhere
@@ -75,7 +75,7 @@ export default async function MarqueePage({
 
   // Leadership (can approve/demote others' uploads): org owner/production/admin,
   // or a designer / SM / director / production-tier assignment on this show.
-  let canApprove = isLeadershipRole(role);
+  let canApprove = isLeadershipRole(role) || (await canLeadOrgShows(person!.id, orgId));
   if (!canApprove && pid) {
     const { data: pa } = await supabase
       .from("production_assignments")

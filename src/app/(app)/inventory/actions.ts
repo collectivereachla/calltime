@@ -2,7 +2,7 @@
 import { assertNotPreviewing } from "@/lib/viewer";
 
 import { createClient } from "@/lib/supabase/server";
-import { getRoleInOrg, isLeadershipRole, resolveActingOrgId, orgIdForProduction } from "@/lib/membership";
+import { getRoleInOrg, isLeadershipRole, resolveActingOrgId, orgIdForProduction, canLeadOrgShows } from "@/lib/membership";
 
 async function person() {
   const supabase = await createClient();
@@ -21,7 +21,7 @@ async function requireLeader(personId: string | null, orgId: string | null) {
   if (!personId) return { ok: false as const, error: "Not authenticated" };
   if (!orgId) return { ok: false as const, error: "Couldn't resolve the organization." };
   const role = await getRoleInOrg(personId, orgId);
-  if (!isLeadershipRole(role)) return { ok: false as const, error: "Only owners and production staff can manage inventory." };
+  if (!isLeadershipRole(role) && !(await canLeadOrgShows(personId, orgId))) return { ok: false as const, error: "Only owners and production staff can manage inventory." };
   return { ok: true as const, error: null };
 }
 

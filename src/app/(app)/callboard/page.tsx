@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { resolveActingOrgId } from "@/lib/membership";
+import { resolveActingOrgId, canLeadOrgShows } from "@/lib/membership";
 import { getOrgTimezone } from "@/lib/timezone";
 import Link from "next/link";
 import { getViewer } from "@/lib/viewer";
@@ -46,7 +46,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
     .maybeSingle();
 
   const canManage =
-    membership?.role === "owner" || membership?.role === "production";
+    membership?.role === "owner" || membership?.role === "production" || (await canLeadOrgShows(person!.id, actingOrgId));
 
   // Get active production from cookie
   const activeProductionId = await getActiveProductionId();
