@@ -713,6 +713,7 @@ function ChatRoom({ members, roomKind, orgId, productionId, canManage, personId,
             <input
               ref={fileRef}
               type="file"
+              aria-label="Attach a file"
               className="hidden"
               onChange={handleFileUpload}
               disabled={uploading}

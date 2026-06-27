@@ -140,6 +140,7 @@ export function NotificationBell({ unreadCount }: Props) {
         onClick={toggleOpen}
         className="relative p-1.5 text-ash hover:text-ink transition-colors"
         title="Notifications"
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
       >
         <svg
           width="18"
