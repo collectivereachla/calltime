@@ -614,6 +614,7 @@ function ChatRoom({ members, conversationId = null, convOrgId, roomKind, orgId, 
           <button
             key={emoji}
             onClick={(e) => { e.stopPropagation(); toggleReaction(messageId, emoji); }}
+            aria-label={`${emoji} reaction, ${count}. Tap to toggle.`}
             className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-body-xs transition-colors ${
               mine
                 ? "bg-brick/10 border border-brick/30 text-brick"
@@ -713,6 +714,7 @@ function ChatRoom({ members, conversationId = null, convOrgId, roomKind, orgId, 
                       <button
                         key={emoji}
                         onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); setActiveMessageId(null); }}
+                        aria-label={`React with ${emoji}`}
                         className="w-7 h-7 rounded hover:bg-bone/50 flex items-center justify-center transition-colors text-sm"
                       >
                         {emoji}
@@ -805,6 +807,7 @@ function ChatRoom({ members, conversationId = null, convOrgId, roomKind, orgId, 
         >
           <button
             onClick={() => setLightboxUrl(null)}
+            aria-label="Close image"
             className="absolute top-4 right-4 text-paper/70 hover:text-paper text-2xl transition-colors"
           >
             ✕
