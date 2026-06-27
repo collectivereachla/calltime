@@ -25,11 +25,21 @@ const departments = [
 ];
 
 const accessTiers = [
-  { value: "owner", label: "Owner" },
-  { value: "production", label: "Production" },
-  { value: "member", label: "Member" },
-  { value: "guest", label: "Guest" },
+  { value: "admin", label: "Show lead — runs this show" },
+  { value: "production", label: "Crew / staff — full show access" },
+  { value: "member", label: "Member — own schedule & materials" },
+  { value: "guest", label: "Guest — limited" },
 ];
+
+// Existing rows may carry legacy tiers ("owner"/"staff"). Map them onto the
+// current ladder so the select preselects correctly and a plain re-save never
+// silently changes someone's access. owner-tier => Show lead; staff => Crew.
+function normalizeTier(t: string | null | undefined): string {
+  if (t === "owner") return "admin";
+  if (t === "staff") return "production";
+  if (t === "admin" || t === "production" || t === "member" || t === "guest") return t;
+  return "member";
+}
 
 const castingOptions = [
   { value: "", label: "N/A" },
@@ -369,12 +379,13 @@ export function EditMemberButton({ person, orgId, orgRole, assignments, producti
                 </div>
                 <div>
                   <label className="block text-body-xs text-ash mb-1">Access tier</label>
-                  <select name="access_tier" defaultValue={a.access_tier}
+                  <select name="access_tier" defaultValue={normalizeTier(a.access_tier)}
                     className="w-full px-3 py-1.5 bg-card border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none transition-colors">
                     {accessTiers.map((t) => (
                       <option key={t.value} value={t.value}>{t.label}</option>
                     ))}
                   </select>
+                  <p className="text-[11px] text-muted mt-1">Show lead can write the director&rsquo;s letter, send role offers, and manage the callboard, run sheet, and script for this show.</p>
                 </div>
                 <div>
                   <label className="block text-body-xs text-ash mb-1">Casting</label>
