@@ -15,7 +15,13 @@ E2E_PASSWORD='<seeded test-org password>' npx playwright test
 
 ## Seeded accounts (isolated "E2E Test Co" org, cross-org walled from BTE)
 - `e2e-owner@calltime.test`  — org owner (sees Rolodex)
-- `e2e-member@calltime.test` — plain member (must NOT see Rolodex)
+- `e2e-member@calltime.test` — plain member, cast on "E2E Show" (no Rolodex, can't add Press)
+- `e2e-lead@calltime.test`   — org member but SHOW LEAD (admin tier) on "E2E Show" (can add Press, still no Rolodex)
+
+## What v1 covers
+owner sees Rolodex; member doesn't; a show lead doesn't either (proves leadership is
+per-show, not org standing); a lead can add Press in Marquee but a cast member can't;
+the availability page renders. Expand in `tests/`.
 
 Password is **not** in the repo (public). It's the value seeded into Supabase
 auth; store it as the `E2E_PASSWORD` GitHub secret and locally as an env var.
