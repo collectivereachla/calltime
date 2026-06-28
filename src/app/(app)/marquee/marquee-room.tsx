@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { PressCoverage, type CoverageItem } from "./press-coverage";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { recordPromoAsset, deletePromoAsset, getPromoDownloadUrl, updatePromoAsset, setPromoOfficial, setPromoTags, setPersonHeadshot, clearPersonHeadshot } from "./marquee-actions";
@@ -27,6 +28,7 @@ interface Props {
   orgId: string;
   myPersonId: string;
   canManage: boolean;
+  coverage: CoverageItem[];
   canApprove: boolean;
   assets: Asset[];
   roster: Person[];
@@ -212,7 +214,7 @@ function getVideoDuration(file: File): Promise<number> {
   });
 }
 
-export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApprove, assets, roster, headshots }: Props) {
+export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApprove, assets, roster, headshots, coverage }: Props) {
   const router = useRouter();
   const supabase = createClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -234,7 +236,7 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
 
   const toggle = (arr: string[], id: string) => (arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
 
-  const [view, setView] = useState<"gallery" | "headshots">("gallery");
+  const [view, setView] = useState<"gallery" | "headshots" | "press">("gallery");
   const [headshotBusy, setHeadshotBusy] = useState<string | null>(null);
   const headshotInputRef = useRef<HTMLInputElement>(null);
   const [headshotTarget, setHeadshotTarget] = useState<string | null>(null);
@@ -468,7 +470,7 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
     <div>
       {/* View tabs */}
       <div className="flex gap-1 mb-6 border-b border-bone">
-        {([["gallery", `Gallery${assets.length ? ` (${assets.length})` : ""}`], ["headshots", `Headshots (${headshotsWithCount}/${headshots.length})`]] as const).map(([key, label]) => (
+        {([["gallery", `Gallery${assets.length ? ` (${assets.length})` : ""}`], ["headshots", `Headshots (${headshotsWithCount}/${headshots.length})`], ["press", `Press${coverage.length ? ` (${coverage.length})` : ""}`]] as const).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setView(key)}
@@ -489,7 +491,9 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
         onChange={(e) => e.target.files && e.target.files[0] && handleHeadshotFile(e.target.files[0])}
       />
 
-      {view === "headshots" ? (
+      {view === "press" ? (
+        <PressCoverage productionId={productionId} orgId={orgId} coverage={coverage} canManage={canManage} />
+      ) : view === "headshots" ? (
         <HeadshotGrid
           headshots={headshots}
           busy={headshotBusy}

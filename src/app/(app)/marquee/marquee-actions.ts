@@ -362,3 +362,77 @@ export async function clearPersonHeadshot(input: {
   revalidatePath("/marquee");
   return { error: null };
 }
+
+// ── Press & Coverage (reviews / articles / press releases / mentions) ──
+// Writes are gated by RLS (is_production_leader or creator); we just stamp the author.
+const PRESS_KINDS = ["review", "article", "press_release", "mention"];
+
+export async function addPressCoverage(input: {
+  productionId: string;
+  orgId: string;
+  kind: string;
+  title: string;
+  outlet?: string | null;
+  publishedDate?: string | null;
+  url?: string | null;
+  pullQuote?: string | null;
+}) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+  const { data: me } = await supabase.from("people").select("id").eq("user_id", user.id).single();
+  if (!me) return { error: "No profile" };
+  if (!input.title?.trim()) return { error: "A title is required" };
+  const kind = PRESS_KINDS.includes(input.kind) ? input.kind : "article";
+  const { error } = await supabase.from("press_coverage").insert({
+    production_id: input.productionId,
+    org_id: input.orgId,
+    kind,
+    title: input.title.trim(),
+    outlet: input.outlet?.trim() || null,
+    published_date: input.publishedDate || null,
+    url: input.url?.trim() || null,
+    pull_quote: input.pullQuote?.trim() || null,
+    created_by: me.id,
+  }).select("id");
+  if (error) return { error: error.message };
+  revalidatePath("/marquee");
+  return { error: null };
+}
+
+export async function updatePressCoverage(input: {
+  id: string;
+  kind: string;
+  title: string;
+  outlet?: string | null;
+  publishedDate?: string | null;
+  url?: string | null;
+  pullQuote?: string | null;
+}) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  if (!input.title?.trim()) return { error: "A title is required" };
+  const kind = PRESS_KINDS.includes(input.kind) ? input.kind : "article";
+  const { error } = await supabase.from("press_coverage").update({
+    kind,
+    title: input.title.trim(),
+    outlet: input.outlet?.trim() || null,
+    published_date: input.publishedDate || null,
+    url: input.url?.trim() || null,
+    pull_quote: input.pullQuote?.trim() || null,
+    updated_at: new Date().toISOString(),
+  }).eq("id", input.id).select("id");
+  if (error) return { error: error.message };
+  revalidatePath("/marquee");
+  return { error: null };
+}
+
+export async function deletePressCoverage(id: string) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { error } = await supabase.from("press_coverage").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/marquee");
+  return { error: null };
+}

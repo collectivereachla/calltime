@@ -105,10 +105,20 @@ export default async function MarqueePage({
     department: string | null; headshotPath: string | null; previewUrl: string | null;
   };
   const headshots: HeadshotRow[] = [];
+  type CoverageRow = { id: string; kind: string; title: string; outlet: string | null; published_date: string | null; url: string | null; pull_quote: string | null };
+  let coverage: CoverageRow[] = [];
 
   if (pid) {
     const { data: prod } = await supabase.from("productions").select("title").eq("id", pid).single();
     prodTitle = prod?.title || "";
+
+    const { data: covRows } = await supabase
+      .from("press_coverage")
+      .select("id, kind, title, outlet, published_date, url, pull_quote")
+      .eq("production_id", pid)
+      .order("published_date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false });
+    coverage = (covRows || []) as CoverageRow[];
 
     const { data: rows } = await supabase
       .from("promo_assets")
@@ -230,6 +240,7 @@ export default async function MarqueePage({
           assets={assets}
           roster={roster}
           headshots={headshots}
+          coverage={coverage}
         />
       )}
     </div>
