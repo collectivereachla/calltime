@@ -61,7 +61,7 @@ export default function NewProductionPage() {
               type="text"
               required
               className="w-full px-3 py-2.5 bg-card border border-bone rounded-card text-body-md text-ink placeholder:text-muted focus:border-brick focus:outline-none transition-colors"
-              placeholder="The Jubilee Show"
+              placeholder="e.g. Our Spring Musical"
             />
           </div>
           <div>

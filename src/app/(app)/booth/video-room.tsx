@@ -394,7 +394,7 @@ export function VideoRoom({ productionId, scenes, crew, orgPeople, shots, delive
               <h3 className="text-body-md font-medium text-ink">{editingDeliv ? "Edit" : "New"} deliverable</h3>
               <div>
                 <label className="block text-body-xs text-ash mb-1">Title</label>
-                <input value={dTitle} onChange={(e) => setDTitle(e.target.value)} placeholder="e.g. 60-sec Jubilee recap / Full archival master / Opening-night sizzle" className={inputCls} />
+                <input value={dTitle} onChange={(e) => setDTitle(e.target.value)} placeholder="e.g. 60-sec recap / Full archival master / Opening-night sizzle" className={inputCls} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

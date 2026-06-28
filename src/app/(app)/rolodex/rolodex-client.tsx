@@ -81,7 +81,7 @@ function AffiliationEditor({ contact, options }: {
       </div>
       <div>
         <label className="text-[10px] uppercase tracking-wide text-muted block mb-0.5">In-kind gift</label>
-        <input className={fieldCls} placeholder="Food for the Jubilee" value={inKind} onChange={(e) => setInKind(e.target.value)} />
+        <input className={fieldCls} placeholder="e.g. Printing, catering, venue space" value={inKind} onChange={(e) => setInKind(e.target.value)} />
       </div>
       <button onClick={save} disabled={busy} className="px-3 py-1 text-body-xs font-medium rounded-card bg-ink text-paper hover:bg-ink/90 disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
       <button onClick={() => setEditing(false)} className="px-2 py-1 text-body-xs text-ash hover:text-ink">Cancel</button>

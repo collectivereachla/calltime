@@ -64,10 +64,10 @@ export default function InKindPage() {
             <option>Other</option>
           </select>
         </div>
-        <div><label className={label}>Describe your in-kind gift</label><textarea name="description" rows={3} className={field} placeholder="e.g., Two trays of jambalaya for the Heritage Jubilee" /></div>
+        <div><label className={label}>Describe your in-kind gift</label><textarea name="description" rows={3} className={field} placeholder="e.g., Two trays of food for opening night" /></div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div><label className={label}>Estimated value (optional)</label><input name="est_value" className={field} placeholder="$" /></div>
-          <div><label className={label}>What's it for? (optional)</label><input name="needed_for" className={field} placeholder="e.g., Heritage Jubilee" /></div>
+          <div><label className={label}>What's it for? (optional)</label><input name="needed_for" className={field} placeholder="e.g., Opening-night reception" /></div>
         </div>
         {err && <p className="text-body-sm text-brick">{err}</p>}
         <button type="submit" disabled={busy} className="inline-block bg-brick text-paper rounded-md px-6 py-3 text-body-sm disabled:opacity-60">
