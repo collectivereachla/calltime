@@ -1,7 +1,11 @@
-// Lead-only company availability calendar. Server component: shows, across the
-// production window, who has declared a conflict on each day (from the conflict
-// calendar, expanding ranges + weekly-recurring rules) and which days are
-// mandatory calls. A scheduling aid for the director/SM.
+"use client";
+
+// Lead-only company availability calendar. Spans the whole production by default
+// (from when the show was created through 14 days after close) with controls to
+// extend earlier or later. Shows, per day, who has declared a conflict (ranges +
+// weekly-recurring expanded) and which days are mandatory calls.
+
+import { useState, Fragment } from "react";
 
 type Conflict = {
   person_id: string;
@@ -25,6 +29,8 @@ function parseISO(s: string) {
   const [y, m, d] = s.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
+function addDays(d: Date, n: number) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function addMonths(d: Date, n: number) { const x = new Date(d); x.setMonth(x.getMonth() + n); return x; }
 function fmtTime(t: string | null) {
   if (!t) return "";
   const [h, m] = t.split(":");
@@ -39,35 +45,42 @@ type DayHit = { name: string; type: string | null; description: string | null; w
 export function ProductionAvailability({
   conflicts,
   mandatoryDates,
-  windowStart,
-  windowEnd,
+  productionCreatedAt,
+  firstRehearsal,
+  closingDate,
   rosterCount,
 }: {
   conflicts: Conflict[];
   mandatoryDates: string[];
-  windowStart: string | null;
-  windowEnd: string | null;
+  productionCreatedAt: string | null;
+  firstRehearsal: string | null;
+  closingDate: string | null;
   rosterCount: number;
 }) {
+  const [earlier, setEarlier] = useState(0);
+  const [later, setLater] = useState(0);
+
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  let start = windowStart ? parseISO(windowStart) : new Date(today);
-  if (start < today) start = new Date(today);
-  let end = windowEnd ? parseISO(windowEnd) : null;
-  if (!end || end < start) { end = new Date(start); end.setDate(end.getDate() + 56); }
-  const maxEnd = new Date(start); maxEnd.setDate(maxEnd.getDate() + 119);
-  if (end > maxEnd) end = maxEnd;
+  const baseStart = productionCreatedAt ? parseISO(productionCreatedAt.slice(0, 10))
+    : firstRehearsal ? parseISO(firstRehearsal) : new Date(today);
+  const baseEnd = closingDate ? addDays(parseISO(closingDate), 14)
+    : firstRehearsal ? addDays(parseISO(firstRehearsal), 120) : addDays(today, 90);
+
+  const start = addMonths(baseStart, -earlier);
+  let end = addMonths(baseEnd, later);
+  if (end < start) end = addDays(start, 28);
 
   const mandatory = new Set(mandatoryDates);
 
-  // Expand each conflict into the days it touches within the window.
+  // Expand conflicts into the days they touch within the window.
   const byDay = new Map<string, DayHit[]>();
   const add = (ds: string, hit: DayHit) => {
     if (!byDay.has(ds)) byDay.set(ds, []);
     byDay.get(ds)!.push(hit);
   };
   for (const c of conflicts) {
-    const windowStr = c.all_day ? null : c.start_time ? `${fmtTime(c.start_time)}${c.end_time ? `–${fmtTime(c.end_time)}` : ""}` : null;
-    const hit: DayHit = { name: c.person_name, type: c.conflict_type, description: c.description, window: windowStr };
+    const win = c.all_day ? null : c.start_time ? `${fmtTime(c.start_time)}${c.end_time ? `–${fmtTime(c.end_time)}` : ""}` : null;
+    const hit: DayHit = { name: c.person_name, type: c.conflict_type, description: c.description, window: win };
     if (c.recurring_rule) {
       const day = (c.recurring_rule.match(/BYDAY=([A-Z]{2})/) || [])[1];
       const untilM = (c.recurring_rule.match(/UNTIL=(\d{8})/) || [])[1];
@@ -101,39 +114,62 @@ export function ProductionAvailability({
 
   const datesWithHits = Array.from(byDay.keys()).filter((d) => d >= iso(start) && d <= iso(end)).sort();
 
+  let lastLabel = "";
+
   return (
     <div>
-      <p className="text-body-sm text-ash mb-4">
+      <p className="text-body-sm text-ash mb-3">
         Who has declared a conflict on each day, across {rosterCount} company member{rosterCount === 1 ? "" : "s"}. Mandatory calls are outlined &mdash; the company can&rsquo;t put a conflict on those days.
       </p>
+
+      <div className="flex items-center justify-between mb-3">
+        <button onClick={() => setEarlier((e) => Math.min(e + 1, 18))} className="text-body-xs font-medium px-3 py-1.5 rounded-card border border-bone text-ash hover:text-ink hover:border-ash transition-colors">← Show earlier</button>
+        <span className="text-body-xs text-muted">
+          {start.toLocaleDateString("en-US", { month: "short", year: "numeric" })} – {end.toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+        </span>
+        <button onClick={() => setLater((l) => Math.min(l + 1, 18))} className="text-body-xs font-medium px-3 py-1.5 rounded-card border border-bone text-ash hover:text-ink hover:border-ash transition-colors">Show later →</button>
+      </div>
 
       <div className="grid grid-cols-7 gap-1 mb-1">
         {dow.map((d) => <div key={d} className="text-center text-body-xs text-muted py-1">{d}</div>)}
       </div>
       <div className="space-y-1">
-        {weeks.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7 gap-1">
-            {week.map((d) => {
-              const ds = iso(d);
-              const within = inWindow(d);
-              const hits = byDay.get(ds)?.length || 0;
-              const isMand = mandatory.has(ds);
-              return (
-                <div key={ds}
-                  className={`aspect-square rounded-card text-body-sm flex flex-col items-center justify-center border ${
-                    !within ? "border-transparent text-bone"
-                    : isMand ? "border-ink/60 bg-ink/5 text-ink"
-                    : hits > 0 ? "bg-brick/10 border-brick/30 text-ink"
-                    : "bg-card border-bone text-ash"
-                  }`}>
-                  <span className={isMand ? "font-semibold" : ""}>{d.getDate()}</span>
-                  {within && hits > 0 && <span className="text-[10px] leading-none text-brick font-medium">{hits} out</span>}
-                  {within && isMand && hits === 0 && <span className="text-[9px] leading-none text-muted">must</span>}
+        {weeks.map((week, wi) => {
+          const rep = week[3];
+          const label = `${rep.toLocaleDateString("en-US", { month: "long" })} ${rep.getFullYear()}`;
+          const showLabel = label !== lastLabel;
+          if (showLabel) lastLabel = label;
+          return (
+            <Fragment key={wi}>
+              {showLabel && (
+                <div className="pt-3 pb-1">
+                  <span className="font-display text-body-md text-ink">{label}</span>
                 </div>
-              );
-            })}
-          </div>
-        ))}
+              )}
+              <div className="grid grid-cols-7 gap-1">
+                {week.map((d) => {
+                  const ds = iso(d);
+                  const within = inWindow(d);
+                  const hits = byDay.get(ds)?.length || 0;
+                  const isMand = mandatory.has(ds);
+                  return (
+                    <div key={ds}
+                      className={`aspect-square rounded-card text-body-sm flex flex-col items-center justify-center border ${
+                        !within ? "border-transparent text-bone"
+                        : isMand ? "border-ink/60 bg-ink/5 text-ink"
+                        : hits > 0 ? "bg-brick/10 border-brick/30 text-ink"
+                        : "bg-card border-bone text-ash"
+                      }`}>
+                      <span className={isMand ? "font-semibold" : ""}>{d.getDate()}</span>
+                      {within && hits > 0 && <span className="text-[10px] leading-none text-brick font-medium">{hits} out</span>}
+                      {within && isMand && hits === 0 && <span className="text-[9px] leading-none text-muted">must</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </Fragment>
+          );
+        })}
       </div>
       <div className="flex flex-wrap items-center gap-4 mt-4 text-body-xs text-ash">
         <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-brick/10 border border-brick/30 inline-block" /> Someone&rsquo;s out</span>
@@ -152,7 +188,7 @@ export function ProductionAvailability({
               return (
                 <div key={ds} className="bg-card border border-bone rounded-card px-4 py-3">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="font-mono text-data-sm text-ink">{parseISO(ds).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+                    <span className="font-mono text-data-sm text-ink">{parseISO(ds).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</span>
                     {isMand && <span className="text-body-xs font-medium px-1.5 py-0.5 rounded bg-ink/10 text-ink">Mandatory</span>}
                     <span className="text-body-xs text-muted">{hits.length} out</span>
                   </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { markDayUnavailable, deleteConflict, submitConflict } from "@/app/(app)/callboard/conflict-actions";
 
@@ -325,30 +325,38 @@ export function AvailabilityCalendar({ conflicts, inferred = [], windowStart, wi
         {dow.map((d) => <div key={d} className="text-center text-body-xs text-muted py-1">{d}</div>)}
       </div>
       <div className="space-y-1">
-        {weeks.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7 gap-1">
-            {week.map((d) => {
-              const ds = iso(d);
-              const within = inWindow(d);
-              const isSingle = !!singleAllDay[ds];
-              const isCovered = !!coveredId[ds];
-              const isToday = ds === todayStr;
-              return (
-                <button key={ds} type="button" disabled={!within || busy === ds} onClick={() => toggle(ds)}
-                  title={within ? (isCovered ? "Conflict — tap to edit/clear" : "Tap if you can't make it") : ""}
-                  className={`aspect-square rounded-card text-body-sm flex flex-col items-center justify-center border transition-colors ${
-                    !within ? "border-transparent text-bone cursor-default"
-                    : isSingle ? "bg-brick/15 border-brick/40 text-brick font-medium"
-                    : isCovered ? "bg-brick/5 border-brick/30 text-brick"
-                    : "bg-card border-bone text-ink hover:border-ash"
-                  } ${isToday && within ? "ring-1 ring-ash" : ""} disabled:opacity-60`}>
-                  <span>{d.getDate()}</span>
-                  {within && d.getDate() === 1 && <span className="text-[9px] text-muted leading-none">{d.toLocaleDateString("en-US", { month: "short" })}</span>}
-                </button>
-              );
-            })}
-          </div>
-        ))}
+        {(() => { let lastLabel = ""; return weeks.map((week, wi) => {
+          const rep = week[3];
+          const label = `${rep.toLocaleDateString("en-US", { month: "long" })} ${rep.getFullYear()}`;
+          const showLabel = label !== lastLabel;
+          if (showLabel) lastLabel = label;
+          return (
+            <Fragment key={wi}>
+              {showLabel && <div className="pt-3 pb-1"><span className="font-display text-body-md text-ink">{label}</span></div>}
+              <div className="grid grid-cols-7 gap-1">
+                {week.map((d) => {
+                  const ds = iso(d);
+                  const within = inWindow(d);
+                  const isSingle = !!singleAllDay[ds];
+                  const isCovered = !!coveredId[ds];
+                  const isToday = ds === todayStr;
+                  return (
+                    <button key={ds} type="button" disabled={!within || busy === ds} onClick={() => toggle(ds)}
+                      title={within ? (isCovered ? "Conflict — tap to edit/clear" : "Tap if you can't make it") : ""}
+                      className={`aspect-square rounded-card text-body-sm flex flex-col items-center justify-center border transition-colors ${
+                        !within ? "border-transparent text-bone cursor-default"
+                        : isSingle ? "bg-brick/15 border-brick/40 text-brick font-medium"
+                        : isCovered ? "bg-brick/5 border-brick/30 text-brick"
+                        : "bg-card border-bone text-ink hover:border-ash"
+                      } ${isToday && within ? "ring-1 ring-ash" : ""} disabled:opacity-60`}>
+                      <span>{d.getDate()}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Fragment>
+          );
+        }); })()}
       </div>
       <div className="flex items-center gap-4 mt-5 text-body-xs text-ash">
         <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-brick/15 border border-brick/40 inline-block" /> Single day</span>

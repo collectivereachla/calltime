@@ -300,13 +300,15 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
   if (canManage && productionIds.length > 0) {
     const nameById = new Map(companyMembers.map((m) => [m.id, m.name]));
     const rosterIds = companyMembers.map((m) => m.id);
-    let prodWindowStart: string | null = null;
-    let prodWindowEnd: string | null = null;
+    let prodCreatedAt: string | null = null;
+    let prodFirstRehearsal: string | null = null;
+    let prodClosing: string | null = null;
     const { data: prodRow } = await supabase
-      .from("productions").select("first_rehearsal, closing_date").eq("id", activeProductions[0].id).maybeSingle();
+      .from("productions").select("created_at, first_rehearsal, closing_date").eq("id", activeProductions[0].id).maybeSingle();
     if (prodRow) {
-      prodWindowStart = (prodRow.first_rehearsal as string | null) ?? null;
-      prodWindowEnd = (prodRow.closing_date as string | null) ?? null;
+      prodCreatedAt = (prodRow.created_at as string | null) ?? null;
+      prodFirstRehearsal = (prodRow.first_rehearsal as string | null) ?? null;
+      prodClosing = (prodRow.closing_date as string | null) ?? null;
     }
     let rosterConflicts: { person_id: string; person_name: string; start_date: string; end_date: string | null; all_day: boolean; start_time: string | null; end_time: string | null; conflict_type: string | null; description: string | null; recurring_rule: string | null }[] = [];
     if (rosterIds.length > 0) {
@@ -335,8 +337,9 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
       <ProductionAvailability
         conflicts={rosterConflicts}
         mandatoryDates={mandatoryDates}
-        windowStart={prodWindowStart}
-        windowEnd={prodWindowEnd}
+        productionCreatedAt={prodCreatedAt}
+        firstRehearsal={prodFirstRehearsal}
+        closingDate={prodClosing}
         rosterCount={rosterIds.length}
       />
     );
