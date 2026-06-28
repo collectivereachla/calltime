@@ -60,6 +60,11 @@ export function renderRichText(text: string | null | undefined): ReactNode {
   for (const raw of lines) {
     const line = raw.trimEnd();
     if (line.trim() === "") { flushPara(); flushList(); continue; }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+      flushPara(); flushList();
+      blocks.push(<hr key={`b${blocks.length}`} className="my-3 border-0 border-t border-bone" />);
+      continue;
+    }
     const h = line.match(/^(#{1,3})\s+(.*)/);
     const ul = line.match(/^\s*[-*]\s+(.*)/);
     const ol = line.match(/^\s*\d+\.\s+(.*)/);

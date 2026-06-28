@@ -5,6 +5,7 @@ import { signContract, countersignContract, markContractViewed, updateContract, 
 import { createAddendum, signAddendum, countersignAddendum, voidAddendum } from "./addendum-actions";
 import { useRouter } from "next/navigation";
 import { SignaturePad } from "./signature-pad";
+import { renderRichText } from "@/lib/rich-text";
 
 // Inline editable cell for contract fields
 function ContractEditCell({ value, onSave, className = "" }: {
@@ -491,34 +492,7 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
 
             {/* Rendered contract text */}
             <div className="prose-contract space-y-3">
-              {body.split("\n").map((line, i) => {
-                const trimmed = line.trim();
-                if (!trimmed) return <div key={i} className="h-2" />;
-                if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
-                  const text = trimmed.replace(/\*\*/g, "");
-                  return <p key={i} className="font-medium text-ink text-body-md">{text}</p>;
-                }
-                if (trimmed.startsWith("■")) {
-                  return (
-                    <p key={i} className="text-body-sm text-ink pl-4">
-                      • {trimmed.slice(1).trim()}
-                    </p>
-                  );
-                }
-                // Bold segments within line
-                const parts = trimmed.split(/(\*\*[^*]+\*\*)/g);
-                return (
-                  <p key={i} className="text-body-sm text-ink leading-relaxed">
-                    {parts.map((part, j) =>
-                      part.startsWith("**") && part.endsWith("**") ? (
-                        <strong key={j}>{part.replace(/\*\*/g, "")}</strong>
-                      ) : (
-                        <span key={j}>{part}</span>
-                      )
-                    )}
-                  </p>
-                );
-              })}
+              {renderRichText(body)}
             </div>
 
             {/* Signatures */}

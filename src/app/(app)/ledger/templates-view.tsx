@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { updateTemplate, createTemplate, deleteTemplate } from "./ledger-actions";
 import { useRouter } from "next/navigation";
+import { renderRichText } from "@/lib/rich-text";
 
 interface Template {
   id: string;
@@ -224,28 +225,7 @@ export function TemplatesView({ templates, productionId, contractCounts, systemT
               </div>
             ) : (
               <div className="prose-contract space-y-3">
-                {selected.body_markdown.split("\n").map((line, i) => {
-                  const trimmed = line.trim();
-                  if (!trimmed) return <div key={i} className="h-2" />;
-                  if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
-                    return <p key={i} className="font-medium text-ink text-body-md">{trimmed.replace(/\*\*/g, "")}</p>;
-                  }
-                  if (trimmed.startsWith("■") || trimmed.startsWith("▪")) {
-                    return <p key={i} className="text-body-sm text-ink pl-4">• {trimmed.slice(1).trim()}</p>;
-                  }
-                  const parts = trimmed.split(/(\*\*[^*]+\*\*)/g);
-                  return (
-                    <p key={i} className="text-body-sm text-ink leading-relaxed">
-                      {parts.map((part, j) =>
-                        part.startsWith("**") && part.endsWith("**") ? (
-                          <strong key={j}>{part.replace(/\*\*/g, "")}</strong>
-                        ) : (
-                          <span key={j}>{part}</span>
-                        )
-                      )}
-                    </p>
-                  );
-                })}
+                {renderRichText(selected.body_markdown)}
               </div>
             )}
           </div>
