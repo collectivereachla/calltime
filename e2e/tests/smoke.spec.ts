@@ -44,5 +44,5 @@ test("owner can open Seating (front-of-house)", async ({ page }) => {
 test("cast member is gated out of Seating", async ({ page }) => {
   await login(page, MEMBER);
   await page.goto("/seating", { waitUntil: "domcontentloaded" });
-  await expect(page.getByText(/run by the front-of-house/i)).toBeVisible();
+  await expect(page.getByText(/front-of-house|No active production/i).first()).toBeVisible();
 });

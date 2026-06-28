@@ -53,5 +53,5 @@ test("cast member CANNOT add Press in Marquee", async ({ page }) => {
 test("availability page loads", async ({ page }) => {
   await login(page, MEMBER);
   await page.goto("/availability", { waitUntil: "domcontentloaded" });
-  await expect(page.getByText(/my availability/i)).toBeVisible();
+  await expect(page.getByText(/my conflicts/i)).toBeVisible();
 });
