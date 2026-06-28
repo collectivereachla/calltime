@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { EditProfile } from "./edit-profile";
 import { MergeDuplicate } from "./merge-duplicate";
+import { ManageMember } from "./manage-member";
 import { W9Download } from "./w9-download";
 
 const MONTHS = [
@@ -100,7 +101,7 @@ export default async function MemberDetailPage({
   // Fetch production assignments
   const { data: assignments } = await supabase
     .from("production_assignments")
-    .select("role_title, department, productions(title)")
+    .select("production_id, role_title, department, productions(title)")
     .eq("person_id", personId)
     .eq("active", true);
 
@@ -108,6 +109,11 @@ export default async function MemberDetailPage({
     role: a.role_title,
     department: a.department,
     production: (a.productions as unknown as { title: string })?.title,
+  }));
+
+  const manageAssignments = (assignments || []).map((a) => ({
+    productionId: (a as { production_id: string }).production_id,
+    title: (a.productions as unknown as { title: string })?.title || "Production",
   }));
 
   const displayName = person.preferred_name || person.full_name;
@@ -305,6 +311,20 @@ export default async function MemberDetailPage({
             w9_submitted_at: details.w9_submitted_at,
           } : null}
         />
+      )}
+
+      {/* Remove / ban — staff (per-show) and owners (org) */}
+      {!isSelf && (
+        <div className="mt-2">
+          <ManageMember
+            orgId={viewerMembership.org_id}
+            personId={personId}
+            personName={person.preferred_name || person.full_name}
+            isOwner={viewerMembership.role === "owner"}
+            isStaff={isStaff}
+            assignments={manageAssignments}
+          />
+        </div>
       )}
 
       {/* Merge a duplicate person — owners only */}
