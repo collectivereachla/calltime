@@ -9,9 +9,9 @@ export default async function AvailabilityPage() {
 
   const { data: conflicts } = await supabase
     .from("conflicts")
-    .select("id, start_date, all_day")
+    .select("id, start_date, end_date, all_day, start_time, end_time, conflict_type, description, recurring_rule")
     .eq("person_id", personId!)
-    .eq("all_day", true);
+    .order("start_date", { ascending: true });
 
   let windowStart: string | null = null;
   let windowEnd: string | null = null;
@@ -30,8 +30,9 @@ export default async function AvailabilityPage() {
     }
   }
 
-  const marked: Record<string, string> = {};
-  for (const c of conflicts || []) marked[c.start_date as string] = c.id as string;
+  // Dates already declared all-day single-day, so we don't double-prompt them.
+  const declared = new Set<string>();
+  for (const c of conflicts || []) if (c.all_day && (!c.end_date || c.end_date === c.start_date) && !c.recurring_rule) declared.add(c.start_date as string);
 
   // Inferred (soft) conflicts from past callboard responses the actor hasn't
   // declared yet — surfaced for one-tap confirmation. Feeds the schedule.
@@ -40,12 +41,12 @@ export default async function AvailabilityPage() {
   const inferred: { date: string; title: string; status: string; reason: string | null }[] = [];
   for (const r of (inferredRows || []) as { event_date: string; title: string; status: string; reason: string | null }[]) {
     const d = r.event_date;
-    if (marked[d] || seenDates.has(d)) continue;
+    if (declared.has(d) || seenDates.has(d)) continue;
     seenDates.add(d);
     inferred.push({ date: d, title: r.title, status: r.status, reason: r.reason });
   }
 
   return (
-    <AvailabilityCalendar marked={marked} inferred={inferred} windowStart={windowStart} windowEnd={windowEnd} prodTitle={prodTitle} />
+    <AvailabilityCalendar conflicts={conflicts || []} inferred={inferred} windowStart={windowStart} windowEnd={windowEnd} prodTitle={prodTitle} />
   );
 }

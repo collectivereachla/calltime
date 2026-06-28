@@ -40,10 +40,12 @@ export async function submitConflict(formData: FormData) {
   const endTime = allDay ? null : (formData.get("end_time") as string) || null;
   const conflictType = (formData.get("conflict_type") as string) || null;
   const description = (formData.get("description") as string) || null;
+  const recurringRule = (formData.get("recurring_rule") as string) || null;
+  const conflictId = (formData.get("conflict_id") as string) || null;
 
   if (!startDate) return { error: "Start date is required" };
 
-  const { data: conflictId, error } = await supabase.rpc("save_conflict", {
+  const { error } = await supabase.rpc("save_conflict", {
     p_start_date: startDate,
     p_conflict_type: conflictType || "other",
     p_all_day: allDay,
@@ -51,6 +53,8 @@ export async function submitConflict(formData: FormData) {
     p_start_time: startTime,
     p_end_time: endTime,
     p_description: description,
+    p_conflict_id: conflictId,
+    p_recurring_rule: recurringRule,
   });
 
   if (error) return { error: error.message };
@@ -112,6 +116,7 @@ export async function submitConflict(formData: FormData) {
   }
 
   revalidatePath("/settings");
+  revalidatePath("/availability");
   revalidatePath("/callboard");
   return { success: true };
 }
@@ -148,6 +153,7 @@ export async function deleteConflict(conflictId: string) {
   if (error) return { error: error.message };
 
   revalidatePath("/settings");
+  revalidatePath("/availability");
   revalidatePath("/callboard");
   return { success: true };
 }

@@ -9,7 +9,6 @@ import { RoomVisibility } from "./room-visibility";
 import { BrandColor } from "./brand-color";
 import { AiFeatures } from "./ai-features";
 import { TimezoneSetting } from "./timezone-setting";
-import { ConflictsForm } from "./conflicts-form";
 import { NotificationSettings } from "./notification-settings";
 import { W9Card } from "./w9-card";
 import { CheckinPinCard } from "./checkin-pin-card";
@@ -102,12 +101,6 @@ export default async function SettingsPage() {
     }
   }
 
-  // Fetch user's conflicts
-  const { data: conflicts } = await supabase
-    .from("conflicts")
-    .select("*")
-    .eq("person_id", person.id)
-    .order("start_date", { ascending: true });
 
   // W-9 status (member's own, in their org)
   const w9OrgId = await resolveActingOrgId(person.id);
@@ -146,7 +139,9 @@ export default async function SettingsPage() {
       <SettingsForm person={person} userEmail={user.email || ""} />
 
       <div className="mt-10 pt-8 border-t border-bone">
-        <ConflictsForm conflicts={conflicts || []} />
+        <h3 className="font-display text-display-sm mb-1">My conflicts</h3>
+        <p className="text-body-sm text-ash mb-3">Submit and edit the dates you can&rsquo;t make it &mdash; single days, ranges, part of a day, or repeating &mdash; all in one place.</p>
+        <a href="/availability" className="inline-block px-4 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 transition-colors">Open my conflict calendar</a>
       </div>
 
       <W9Card w9TaxYear={w9TaxYear} submittedAt={w9SubmittedAt} />
