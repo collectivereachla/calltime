@@ -368,7 +368,7 @@ export function PropsInventoryTab({ items, orgId, orgPeople, cast, productionId,
                 >
                   {form.thumbnailUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={form.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src={form.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-brick/5 flex items-center justify-center">
                       <span className="text-brick text-body-lg">+</span>

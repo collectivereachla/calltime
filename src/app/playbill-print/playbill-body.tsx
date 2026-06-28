@@ -70,7 +70,8 @@ export async function PlaybillBody({
   // Sign cast + team headshots.
   const signed = await resolveHeadshots(
     supabase,
-    [...castList, ...teamList].map((x) => x.headshotPath)
+    [...castList, ...teamList].map((x) => x.headshotPath),
+    { width: 700 }
   );
 
   const { data: credits } = await supabase
@@ -161,7 +162,7 @@ export async function PlaybillBody({
         {/* Flyer / poster */}
         {posterPath && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={posterPath} alt={`${title} poster`} className="w-full max-w-xl mx-auto rounded-card mb-10 print:mb-6" />
+          <img loading="lazy" decoding="async" src={posterPath} alt={`${title} poster`} className="w-full max-w-xl mx-auto rounded-card mb-10 print:mb-6" />
         )}
 
         {/* Cover */}
@@ -184,7 +185,7 @@ export async function PlaybillBody({
             <div className="font-display text-body-md leading-relaxed whitespace-pre-line">
               {director?.headshotPath && signed.get(director.headshotPath) && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={signed.get(director.headshotPath)!} alt={director.name} className="float-left w-32 h-40 mr-5 mb-3 rounded-card object-cover border border-bone" />
+                <img loading="lazy" decoding="async" src={signed.get(director.headshotPath)!} alt={director.name} className="float-left w-32 h-40 mr-5 mb-3 rounded-card object-cover border border-bone" />
               )}
               {playbill.directors_note as string}
             </div>
@@ -224,7 +225,7 @@ export async function PlaybillBody({
                     <div className="w-24 h-32 shrink-0 self-start rounded-card overflow-hidden bg-bone/40 border border-bone">
                       {url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={url} alt={c.name} className="w-full h-full object-cover" />
+                        <img loading="lazy" decoding="async" src={url} alt={c.name} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <span className="text-lg font-display text-ash/50">{c.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
@@ -259,7 +260,7 @@ export async function PlaybillBody({
                           <div className="w-24 h-32 mx-auto mb-2 rounded-card overflow-hidden bg-bone/40 border border-bone">
                             {url ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={url} alt={t.name} className="w-full h-full object-cover" />
+                              <img loading="lazy" decoding="async" src={url} alt={t.name} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
                                 <span className="text-xl font-display text-ash/50">{t.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
@@ -302,7 +303,7 @@ export async function PlaybillBody({
                 const card = (
                   <div className="border border-bone rounded-card p-3 text-center flex flex-col items-center justify-center gap-1.5 h-full">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {logo && <img src={logo} alt={s.name} className="max-h-16 max-w-full object-contain" />}
+                    {logo && <img loading="lazy" decoding="async" src={logo} alt={s.name} className="max-h-16 max-w-full object-contain" />}
                     <p className="font-display text-lg text-ink">{s.name}</p>
                     {s.detail && <p className="text-body-xs text-ash">{s.detail}</p>}
                   </div>
@@ -342,7 +343,7 @@ export async function PlaybillBody({
             <div className="columns-2 md:columns-3 gap-3">
               {gallery.map((src, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img key={i} src={src} alt={`${title} — photo ${i + 1}`} className="w-full mb-3 rounded-card border border-bone break-inside-avoid" />
+                <img loading="lazy" decoding="async" key={i} src={src} alt={`${title} — photo ${i + 1}`} className="w-full mb-3 rounded-card border border-bone break-inside-avoid" />
               ))}
             </div>
           </section>

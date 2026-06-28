@@ -177,7 +177,7 @@ export function OrgSettings({ org }: { org: OrgData }) {
             <label className="block text-body-xs text-ash mb-1">Logo</label>
             <div className="flex items-center gap-4">
               {logoPreview ? (
-                <img src={logoPreview} alt="" className="w-16 h-16 rounded-card object-cover" />
+                <img loading="lazy" decoding="async" src={logoPreview} alt="" className="w-16 h-16 rounded-card object-cover" />
               ) : (
                 <div className="w-16 h-16 rounded-card bg-bone/50 flex items-center justify-center">
                   <span className="font-display text-display-md text-ash">{org.name.charAt(0)}</span>

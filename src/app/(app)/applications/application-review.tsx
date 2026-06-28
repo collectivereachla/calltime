@@ -134,7 +134,7 @@ export function ApplicationReview({ personId, application, person, production }:
         className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-paper/50 transition-colors"
       >
         {person.headshotUrl ? (
-          <img src={person.headshotUrl} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+          <img loading="lazy" decoding="async" src={person.headshotUrl} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
         ) : (
           <div className="w-10 h-10 rounded-full bg-bone/50 flex items-center justify-center flex-shrink-0">
             <span className="font-display text-body-md text-ash">{person.name.charAt(0)}</span>

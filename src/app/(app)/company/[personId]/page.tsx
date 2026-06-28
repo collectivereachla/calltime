@@ -66,7 +66,7 @@ export default async function MemberDetailPage({
   if (!person) return notFound();
 
   // Sign the headshot path so the image loads (private bucket).
-  const signedHeadshot = await resolveHeadshot(supabase, person.headshot_url);
+  const signedHeadshot = await resolveHeadshot(supabase, person.headshot_url, { width: 600 });
 
   // Minor gating on contact info
   const hideContact = person.is_minor && !isStaff && !isSelf;
@@ -144,7 +144,7 @@ export default async function MemberDetailPage({
       {/* Header */}
       <div className="flex items-start gap-4 mb-8">
         {signedHeadshot ? (
-          <img src={signedHeadshot} alt="" className="w-16 h-16 rounded-full object-cover shrink-0" />
+          <img loading="lazy" decoding="async" src={signedHeadshot} alt="" className="w-16 h-16 rounded-full object-cover shrink-0" />
         ) : (
           <div className="w-16 h-16 rounded-full bg-brick/10 text-brick flex items-center justify-center text-body-md font-semibold shrink-0">
             {initials}

@@ -140,14 +140,14 @@ export default async function OrgPage({
         {org.cover_image_url && (
           <div className="rounded-card overflow-hidden mb-6 aspect-[3/1] bg-bone/30">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={org.cover_image_url} alt="" className="w-full h-full object-cover" />
+            <img loading="lazy" decoding="async" src={org.cover_image_url} alt="" className="w-full h-full object-cover" />
           </div>
         )}
 
         {/* Org header */}
         <div className="flex items-start gap-5 mb-8">
           {org.logo_url ? (
-            <img src={org.logo_url} alt="" className="w-16 h-16 rounded-card object-cover flex-shrink-0" />
+            <img loading="lazy" decoding="async" src={org.logo_url} alt="" className="w-16 h-16 rounded-card object-cover flex-shrink-0" />
           ) : (
             <div className="w-16 h-16 rounded-card bg-bone/50 flex items-center justify-center flex-shrink-0">
               <span className="font-display text-display-md text-ash">{org.name.charAt(0)}</span>
@@ -286,7 +286,7 @@ export default async function OrgPage({
                     className="bg-card border border-bone rounded-card p-3 hover:shadow-card-hover transition-shadow flex flex-col items-center text-center"
                   >
                     {m.headshot_url ? (
-                      <img src={m.headshot_url} alt="" className="w-14 h-14 rounded-full object-cover mb-2" />
+                      <img loading="lazy" decoding="async" src={m.headshot_url} alt="" className="w-14 h-14 rounded-full object-cover mb-2" />
                     ) : (
                       <div className="w-14 h-14 rounded-full bg-brick/10 text-brick flex items-center justify-center text-body-sm font-medium mb-2">
                         {initials}

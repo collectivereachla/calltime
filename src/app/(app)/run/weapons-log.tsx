@@ -253,7 +253,7 @@ export function WeaponsLog({ productionId, weapons, entries, roster, orgTz }: Pr
                       <div>
                         <p className="text-body-xs text-muted mb-1">{label}</p>
                         {isImg(sig) ? (
-                          <img src={sig!} alt={`${label} signature`} className="h-12 bg-white border border-bone rounded" />
+                          <img loading="lazy" decoding="async" src={sig!} alt={`${label} signature`} className="h-12 bg-white border border-bone rounded" />
                         ) : (
                           <p className="text-body-sm text-ink">{sig || "—"}</p>
                         )}

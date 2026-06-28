@@ -203,7 +203,7 @@ function ChatRoom({ members, conversationId = null, convOrgId, roomKind, orgId, 
 
   // Headshots live on people.headshot_url as private promo-assets paths (or, for
   // some uploads, full public URLs). Greenroom renders client-side, so it must
-  // sign the paths here or the <img> tags break (the "?" avatars). Resolved
+  // sign the paths here or the <img loading="lazy" decoding="async"> tags break (the "?" avatars). Resolved
   // values are cached by path; realtime authors get signed as they arrive.
   useEffect(() => {
     const needed = Array.from(
@@ -680,7 +680,7 @@ function ChatRoom({ members, conversationId = null, convOrgId, roomKind, orgId, 
                 {showHeader && (
                   <div className="flex items-center gap-2 mb-0.5">
                     {msg.author_headshot && headshotUrls[msg.author_headshot] ? (
-                      <img src={headshotUrls[msg.author_headshot]} alt="" className="w-6 h-6 rounded-full object-cover" />
+                      <img loading="lazy" decoding="async" src={headshotUrls[msg.author_headshot]} alt="" className="w-6 h-6 rounded-full object-cover" />
                     ) : (
                       <div className="w-6 h-6 rounded-full bg-brick/10 text-brick flex items-center justify-center text-[9px] font-semibold">
                         {initials}
@@ -812,7 +812,7 @@ function ChatRoom({ members, conversationId = null, convOrgId, roomKind, orgId, 
           >
             ✕
           </button>
-          <img
+          <img loading="lazy" decoding="async"
             src={lightboxUrl}
             alt=""
             className="max-w-full max-h-full object-contain rounded-card"

@@ -121,7 +121,7 @@ export function PhotoUpload({ personId, currentUrl, size = "md" }: Props) {
         className={`${sizeClasses[size]} rounded-full overflow-hidden border-2 border-dashed border-bone hover:border-brick transition-colors cursor-pointer shrink-0 relative group`}
       >
         {preview ? (
-          <img src={preview} alt="" className="w-full h-full object-cover" />
+          <img loading="lazy" decoding="async" src={preview} alt="" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full bg-brick/10 flex items-center justify-center">
             <span className="text-brick text-body-xs">+</span>

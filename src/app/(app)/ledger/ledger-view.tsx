@@ -531,7 +531,7 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
                   </p>
                   {selected.signature_draw_url && (
                     <div className="border border-bone rounded bg-white px-4 py-2 inline-block">
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={selected.signature_draw_url}
                         alt={`Signature of ${selected.person_name}`}
                         className="h-16 w-auto"
@@ -558,7 +558,7 @@ export function LedgerView({ contracts, templates, canManage, canSeeContent, per
                     </p>
                     {selected.countersigned_draw_url && (
                       <div className="border border-bone rounded bg-white px-4 py-2 inline-block">
-                        <img
+                        <img loading="lazy" decoding="async"
                           src={selected.countersigned_draw_url}
                           alt="Director countersignature"
                           className="h-16 w-auto"

@@ -486,7 +486,7 @@ export function DesignRoom({ config, productionId, scenes, elements, references,
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex gap-3 min-w-0">
                         {el.image_url ? (
-                          <img src={el.image_url} alt="" onClick={() => setLightbox(el.image_url)}
+                          <img loading="lazy" decoding="async" src={el.image_url} alt="" onClick={() => setLightbox(el.image_url)}
                             className="w-14 h-14 rounded-card object-cover shrink-0 cursor-pointer border border-bone" />
                         ) : canManage ? (
                           <label className="w-14 h-14 rounded-card border border-dashed border-bone flex items-center justify-center text-muted text-[10px] cursor-pointer hover:border-ash shrink-0">
@@ -626,7 +626,7 @@ export function DesignRoom({ config, productionId, scenes, elements, references,
                 return (
                 <div key={ref.id} className="bg-card border border-bone rounded-card overflow-hidden">
                   {isImage ? (
-                    <img src={ref.image_url} alt={ref.title} onClick={() => setLightbox(ref.image_url)}
+                    <img loading="lazy" decoding="async" src={ref.image_url} alt={ref.title} onClick={() => setLightbox(ref.image_url)}
                       className="w-full aspect-[4/3] object-cover cursor-pointer" />
                   ) : (
                     <a href={ref.image_url} target="_blank" rel="noreferrer"
@@ -722,7 +722,7 @@ export function DesignRoom({ config, productionId, scenes, elements, references,
       {lightbox && (
         <div className="fixed inset-0 z-50 bg-ink/90 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
           <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 text-paper/70 hover:text-paper text-2xl">✕</button>
-          <img src={lightbox} alt="" className="max-w-full max-h-full object-contain rounded-card" onClick={(e) => e.stopPropagation()} />
+          <img loading="lazy" decoding="async" src={lightbox} alt="" className="max-w-full max-h-full object-contain rounded-card" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </div>

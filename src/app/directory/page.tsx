@@ -62,7 +62,7 @@ export default async function DirectoryPage() {
                     >
                       <div className="flex items-start gap-4">
                         {org.logo_url ? (
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={org.logo_url}
                             alt=""
                             className="w-12 h-12 rounded-card object-cover flex-shrink-0"

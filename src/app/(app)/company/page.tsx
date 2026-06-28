@@ -144,7 +144,7 @@ export default async function CompanyPage() {
     }
   }
 
-  // Headshots are stored as private-bucket paths; sign them so the <img> tags
+  // Headshots are stored as private-bucket paths; sign them so the <img loading="lazy" decoding="async"> tags
   // actually load (otherwise the browser shows a broken-image placeholder).
   const signedHeadshots = await resolveHeadshots(
     supabase,
@@ -352,7 +352,7 @@ export default async function CompanyPage() {
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2 md:gap-4">
                   <div className="flex gap-3 min-w-0">
                     {p.headshot_url ? (
-                      <img src={p.headshot_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 mt-0.5" />
+                      <img loading="lazy" decoding="async" src={p.headshot_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 mt-0.5" />
                     ) : (
                       <div className="w-9 h-9 rounded-full bg-brick/10 text-brick flex items-center justify-center text-body-xs font-medium shrink-0 mt-0.5">
                         {initials}

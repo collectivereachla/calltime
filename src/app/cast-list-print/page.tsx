@@ -76,7 +76,8 @@ export default async function CastListPrintPage({
   // Sign all headshots in one batch.
   const signed = await resolveHeadshots(
     supabase,
-    entries.map((e) => e.headshotPath)
+    entries.map((e) => e.headshotPath),
+    { width: 800 }
   );
 
   return (
@@ -101,7 +102,7 @@ export default async function CastListPrintPage({
                   <div className="aspect-[4/5] w-full rounded-card overflow-hidden bg-bone/40 border border-bone mb-2">
                     {url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={url} alt={e.name} className="w-full h-full object-cover" />
+                      <img loading="lazy" decoding="async" src={url} alt={e.name} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <span className="text-2xl font-display text-ash/50">

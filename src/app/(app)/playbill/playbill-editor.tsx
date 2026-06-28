@@ -95,7 +95,7 @@ function CreditLogo({ credit, orgId, playbillId }: { credit: Credit; orgId: stri
   return (
     <div className="flex items-center gap-2">
       {preview
-        ? <img src={preview} alt="" className="h-8 max-w-[88px] object-contain" />
+        ? <img loading="lazy" decoding="async" src={preview} alt="" className="h-8 max-w-[88px] object-contain" />
         : <span className="text-body-xs text-muted">No logo</span>}
       <button onClick={() => fileRef.current?.click()} disabled={busy} className="text-body-xs text-brick hover:underline disabled:opacity-50">
         {busy ? "…" : path ? "Replace" : "Add logo"}

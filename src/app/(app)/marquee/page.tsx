@@ -127,15 +127,22 @@ export default async function MarqueePage({
       .order("created_at", { ascending: false });
 
     const list = rows || [];
-    const mediaPaths = list
-      .filter((r) => (r.mime_type || "").startsWith("image/") || (r.mime_type || "").startsWith("video/"))
-      .map((r) => r.file_path);
+    const imagePaths = list.filter((r) => (r.mime_type || "").startsWith("image/")).map((r) => r.file_path);
+    const videoPaths = list.filter((r) => (r.mime_type || "").startsWith("video/")).map((r) => r.file_path);
     const signed = new Map<string, string>();
-    if (mediaPaths.length > 0) {
-      const { data: signedList } = await supabase.storage.from("promo-assets").createSignedUrls(mediaPaths, 3600);
-      for (const s of signedList || []) {
-        if (s.signedUrl && s.path) signed.set(s.path, s.signedUrl);
-      }
+    // Images: display-sized, modern-format render (huge bytes saving, same look).
+    await Promise.all(
+      imagePaths.map(async (p) => {
+        const { data } = await supabase.storage
+          .from("promo-assets")
+          .createSignedUrl(p, 3600, { transform: { width: 800, quality: 72, resize: "contain" } });
+        if (data?.signedUrl) signed.set(p, data.signedUrl);
+      })
+    );
+    // Videos: sign as-is (no image transform).
+    if (videoPaths.length > 0) {
+      const { data: vlist } = await supabase.storage.from("promo-assets").createSignedUrls(videoPaths, 3600);
+      for (const s of vlist || []) if (s.signedUrl && s.path) signed.set(s.path, s.signedUrl);
     }
 
     // Tags per asset + the roster of people who can be tagged.

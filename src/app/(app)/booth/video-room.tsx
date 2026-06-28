@@ -648,7 +648,7 @@ export function VideoRoom({ productionId, scenes, crew, orgPeople, shots, delive
               {references.map((r) => (
                 <div key={r.id} className="border border-bone rounded-card overflow-hidden bg-card group">
                   <button onClick={() => setLightbox(r.image_url)} className="block w-full aspect-video bg-bone/30 overflow-hidden">
-                    <img src={r.image_url} alt={r.title} className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src={r.image_url} alt={r.title} className="w-full h-full object-cover" />
                   </button>
                   <div className="px-3 py-2">
                     <p className="text-body-sm font-medium text-ink truncate">{r.title}</p>
@@ -666,7 +666,7 @@ export function VideoRoom({ productionId, scenes, crew, orgPeople, shots, delive
 
       {lightbox && (
         <div onClick={() => setLightbox(null)} className="fixed inset-0 z-50 bg-ink/80 flex items-center justify-center p-6 cursor-zoom-out">
-          <img src={lightbox} alt="" className="max-w-full max-h-full object-contain rounded-card" />
+          <img loading="lazy" decoding="async" src={lightbox} alt="" className="max-w-full max-h-full object-contain rounded-card" />
         </div>
       )}
     </div>

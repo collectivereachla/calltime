@@ -115,7 +115,7 @@ export default async function ArchiveDetailPage({ params }: { params: Promise<{ 
                   {depts[dept].map((r) => (
                     <div key={r.id} className="flex items-center gap-3 py-1.5">
                       {r.headshot ? (
-                        <img src={r.headshot} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                        <img loading="lazy" decoding="async" src={r.headshot} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-bone flex items-center justify-center text-body-xs text-ash shrink-0">
                           {r.name[0]}

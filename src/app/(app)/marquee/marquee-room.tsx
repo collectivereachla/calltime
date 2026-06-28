@@ -114,7 +114,7 @@ function HeadshotGrid({
       <div key={h.personId} className="flex flex-col">
         <div className="relative aspect-[4/5] rounded-card overflow-hidden bg-bone/40 border border-bone">
           {h.previewUrl ? (
-            <img src={h.previewUrl} alt={h.name} className="w-full h-full object-cover" />
+            <img loading="lazy" decoding="async" src={h.previewUrl} alt={h.name} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <span className="text-display-lg text-ash/50 font-display">
@@ -393,7 +393,7 @@ export function MarqueeRoom({ productionId, orgId, myPersonId, canManage, canApp
         <div className="relative aspect-square bg-bone/40 flex items-center justify-center overflow-hidden">
           {a.isImage && a.previewUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={a.previewUrl} alt={a.caption || a.file_name} className="w-full h-full object-cover" />
+            <img loading="lazy" decoding="async" src={a.previewUrl} alt={a.caption || a.file_name} className="w-full h-full object-cover" />
           ) : a.isVideo && a.previewUrl ? (
             <video src={a.previewUrl} controls playsInline preload="metadata" className="w-full h-full object-cover" />
           ) : (
