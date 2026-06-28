@@ -23,6 +23,7 @@ interface Production {
 interface AppNavProps {
   displayName: string;
   orgs: Org[];
+  activeOrgName?: string | null;
   badges?: Record<string, number>;
   notificationCount?: number;
   productions?: Production[];
@@ -55,7 +56,7 @@ const rooms = [
 
 const mobileRooms = rooms.filter((r) => r.mobile);
 
-export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, productions = [], activeProductionId = null, lockedRooms = [], isOwner = false, boothAccess = true, seatingAccess = false, hiddenRooms = [] }: AppNavProps) {
+export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, notificationCount = 0, productions = [], activeProductionId = null, lockedRooms = [], isOwner = false, boothAccess = true, seatingAccess = false, hiddenRooms = [] }: AppNavProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const isAdmin = orgs.some((o) => o.role === "owner" || o.role === "admin");
@@ -87,7 +88,7 @@ export function AppNav({ displayName, orgs, badges = {}, notificationCount = 0, 
           <div className="px-5 py-3 border-b border-bone flex items-center justify-between">
             <div className="min-w-0">
               <p className="text-body-xs text-muted uppercase tracking-wider mb-1">Organization</p>
-              <p className="text-body-sm font-medium text-ink truncate">{orgs[0].name}</p>
+              <p className="text-body-sm font-medium text-ink truncate">{activeOrgName || orgs[0].name}</p>
             </div>
             <NotificationBell unreadCount={notificationCount} />
           </div>

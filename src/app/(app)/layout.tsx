@@ -107,6 +107,15 @@ export default async function AppLayout({
     activeProductionId = productions[0]?.id || null;
   }
 
+  // Sidebar org label should reflect the ACTIVE show's company, not just the first org.
+  let activeOrgName: string | null = null;
+  if (activeProductionId) {
+    const { data: apOrg } = await supabase
+      .from("productions").select("organizations(name)").eq("id", activeProductionId).maybeSingle();
+    activeOrgName = (apOrg?.organizations as unknown as { name: string } | null)?.name ?? null;
+  }
+  if (!activeOrgName) activeOrgName = (memberships[0]?.organizations as unknown as { name: string } | undefined)?.name ?? null;
+
   // Count unread notifications + contracts awaiting countersign + pending applications
   const isOwner = memberships.some((m) => m.role === "owner");
   const isAdmin = memberships.some((m) => m.role === "owner" || m.role === "admin");
@@ -234,6 +243,7 @@ export default async function AppLayout({
           slug: (m.organizations as unknown as { id: string; name: string; slug: string }).slug,
           role: m.role,
         }))}
+        activeOrgName={activeOrgName}
         badges={{ ledger: pendingCountersignCount, applications: pendingApplicationsCount }}
         notificationCount={unreadNotificationCount}
         productions={productions}
