@@ -10,6 +10,7 @@ import {
   removeSeatingGuest,
   setGuestCheckedIn,
   setSeatingPrice,
+  setSeatingMode,
 } from "./actions";
 
 const C = {
@@ -60,13 +61,19 @@ function perfShortLabel(p: Performance) {
 const persist = (p: Promise<unknown>) => { p.catch((e) => console.error("seating save failed:", e)); };
 
 export function SeatingRoom({
-  productionId, productionTitle, canEdit, initialTables, initialGuests, initialPrice, performances,
+  productionId, productionTitle, canEdit, initialTables, initialGuests, initialPrice, performances, initialMode,
 }: {
   productionId: string; productionTitle: string; canEdit: boolean;
   initialTables: Table[]; initialGuests: Guest[]; initialPrice: string;
-  performances: Performance[];
+  performances: Performance[]; initialMode: string;
 }) {
   const [tab, setTab] = useState<"roster" | "floor" | "checkin">("roster");
+  const [mode, setMode] = useState<string>(initialMode);
+  const changeMode = (m: string) => {
+    setMode(m);
+    if (m !== "tables" && tab === "floor") setTab("roster");
+    persist(setSeatingMode(productionId, m));
+  };
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [tables, setTables] = useState<Table[]>(initialTables);
   const [guests, setGuests] = useState<Guest[]>(initialGuests);
@@ -202,9 +209,11 @@ export function SeatingRoom({
           <button className={`ct-tab ${tab === "checkin" ? "active" : ""}`} onClick={() => setTab("checkin")}>
             <Users size={16} /> Check-in
           </button>
-          <button className={`ct-tab ${tab === "floor" ? "active" : ""}`} onClick={() => setTab("floor")}>
-            <MapPin size={16} /> Floor Plan
-          </button>
+          {mode === "tables" && (
+            <button className={`ct-tab ${tab === "floor" ? "active" : ""}`} onClick={() => setTab("floor")}>
+              <MapPin size={16} /> Floor Plan
+            </button>
+          )}
           <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 7 }}>
             <Printer size={14} color={C.ash} />
             <select
@@ -221,6 +230,21 @@ export function SeatingRoom({
             </select>
           </span>
         </div>
+
+        {canEdit && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "14px 0 2px", flexWrap: "wrap" }} className="no-print">
+            <span style={{ fontSize: 11, letterSpacing: ".12em", textTransform: "uppercase", color: C.ash, fontWeight: 600, marginRight: 4 }}>Mode</span>
+            {([["theater_ga", "Theater (general admission)"], ["tables", "Tables (gala / dinner theatre)"]] as [string, string][]).map(([val, label]) => {
+              const active = mode === val;
+              return (
+                <button key={val} className="ct-btn" onClick={() => changeMode(val)}
+                  style={{ background: active ? C.ink : C.paper, color: active ? C.paper : C.ink, border: `1px solid ${active ? C.ink : C.line}`, padding: "6px 13px", fontSize: 13 }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {hasEventData && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "16px 0 18px", flexWrap: "wrap" }} className="no-print">
@@ -251,15 +275,15 @@ export function SeatingRoom({
       <div style={{ display: "flex", flexWrap: "wrap", gap: 0, borderBottom: `1px solid ${C.line}`, background: C.paperDeep }}>
         <Stat label="Collected" value={money(totals.collected)} accent={C.green} />
         <Stat label="Guests" value={totals.heads} />
-        {!hasEventData && <Stat label="Seated" value={`${totals.seated} / ${totals.heads}`} />}
-        {!hasEventData && <Stat label="Tables" value={tables.length} />}
+        {!hasEventData && mode === "tables" && <Stat label="Seated" value={`${totals.seated} / ${totals.heads}`} />}
+        {!hasEventData && mode === "tables" && <Stat label="Tables" value={tables.length} />}
         {totals.projected != null && <Stat label="Projected" value={money(totals.projected)} sub={`@ ${money(Number(price))}/seat`} />}
         <Stat label="Outstanding" value={totals.outstanding.length} accent={totals.outstanding.length ? C.brick : C.ash} />
       </div>
 
       {tab === "roster" ? (
         <Roster
-          guests={filteredGuests} tables={tables} totals={totals} price={price} canEdit={canEdit}
+          guests={filteredGuests} tables={tables} totals={totals} price={price} canEdit={canEdit} tablesMode={mode === "tables"}
           changePrice={changePrice} addParty={addParty} updateGuest={updateGuest} removeGuest={removeGuest} occupancyOf={occupancyOf}
         />
       ) : tab === "checkin" ? (
@@ -291,12 +315,12 @@ function Stat({ label, value, sub, accent }: { label: string; value: React.React
 }
 
 type RosterProps = {
-  guests: Guest[]; tables: Table[]; totals: Totals;
+  guests: Guest[]; tables: Table[]; totals: Totals; tablesMode: boolean;
   price: string; canEdit: boolean; changePrice: (v: string) => void; addParty: () => void;
   updateGuest: (id: string, patch: Partial<Guest>, save?: boolean) => void; removeGuest: (id: string) => void; occupancyOf: (id: string) => number;
 };
 
-function Roster({ guests, tables, totals, price, canEdit, changePrice, addParty, updateGuest, removeGuest, occupancyOf }: RosterProps) {
+function Roster({ guests, tables, totals, tablesMode, price, canEdit, changePrice, addParty, updateGuest, removeGuest, occupancyOf }: RosterProps) {
   const cell = { padding: "7px 10px", borderBottom: `1px solid ${C.line}`, verticalAlign: "middle" as const };
   const th = { ...cell, fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase" as const, color: C.ash, fontWeight: 600, textAlign: "left" as const, background: C.paper };
 
@@ -338,7 +362,7 @@ function Roster({ guests, tables, totals, price, canEdit, changePrice, addParty,
               <th style={{ ...th, width: 110 }}>Amount</th>
               <th style={{ ...th, width: 150 }}>Source</th>
               <th style={{ ...th, width: 110 }}>Status</th>
-              <th style={{ ...th, width: 90 }}>Table</th>
+              {tablesMode && <th style={{ ...th, width: 90 }}>Table</th>}
               <th style={th}>Notes</th>
               {canEdit && <th style={{ ...th, width: 40 }}></th>}
             </tr>
@@ -365,6 +389,7 @@ function Roster({ guests, tables, totals, price, canEdit, changePrice, addParty,
                     {STATUSES.map((s) => <option key={s} value={s} style={{ color: C.ink }}>{s}</option>)}
                   </select>
                 </td>
+                {tablesMode && (
                 <td style={cell}>
                   <select className="ct-input" value={g.table_id || ""} disabled={!canEdit} onChange={(e) => updateGuest(g.id, { table_id: e.target.value || null })}>
                     <option value="">—</option>
@@ -375,6 +400,7 @@ function Roster({ guests, tables, totals, price, canEdit, changePrice, addParty,
                     })}
                   </select>
                 </td>
+                )}
                 <td style={cell}><input className="ct-input" value={g.notes || ""} placeholder="" disabled={!canEdit}
                   onChange={(e) => updateGuest(g.id, { notes: e.target.value }, false)} onBlur={(e) => updateGuest(g.id, { notes: e.target.value })} /></td>
                 {canEdit && (
@@ -387,7 +413,7 @@ function Roster({ guests, tables, totals, price, canEdit, changePrice, addParty,
               </tr>
             ))}
             {guests.length === 0 && (
-              <tr><td colSpan={canEdit ? 8 : 7} style={{ padding: "34px", textAlign: "center", color: C.ash, fontStyle: "italic" }}>
+              <tr><td colSpan={(tablesMode ? 7 : 6) + (canEdit ? 1 : 0)} style={{ padding: "34px", textAlign: "center", color: C.ash, fontStyle: "italic" }}>
                 No parties yet.
               </td></tr>
             )}

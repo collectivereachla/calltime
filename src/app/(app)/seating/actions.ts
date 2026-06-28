@@ -125,3 +125,15 @@ export async function setSeatingPrice(productionId: string, price: string) {
     );
   if (error) throw new Error(error.message);
 }
+
+export async function setSeatingMode(productionId: string, mode: string) {
+  await assertNotPreviewing();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("seating_settings")
+    .upsert(
+      { production_id: productionId, seating_mode: mode, updated_at: new Date().toISOString() },
+      { onConflict: "production_id" }
+    );
+  if (error) throw new Error(error.message);
+}

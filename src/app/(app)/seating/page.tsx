@@ -65,7 +65,7 @@ export default async function SeatingPage() {
 
   const { data: settings } = await supabase
     .from("seating_settings")
-    .select("price_per_seat")
+    .select("price_per_seat, seating_mode")
     .eq("production_id", activeProductionId)
     .maybeSingle();
 
@@ -86,6 +86,7 @@ export default async function SeatingPage() {
       initialTables={tables || []}
       initialGuests={guests || []}
       initialPrice={settings?.price_per_seat != null ? String(settings.price_per_seat) : ""}
+      initialMode={(settings?.seating_mode as string) || "theater_ga"}
       performances={(performances || []) as { id: string; title: string; event_date: string; start_time: string | null }[]}
     />
   );
