@@ -11,9 +11,13 @@ function parseISO(s: string) {
   const [y, m, d] = s.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
+function fmtDay(s: string) {
+  return parseISO(s).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
 
-export function AvailabilityCalendar({ marked, windowStart, windowEnd, prodTitle }: {
+export function AvailabilityCalendar({ marked, inferred = [], windowStart, windowEnd, prodTitle }: {
   marked: Record<string, string>;
+  inferred?: { date: string; title: string; status: string; reason: string | null }[];
   windowStart: string | null;
   windowEnd: string | null;
   prodTitle: string | null;
@@ -31,6 +35,16 @@ export function AvailabilityCalendar({ marked, windowStart, windowEnd, prodTitle
   const [map, setMap] = useState<Record<string, string>>({ ...marked });
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [inf, setInf] = useState(inferred);
+
+  async function confirmInferred(ds: string) {
+    setError(null); setBusy(ds);
+    const r = await markDayUnavailable(ds);
+    setBusy(null);
+    if (r?.error || !r?.id) { setError(r?.error || "Couldn't save."); return; }
+    setMap((m) => ({ ...m, [ds]: r.id as string }));
+    setInf((list) => list.filter((x) => x.date !== ds));
+  }
 
   async function toggle(ds: string) {
     setError(null);
@@ -73,6 +87,31 @@ export function AvailabilityCalendar({ marked, windowStart, windowEnd, prodTitle
         Your stage manager and director see these when building the schedule.
       </p>
       {error && <p className="text-body-sm text-brick mb-3">{error}</p>}
+
+      {inf.length > 0 && (
+        <div className="mb-6 bg-brick/5 border border-brick/20 rounded-card p-4">
+          <p className="text-body-sm font-medium text-ink mb-1">From your callboard responses</p>
+          <p className="text-body-xs text-ash mb-3">You flagged a conflict on these dates. Confirm them so your stage manager and the schedule know you can&rsquo;t make it.</p>
+          <div className="space-y-2">
+            {inf.map((x) => (
+              <div key={x.date} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-body-sm text-ink">{fmtDay(x.date)}</span>
+                  <span className="text-body-xs text-ash"> · {x.title}{x.reason ? ` (${x.reason})` : ""}</span>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button type="button" onClick={() => confirmInferred(x.date)} disabled={busy === x.date}
+                    className="px-3 py-1 bg-ink text-paper text-body-xs rounded-card hover:bg-ink/90 disabled:opacity-50">
+                    Can&rsquo;t make it
+                  </button>
+                  <button type="button" onClick={() => setInf((l) => l.filter((y) => y.date !== x.date))}
+                    className="px-2 py-1 text-body-xs text-muted hover:text-ink">Dismiss</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-7 gap-1 mb-1">
         {dow.map((d) => <div key={d} className="text-center text-body-xs text-muted py-1">{d}</div>)}

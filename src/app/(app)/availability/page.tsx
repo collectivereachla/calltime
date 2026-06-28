@@ -33,7 +33,19 @@ export default async function AvailabilityPage() {
   const marked: Record<string, string> = {};
   for (const c of conflicts || []) marked[c.start_date as string] = c.id as string;
 
+  // Inferred (soft) conflicts from past callboard responses the actor hasn't
+  // declared yet — surfaced for one-tap confirmation. Feeds the schedule.
+  const { data: inferredRows } = await supabase.rpc("get_inferred_conflicts");
+  const seenDates = new Set<string>();
+  const inferred: { date: string; title: string; status: string; reason: string | null }[] = [];
+  for (const r of (inferredRows || []) as { event_date: string; title: string; status: string; reason: string | null }[]) {
+    const d = r.event_date;
+    if (marked[d] || seenDates.has(d)) continue;
+    seenDates.add(d);
+    inferred.push({ date: d, title: r.title, status: r.status, reason: r.reason });
+  }
+
   return (
-    <AvailabilityCalendar marked={marked} windowStart={windowStart} windowEnd={windowEnd} prodTitle={prodTitle} />
+    <AvailabilityCalendar marked={marked} inferred={inferred} windowStart={windowStart} windowEnd={windowEnd} prodTitle={prodTitle} />
   );
 }
