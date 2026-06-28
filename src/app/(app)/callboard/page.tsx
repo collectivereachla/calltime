@@ -7,6 +7,7 @@ import { NewEventForm } from "./new-event-form";
 import { EventCard } from "./event-card";
 import { EditEventButton } from "./edit-event";
 import { CallboardTabs } from "./callboard-tabs";
+import { ProductionAvailability } from "./production-availability";
 import { PrintButton } from "./print-button";
 import { PersonFilter } from "./person-filter";
 import { PublishWeekButton } from "./publish-week-button";
@@ -292,6 +293,55 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
     conflicts = (conflictData as typeof conflicts) || [];
   }
 
+  // Company availability (lead view): declared conflicts across the roster +
+  // mandatory days, over the production window. RLS lets show leaders read the
+  // roster's conflicts.
+  let availabilityContent: React.ReactNode = null;
+  if (canManage && productionIds.length > 0) {
+    const nameById = new Map(companyMembers.map((m) => [m.id, m.name]));
+    const rosterIds = companyMembers.map((m) => m.id);
+    let prodWindowStart: string | null = null;
+    let prodWindowEnd: string | null = null;
+    const { data: prodRow } = await supabase
+      .from("productions").select("first_rehearsal, closing_date").eq("id", activeProductions[0].id).maybeSingle();
+    if (prodRow) {
+      prodWindowStart = (prodRow.first_rehearsal as string | null) ?? null;
+      prodWindowEnd = (prodRow.closing_date as string | null) ?? null;
+    }
+    let rosterConflicts: { person_id: string; person_name: string; start_date: string; end_date: string | null; all_day: boolean; start_time: string | null; end_time: string | null; conflict_type: string | null; description: string | null; recurring_rule: string | null }[] = [];
+    if (rosterIds.length > 0) {
+      const { data: cdata } = await supabase
+        .from("conflicts")
+        .select("person_id, start_date, end_date, all_day, start_time, end_time, conflict_type, description, recurring_rule")
+        .in("person_id", rosterIds.slice(0, 200));
+      rosterConflicts = (cdata || []).map((c) => ({
+        person_id: c.person_id as string,
+        person_name: nameById.get(c.person_id as string) || "Someone",
+        start_date: c.start_date as string,
+        end_date: (c.end_date as string | null) ?? null,
+        all_day: c.all_day as boolean,
+        start_time: (c.start_time as string | null) ?? null,
+        end_time: (c.end_time as string | null) ?? null,
+        conflict_type: (c.conflict_type as string | null) ?? null,
+        description: (c.description as string | null) ?? null,
+        recurring_rule: (c.recurring_rule as string | null) ?? null,
+      }));
+    }
+    const { data: mdata } = await supabase
+      .from("schedule_events").select("event_date").in("production_id", productionIds).eq("mandatory", true).eq("published", true);
+    const mandatoryDates = [...new Set((mdata || []).map((m) => m.event_date as string))];
+
+    availabilityContent = (
+      <ProductionAvailability
+        conflicts={rosterConflicts}
+        mandatoryDates={mandatoryDates}
+        windowStart={prodWindowStart}
+        windowEnd={prodWindowEnd}
+        rosterCount={rosterIds.length}
+      />
+    );
+  }
+
   const typeColors: Record<string, string> = {
     rehearsal: "bg-ink/10 text-ink",
     tech: "bg-tentative/10 text-tentative",
@@ -351,6 +401,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
       <CallboardTabs
         canManage={canManage}
         conflicts={conflicts}
+        availabilityContent={availabilityContent}
         scheduleContent={
           <>
             {/* New event form — owner and production only */}

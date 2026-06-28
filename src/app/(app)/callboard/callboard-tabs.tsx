@@ -24,14 +24,16 @@ function formatTime(time: string): string {
 
 export function CallboardTabs({
   scheduleContent,
+  availabilityContent,
   conflicts,
   canManage,
 }: {
   scheduleContent: React.ReactNode;
+  availabilityContent?: React.ReactNode;
   conflicts: ConflictEntry[];
   canManage: boolean;
 }) {
-  const [tab, setTab] = useState<"schedule" | "conflicts">("schedule");
+  const [tab, setTab] = useState<"schedule" | "conflicts" | "availability">("schedule");
 
   if (!canManage) {
     return <>{scheduleContent}</>;
@@ -73,12 +75,27 @@ export function CallboardTabs({
             </span>
           )}
         </button>
+        {availabilityContent && (
+          <button
+            onClick={() => setTab("availability")}
+            className={`px-4 py-2 text-body-sm font-medium rounded-card transition-colors ${
+              tab === "availability" ? "bg-ink text-paper" : "text-ash hover:text-ink"
+            }`}
+          >
+            Availability
+          </button>
+        )}
       </div>
 
       {/* Schedule tab — always rendered for print */}
       <div className={tab === "schedule" ? "" : "hidden print:block"}>
         {scheduleContent}
       </div>
+
+      {/* Availability tab — company conflict calendar (lead view) */}
+      {tab === "availability" && availabilityContent && (
+        <div className="print:hidden">{availabilityContent}</div>
+      )}
 
       {/* Conflicts tab — never prints */}
       {tab === "conflicts" && (
