@@ -16,14 +16,38 @@ export type Line = {
 const SPEAKABLE = new Set(["dialogue", "lyric"]);
 
 const CLOUD_VOICES = [
-  { id: "en-US-Chirp3-HD-Charon", label: "Charon (deep)", desc: "male, deep, authoritative" },
-  { id: "en-US-Chirp3-HD-Fenrir", label: "Fenrir (gravel)", desc: "male, gravelly, rough-edged" },
-  { id: "en-US-Chirp3-HD-Orus", label: "Orus (firm)", desc: "male, firm, steady" },
-  { id: "en-US-Chirp3-HD-Puck", label: "Puck (lively)", desc: "male, young, playful" },
-  { id: "en-US-Chirp3-HD-Aoede", label: "Aoede (bright)", desc: "female, bright, expressive" },
-  { id: "en-US-Chirp3-HD-Kore", label: "Kore (warm)", desc: "female, warm, grounded" },
-  { id: "en-US-Chirp3-HD-Leda", label: "Leda (youthful)", desc: "female, youthful, light" },
-  { id: "en-US-Chirp3-HD-Zephyr", label: "Zephyr (airy)", desc: "female, airy, gentle" },
+  // Female (Google Chirp 3: HD)
+  { id: "en-US-Chirp3-HD-Aoede", label: "Aoede — bright", gender: "F", desc: "female, bright, expressive" },
+  { id: "en-US-Chirp3-HD-Kore", label: "Kore — warm", gender: "F", desc: "female, warm, grounded" },
+  { id: "en-US-Chirp3-HD-Leda", label: "Leda — youthful", gender: "F", desc: "female, youthful, light" },
+  { id: "en-US-Chirp3-HD-Zephyr", label: "Zephyr — airy", gender: "F", desc: "female, airy, gentle" },
+  { id: "en-US-Chirp3-HD-Achernar", label: "Achernar", gender: "F", desc: "female" },
+  { id: "en-US-Chirp3-HD-Autonoe", label: "Autonoe", gender: "F", desc: "female" },
+  { id: "en-US-Chirp3-HD-Callirrhoe", label: "Callirrhoe", gender: "F", desc: "female" },
+  { id: "en-US-Chirp3-HD-Despina", label: "Despina", gender: "F", desc: "female" },
+  { id: "en-US-Chirp3-HD-Erinome", label: "Erinome", gender: "F", desc: "female" },
+  { id: "en-US-Chirp3-HD-Gacrux", label: "Gacrux", gender: "F", desc: "female" },
+  { id: "en-US-Chirp3-HD-Laomedeia", label: "Laomedeia", gender: "F", desc: "female" },
+  { id: "en-US-Chirp3-HD-Pulcherrima", label: "Pulcherrima", gender: "F", desc: "female" },
+  { id: "en-US-Chirp3-HD-Sulafat", label: "Sulafat", gender: "F", desc: "female" },
+  { id: "en-US-Chirp3-HD-Vindemiatrix", label: "Vindemiatrix", gender: "F", desc: "female" },
+  // Male
+  { id: "en-US-Chirp3-HD-Charon", label: "Charon — deep", gender: "M", desc: "male, deep, authoritative" },
+  { id: "en-US-Chirp3-HD-Fenrir", label: "Fenrir — gravel", gender: "M", desc: "male, gravelly, rough-edged" },
+  { id: "en-US-Chirp3-HD-Orus", label: "Orus — firm", gender: "M", desc: "male, firm, steady" },
+  { id: "en-US-Chirp3-HD-Puck", label: "Puck — lively", gender: "M", desc: "male, young, playful" },
+  { id: "en-US-Chirp3-HD-Achird", label: "Achird", gender: "M", desc: "male" },
+  { id: "en-US-Chirp3-HD-Algenib", label: "Algenib", gender: "M", desc: "male" },
+  { id: "en-US-Chirp3-HD-Algieba", label: "Algieba", gender: "M", desc: "male" },
+  { id: "en-US-Chirp3-HD-Alnilam", label: "Alnilam", gender: "M", desc: "male" },
+  { id: "en-US-Chirp3-HD-Enceladus", label: "Enceladus", gender: "M", desc: "male" },
+  { id: "en-US-Chirp3-HD-Iapetus", label: "Iapetus", gender: "M", desc: "male" },
+  { id: "en-US-Chirp3-HD-Rasalgethi", label: "Rasalgethi", gender: "M", desc: "male" },
+  { id: "en-US-Chirp3-HD-Sadachbia", label: "Sadachbia", gender: "M", desc: "male" },
+  { id: "en-US-Chirp3-HD-Sadaltager", label: "Sadaltager", gender: "M", desc: "male" },
+  { id: "en-US-Chirp3-HD-Schedar", label: "Schedar", gender: "M", desc: "male" },
+  { id: "en-US-Chirp3-HD-Umbriel", label: "Umbriel", gender: "M", desc: "male" },
+  { id: "en-US-Chirp3-HD-Zubenelgenubi", label: "Zubenelgenubi", gender: "M", desc: "male" },
 ];
 function hashStr(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
 function autoVoiceId(name: string) { return CLOUD_VOICES[hashStr(name.toLowerCase()) % CLOUD_VOICES.length].id; }
@@ -401,8 +425,11 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
               <span className="text-body-xs text-muted uppercase tracking-wider block mb-1">Reading voice</span>
               <div className="flex items-center gap-2 flex-wrap">
                 <select value={voiceURI} onChange={(e) => { setVoiceURI(e.target.value); try { localStorage.setItem("ct_tts_voice", e.target.value); } catch {} }} className="px-3 py-2 bg-paper border border-bone rounded-card text-body-sm text-ink max-w-xs">
-                  <optgroup label="Natural (AI)">
-                    {CLOUD_VOICES.map((v) => <option key={v.id} value={`cloud:${v.id}`}>{v.label}</option>)}
+                  <optgroup label="Natural — female">
+                    {CLOUD_VOICES.filter((v) => v.gender === "F").map((v) => <option key={v.id} value={`cloud:${v.id}`}>{v.label}</option>)}
+                  </optgroup>
+                  <optgroup label="Natural — male">
+                    {CLOUD_VOICES.filter((v) => v.gender === "M").map((v) => <option key={v.id} value={`cloud:${v.id}`}>{v.label}</option>)}
                   </optgroup>
                   {voices.length > 0 && (
                     <optgroup label="On this device">
@@ -429,7 +456,8 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                       <span className="text-body-sm text-ink truncate">{c.name}</span>
                       <select value={castVoices[c.name] || ""} onChange={(e) => setCast(c.name, e.target.value)} className="px-2 py-1 bg-paper border border-bone rounded-card text-body-xs text-ink shrink-0">
                         <option value="">Auto ({autoVoiceLabel(c.name)})</option>
-                        {CLOUD_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+                        <optgroup label="Female">{CLOUD_VOICES.filter((v) => v.gender === "F").map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</optgroup>
+                        <optgroup label="Male">{CLOUD_VOICES.filter((v) => v.gender === "M").map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</optgroup>
                       </select>
                     </div>
                   ))}
