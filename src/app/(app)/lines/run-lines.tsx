@@ -69,8 +69,21 @@ function normalize(s: string) {
   return t.split(" ").filter((w) => w && !FILLERS.has(w)).join(" ");
 }
 function tokens(s: string) { const n = normalize(s); return n ? n.split(" ") : []; }
+function speechElisions(s: string) {
+  return s
+    .replace(/\bi'th'/gi, "in the ")
+    .replace(/\bth'/gi, "the ")
+    .replace(/\b'tis\b/gi, "it is").replace(/\b'twas\b/gi, "it was").replace(/\b'twere\b/gi, "it were")
+    .replace(/\b'twill\b/gi, "it will").replace(/\b'twould\b/gi, "it would").replace(/\b'twixt\b/gi, "betwixt")
+    .replace(/\bo'er\b/gi, "over").replace(/\bne'er\b/gi, "never").replace(/\be'er\b/gi, "ever").replace(/\be'en\b/gi, "even")
+    .replace(/\b'gainst\b/gi, "against").replace(/\b'mongst\b/gi, "amongst").replace(/\b'mong\b/gi, "among")
+    .replace(/\bon't\b/gi, "on it").replace(/\bin't\b/gi, "in it").replace(/\bis't\b/gi, "is it").replace(/\bto't\b/gi, "to it")
+    .replace(/\bdo't\b/gi, "do it").replace(/\bfor't\b/gi, "for it").replace(/\bby't\b/gi, "by it").replace(/\bse't\b/gi, "set");
+}
 function cleanForSpeech(s: string) {
-  return s.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ").replace(/[♪♫*_]/g, " ").replace(/\s+/g, " ").trim();
+  let t = s.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ").replace(/[♪♫*_]/g, " ");
+  t = speechElisions(t);
+  return t.replace(/\s+/g, " ").trim();
 }
 function similarity(a: string, b: string) {
   const x = tokens(a), y = tokens(b);
@@ -253,6 +266,18 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     return Math.max(0, firstMine - 1);
   }, [seq, startPos, character]);
 
+  const seqScenes = useMemo(() => {
+    const seen = new Set<string>(); const out: { key: string; act: number | null; scene: number | null; index: number }[] = [];
+    seq.forEach((it, i) => { const k = `${it.act ?? "-"}.${it.scene ?? "-"}`; if (!seen.has(k)) { seen.add(k); out.push({ key: k, act: it.act, scene: it.scene, index: i }); } });
+    return out;
+  }, [seq]);
+
+  function goTo(i: number) {
+    stopAll();
+    setResult(null); setRevealed(false); setHeard(""); setCallReveal(0);
+    setIndex(Math.max(0, Math.min(seq.length, i)));
+  }
+
   const [index, setIndex] = useState(0);
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState("");
@@ -275,7 +300,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const stopAll = useCallback(() => {
     cancelRef.current = true;
     try { window.speechSynthesis?.cancel(); } catch {}
-    try { recogRef.current?.abort?.(); } catch {}
+    try { const rr = recogRef.current; if (rr) { rr.onend = null; rr.onresult = null; rr.onerror = null; rr.abort?.(); } } catch {}
     try { audioRef.current?.pause(); } catch {}
     setListening(false);
   }, []);
@@ -633,6 +658,8 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
 
   const item = seq[index];
   const done = !item;
+  const curKey = item ? `${item.act ?? "-"}.${item.scene ?? "-"}` : "";
+  const curScenePos = seqScenes.findIndex((x) => x.key === curKey);
   const upcoming = seq.slice(index + 1).find((s) => s.speakable);
 
   return (
@@ -649,6 +676,17 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
           <button onClick={quit} className="text-body-sm text-muted hover:text-brick transition-colors">Done</button>
         </div>
       </div>
+
+      {!done && seqScenes.length > 0 && (
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <button onClick={() => goTo(index - 1)} disabled={index <= 0} className="px-3 py-1.5 border border-bone rounded-card text-body-xs text-ink hover:border-ash disabled:opacity-40">← Back</button>
+          <button onClick={() => curScenePos > 0 && goTo(seqScenes[curScenePos - 1].index)} disabled={curScenePos <= 0} className="px-3 py-1.5 border border-bone rounded-card text-body-xs text-ink hover:border-ash disabled:opacity-40">⏮ Scene</button>
+          <button onClick={() => curScenePos >= 0 && curScenePos < seqScenes.length - 1 && goTo(seqScenes[curScenePos + 1].index)} disabled={curScenePos < 0 || curScenePos >= seqScenes.length - 1} className="px-3 py-1.5 border border-bone rounded-card text-body-xs text-ink hover:border-ash disabled:opacity-40">Scene ⏭</button>
+          <select value={curKey} onChange={(e) => { const sc = seqScenes.find((x) => x.key === e.target.value); if (sc) goTo(sc.index); }} className="px-2 py-1.5 bg-paper border border-bone rounded-card text-body-xs text-ink">
+            {seqScenes.map((sc) => <option key={sc.key} value={sc.key}>{sc.act != null ? `Act ${sc.act}` : "—"}{sc.scene != null ? `, Sc ${sc.scene}` : ""}</option>)}
+          </select>
+        </div>
+      )}
 
       {done ? (
         mode === "run" ? (() => {
