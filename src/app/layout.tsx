@@ -12,13 +12,16 @@ export const metadata: Metadata = {
     title: "Calltime",
   },
   icons: {
-    icon: "/favicon.png",
+    icon: [
+      { url: "/icon-app.svg", type: "image/svg+xml" },
+      { url: "/favicon.png" },
+    ],
     apple: "/apple-touch-icon.png",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#C4522D",
+  themeColor: "#E0301E",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
