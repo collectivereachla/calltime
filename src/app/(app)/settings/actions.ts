@@ -253,3 +253,11 @@ export async function setConflictLeadDays(orgId: string, days: number) {
   revalidatePath("/settings");
   return { ok: true };
 }
+
+export async function setProductionLeadDays(productionId: string, days: number) {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_production_conflict_lead_days", { p_production_id: productionId, p_days: days });
+  if (error) return { error: error.message };
+  revalidatePath("/settings");
+  return { ok: true };
+}

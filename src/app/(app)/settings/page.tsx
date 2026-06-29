@@ -14,6 +14,7 @@ import { W9Card } from "./w9-card";
 import { CheckinPinCard } from "./checkin-pin-card";
 import { FinanceAccess } from "./finance-access";
 import { SchedulingPolicy } from "./scheduling-policy";
+import { ProductionScheduling } from "./production-scheduling";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -146,6 +147,26 @@ export default async function SettingsPage() {
     hasPin = !!(pinRow?.checkin_pin && pinRow.checkin_pin.trim());
   }
 
+  // Per-show scheduling override — for the active production's leadership (owner or show lead)
+  let showSched: { id: string; title: string; current: number | null; orgDefault: number } | null = null;
+  {
+    const { getActiveProductionId } = await import("@/lib/active-production");
+    const activeId = await getActiveProductionId();
+    if (activeId) {
+      const { canLeadProduction } = await import("@/lib/membership");
+      if (await canLeadProduction(person.id, activeId)) {
+        const { data: pr } = await supabase.from("productions").select("id, title, org_id, settings").eq("id", activeId).maybeSingle();
+        if (pr) {
+          const ps = pr.settings as { conflict_lead_days?: number } | null;
+          const cur = typeof ps?.conflict_lead_days === "number" ? ps!.conflict_lead_days! : null;
+          const { data: o } = await supabase.from("organizations").select("settings").eq("id", pr.org_id as string).maybeSingle();
+          const od = (o?.settings as { conflict_lead_days?: number } | null)?.conflict_lead_days;
+          showSched = { id: pr.id as string, title: pr.title as string, current: cur, orgDefault: typeof od === "number" ? od : 0 };
+        }
+      }
+    }
+  }
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 md:px-0">
       <h1 className="font-display text-display-lg text-ink mb-1">Settings</h1>
@@ -198,6 +219,8 @@ export default async function SettingsPage() {
           <a href="/api/org-export" className="inline-block px-4 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 transition-colors">Download org data</a>
         </div>
       )}
+
+      {showSched && <ProductionScheduling productionId={showSched.id} title={showSched.title} current={showSched.current} orgDefault={showSched.orgDefault} />}
 
       {isOwner && orgData && (
         <div className="mt-10">
