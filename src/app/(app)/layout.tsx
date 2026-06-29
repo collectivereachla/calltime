@@ -117,6 +117,10 @@ export default async function AppLayout({
   }
   if (!activeOrgName) activeOrgName = (memberships[0]?.organizations as unknown as { name: string } | undefined)?.name ?? null;
 
+  // Per-person UI prefs (sidebar width + room order) — follow the account.
+  const { data: prefsRow } = await supabase.from("people").select("ui_prefs").eq("id", person.id).maybeSingle();
+  const uiPrefs = (prefsRow?.ui_prefs as { nav_width?: number; nav_order?: string[] } | null) || {};
+
   // Count unread notifications + contracts awaiting countersign + pending applications
   const isOwner = memberships.some((m) => m.role === "owner");
   const isAdmin = memberships.some((m) => m.role === "owner" || m.role === "admin");
@@ -246,6 +250,8 @@ export default async function AppLayout({
           role: m.role,
         }))}
         activeOrgName={activeOrgName}
+        initialNavWidth={uiPrefs.nav_width ?? null}
+        initialNavOrder={uiPrefs.nav_order ?? null}
         badges={{ ledger: pendingCountersignCount, applications: pendingApplicationsCount }}
         notificationCount={unreadNotificationCount}
         productions={productions}

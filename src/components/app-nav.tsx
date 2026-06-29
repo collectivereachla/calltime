@@ -5,6 +5,7 @@ import { ModeToggle } from "@/app/(app)/mode-toggle";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { logout } from "@/app/auth/actions";
+import { saveUiPrefs } from "@/app/(app)/nav-actions";
 import { NotificationBell } from "./notification-bell";
 import { ProductionSwitcher } from "./production-switcher";
 
@@ -25,6 +26,9 @@ interface AppNavProps {
   displayName: string;
   orgs: Org[];
   activeOrgName?: string | null;
+  activeOrgSlug?: string | null;
+  initialNavWidth?: number | null;
+  initialNavOrder?: string[] | null;
   badges?: Record<string, number>;
   notificationCount?: number;
   productions?: Production[];
@@ -57,7 +61,7 @@ const rooms = [
 
 const mobileRooms = rooms.filter((r) => r.mobile);
 
-export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, notificationCount = 0, productions = [], activeProductionId = null, lockedRooms = [], isOwner = false, boothAccess = true, seatingAccess = false, hiddenRooms = [] }: AppNavProps) {
+export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug = null, initialNavWidth = null, initialNavOrder = null, badges = {}, notificationCount = 0, productions = [], activeProductionId = null, lockedRooms = [], isOwner = false, boothAccess = true, seatingAccess = false, hiddenRooms = [] }: AppNavProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const isAdmin = orgs.some((o) => o.role === "owner" || o.role === "admin");
@@ -75,28 +79,19 @@ export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, n
 
   const visibleRooms = rooms.filter((r) => (!("adminOnly" in r && r.adminOnly) || isAdmin) && (r.path !== "/booth" || boothAccess) && (r.path !== "/dressing-room" || !boothAccess) && (r.path !== "/seating" || seatingAccess) && !hiddenRooms.includes(r.path.replace("/", "")));
 
-  // Resizable + reorderable desktop rail (per-browser, persisted in localStorage)
+  // Resizable + reorderable desktop rail (saved to the person's account)
   const MIN_W = 224, MAX_W = 460, DEFAULT_W = 240;
-  const [railW, setRailW] = useState(DEFAULT_W);
-  const [order, setOrder] = useState<string[] | null>(null);
+  const [railW, setRailW] = useState(initialNavWidth && initialNavWidth >= MIN_W && initialNavWidth <= MAX_W ? initialNavWidth : DEFAULT_W);
+  const [order, setOrder] = useState<string[] | null>(initialNavOrder && initialNavOrder.length ? initialNavOrder : null);
   const [dragPath, setDragPath] = useState<string | null>(null);
   const resizing = useRef(false);
-
-  useEffect(() => {
-    try {
-      const w = parseInt(localStorage.getItem("ct_rail_w") || "", 10);
-      if (!Number.isNaN(w)) setRailW(Math.min(MAX_W, Math.max(MIN_W, w)));
-      const o = localStorage.getItem("ct_room_order");
-      if (o) setOrder(JSON.parse(o));
-    } catch {}
-  }, []);
 
   useEffect(() => {
     function move(e: PointerEvent) { if (resizing.current) setRailW(Math.min(MAX_W, Math.max(MIN_W, e.clientX))); }
     function up() {
       if (!resizing.current) return;
       resizing.current = false; document.body.style.userSelect = "";
-      try { localStorage.setItem("ct_rail_w", String(railW)); } catch {}
+      saveUiPrefs({ nav_width: railW });
     }
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -116,7 +111,7 @@ export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, n
     if (from === -1 || to === -1) { setDragPath(null); return; }
     base.splice(to, 0, base.splice(from, 1)[0]);
     setOrder(base);
-    try { localStorage.setItem("ct_room_order", JSON.stringify(base)); } catch {}
+    saveUiPrefs({ nav_order: base });
     setDragPath(null);
   }
 
@@ -135,7 +130,13 @@ export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, n
           <div className="px-5 py-3 border-b border-bone flex items-center justify-between">
             <div className="min-w-0">
               <p className="text-body-xs text-muted uppercase tracking-wider mb-1">Organization</p>
-              <p className="text-body-sm font-medium text-ink truncate">{activeOrgName || orgs[0].name}</p>
+              {(() => {
+                const slug = activeOrgSlug || orgs.find((o) => o.name === activeOrgName)?.slug || orgs[0]?.slug;
+                const label = activeOrgName || orgs[0].name;
+                return slug
+                  ? <Link href={`/org/${slug}`} className="text-body-sm font-medium text-ink truncate block hover:text-brick transition-colors">{label}</Link>
+                  : <p className="text-body-sm font-medium text-ink truncate">{label}</p>;
+              })()}
             </div>
             <NotificationBell unreadCount={notificationCount} />
           </div>
@@ -210,7 +211,7 @@ export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, n
         {/* Drag to resize the rail */}
         <div
           onPointerDown={(e) => { resizing.current = true; document.body.style.userSelect = "none"; e.preventDefault(); }}
-          onDoubleClick={() => { setRailW(DEFAULT_W); try { localStorage.setItem("ct_rail_w", String(DEFAULT_W)); } catch {} }}
+          onDoubleClick={() => { setRailW(DEFAULT_W); saveUiPrefs({ nav_width: DEFAULT_W }); }}
           title="Drag to resize · double-click to reset"
           className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-brick/30 active:bg-brick/40 transition-colors"
         />
