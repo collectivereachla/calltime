@@ -124,8 +124,15 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
       {/* Desktop sidebar — hidden on mobile */}
       <nav style={{ width: railW }} className="hidden md:flex shrink-0 border-r border-white/10 bg-ink flex-col h-screen sticky top-0 relative">
         <div className={`border-b border-white/10 ${collapsed ? "py-5 flex justify-center" : "px-5 py-6"}`}>
-          <Link href="/home" title="Home" className="font-marquee text-paper hover:opacity-80 transition-opacity" style={collapsed ? { fontSize: '1.75rem', lineHeight: '1' } : { fontSize: '3rem', lineHeight: '1', letterSpacing: '-0.015em', whiteSpace: 'nowrap' }}>
-            {collapsed ? <>C<span className="text-bulb">.</span></> : <>Calltime<span className="text-bulb">.</span></>}
+          <Link href="/home" title="Home" className="font-marquee text-paper hover:opacity-80 transition-opacity inline-flex items-center" style={collapsed ? undefined : { fontSize: '3rem', lineHeight: '1', letterSpacing: '-0.015em', whiteSpace: 'nowrap' }}>
+            {collapsed ? (
+              <svg viewBox="0 0 240 240" width="36" height="36" aria-label="Calltime" role="img">
+                <path d="M86 138 Q96 56 120 50 Q144 56 154 138" fill="none" stroke="#C8B79A" strokeWidth="7" strokeLinecap="round" />
+                <circle cx="120" cy="92" r="15" fill="#E0301E" />
+                <line x1="120" y1="104" x2="120" y2="186" stroke="#F4EFE4" strokeWidth="7" strokeLinecap="round" />
+                <ellipse cx="120" cy="190" rx="40" ry="9" fill="none" stroke="#F4EFE4" strokeWidth="5" />
+              </svg>
+            ) : (<>Calltime<span className="text-bulb">.</span></>)}
           </Link>
         </div>
 
@@ -222,9 +229,7 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
               </Link>
               <span className="text-bone">·</span>
               <form action={logout}>
-                <button type="submit" className="text-body-xs text-bone/50 hover:text-brick transition-colors">
-                  Sign out
-                </button>
+                <button type="submit" title="Sign out" aria-label="Sign out" className="text-body-sm text-bone/50 hover:text-brick transition-colors leading-none">⏻</button>
               </form>
             </div>
           </div>
