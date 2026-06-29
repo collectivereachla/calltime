@@ -11,7 +11,7 @@ function getResend() {
 }
 
 const FROM_ADDRESS =
-  process.env.RESEND_FROM_EMAIL || "Calltime <notifications@checkcalltime.art>";
+  process.env.RESEND_FROM_EMAIL || "Calltime <noreply@checkcalltime.art>";
 
 export async function sendEmail({
   to,
