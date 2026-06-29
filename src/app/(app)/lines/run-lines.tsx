@@ -16,14 +16,14 @@ export type Line = {
 const SPEAKABLE = new Set(["dialogue", "lyric"]);
 
 const CLOUD_VOICES = [
-  { id: "en-US-Chirp3-HD-Charon", label: "Charon (deep)" },
-  { id: "en-US-Chirp3-HD-Fenrir", label: "Fenrir (gravel)" },
-  { id: "en-US-Chirp3-HD-Orus", label: "Orus (firm)" },
-  { id: "en-US-Chirp3-HD-Puck", label: "Puck (lively)" },
-  { id: "en-US-Chirp3-HD-Aoede", label: "Aoede (bright)" },
-  { id: "en-US-Chirp3-HD-Kore", label: "Kore (warm)" },
-  { id: "en-US-Chirp3-HD-Leda", label: "Leda (youthful)" },
-  { id: "en-US-Chirp3-HD-Zephyr", label: "Zephyr (airy)" },
+  { id: "en-US-Chirp3-HD-Charon", label: "Charon (deep)", desc: "male, deep, authoritative" },
+  { id: "en-US-Chirp3-HD-Fenrir", label: "Fenrir (gravel)", desc: "male, gravelly, rough-edged" },
+  { id: "en-US-Chirp3-HD-Orus", label: "Orus (firm)", desc: "male, firm, steady" },
+  { id: "en-US-Chirp3-HD-Puck", label: "Puck (lively)", desc: "male, young, playful" },
+  { id: "en-US-Chirp3-HD-Aoede", label: "Aoede (bright)", desc: "female, bright, expressive" },
+  { id: "en-US-Chirp3-HD-Kore", label: "Kore (warm)", desc: "female, warm, grounded" },
+  { id: "en-US-Chirp3-HD-Leda", label: "Leda (youthful)", desc: "female, youthful, light" },
+  { id: "en-US-Chirp3-HD-Zephyr", label: "Zephyr (airy)", desc: "female, airy, gentle" },
 ];
 function hashStr(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
 function autoVoiceId(name: string) { return CLOUD_VOICES[hashStr(name.toLowerCase()) % CLOUD_VOICES.length].id; }
@@ -130,6 +130,8 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [voiceURI, setVoiceURI] = useState<string>("cloud:en-US-Chirp3-HD-Charon");
   const [castVoices, setCastVoices] = useState<Record<string, string>>({});
+  const [autoCasting, setAutoCasting] = useState(false);
+  const [castMsg, setCastMsg] = useState("");
 
   const supported = typeof window !== "undefined" && (("SpeechRecognition" in window) || ("webkitSpeechRecognition" in window));
 
@@ -145,6 +147,33 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     setCastVoices((prev) => { const n = { ...prev }; if (id) n[name] = id; else delete n[name]; try { localStorage.setItem("ct_cast_voices", JSON.stringify(n)); } catch {} return n; });
   }
   const charVoiceURI = (name: string) => `cloud:${castVoices[name] || autoVoiceId(name)}`;
+
+  async function autoCast() {
+    setAutoCasting(true); setCastMsg("");
+    try {
+      const cues = characters.filter((c) => c.name !== character);
+      const sample = new Map<string, string>();
+      for (const l of lines) {
+        if (!SPEAKABLE.has(l.line_type) || !l.character) continue;
+        const nm = l.character.trim();
+        if (!cues.some((c) => c.name === nm)) continue;
+        const cur = sample.get(nm) || "";
+        if (cur.length < 220) sample.set(nm, (cur + " " + cleanForSpeech(l.content)).trim());
+      }
+      const payload = {
+        characters: cues.map((c) => ({ name: c.name, sample: sample.get(c.name) || "" })),
+        voices: CLOUD_VOICES.map((v) => ({ id: v.id, desc: v.desc })),
+      };
+      const res = await fetch("/api/cast-voices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!res.ok || !data.assignments) { setCastMsg(data.error || "Couldn't auto-cast."); return; }
+      const merged = { ...castVoices, ...data.assignments };
+      setCastVoices(merged);
+      try { localStorage.setItem("ct_cast_voices", JSON.stringify(merged)); } catch {}
+      setCastMsg(`Cast ${Object.keys(data.assignments).length} roles to fitting voices.`);
+    } catch { setCastMsg("Couldn't auto-cast."); }
+    finally { setAutoCasting(false); }
+  }
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -389,7 +418,11 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
             {character && characters.filter((c) => c.name !== character).length > 0 && (
               <div className="mb-6">
                 <span className="text-body-xs text-muted uppercase tracking-wider block mb-1">Cast voices — who you hear</span>
-                <p className="text-body-xs text-muted mb-2 max-w-md">Each role is auto-assigned its own voice so a scene sounds like a scene. Override any of them.</p>
+                <p className="text-body-xs text-muted mb-2 max-w-md">Each role gets its own voice so a scene sounds like a scene. Auto-cast matches voices to each character (gender, age, temperament), or override any below.</p>
+                <div className="flex items-center gap-3 mb-2">
+                  <button type="button" onClick={autoCast} disabled={autoCasting} className="px-3 py-1.5 bg-ink text-paper text-body-xs font-medium rounded-card hover:bg-ink/90 disabled:opacity-50">{autoCasting ? "Casting…" : "✨ Auto-cast by character"}</button>
+                  {castMsg && <span className="text-body-xs text-ash">{castMsg}</span>}
+                </div>
                 <div className="max-h-52 overflow-y-auto border border-bone rounded-card divide-y divide-bone">
                   {characters.filter((c) => c.name !== character).map((c) => (
                     <div key={c.name} className="flex items-center justify-between gap-3 px-3 py-2">
