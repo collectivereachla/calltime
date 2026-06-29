@@ -23,7 +23,7 @@ export function ImportScript({ productionId, defaultTitle }: { productionId: str
 
   return (
     <div className="max-w-2xl mx-auto w-full text-left">
-      <h3 className="font-display text-display-sm text-ink mb-2">Import your script</h3>
+      <h3 className="font-display text-display-sm text-ink mb-2">Import Your Script</h3>
       <p className="text-body-sm text-ash mb-5 leading-relaxed">
         Paste your script below. We keep your text exactly as written and do a first
         pass at structure: act and scene breaks, who&apos;s speaking, and stage directions.

@@ -232,7 +232,7 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
       {(extras.committed > 0 || extras.reimbPending > 0) && (
         <div className="border border-bone rounded-card p-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="font-display text-display-xs text-ink">From invoices &amp; receipts</h3>
+            <h3 className="font-display text-display-xs text-ink">From Invoices &amp; Receipts</h3>
             <span className="text-body-xs text-muted">Included in Net above</span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
@@ -242,11 +242,11 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
             </div>
             <div className="bg-card border border-bone rounded-card px-3 py-2 text-center">
               <p className="font-mono text-display-sm text-ink">{fmt(extras.reimbApproved)}</p>
-              <p className="text-body-xs text-muted mt-0.5">Reimbursements, approved</p>
+              <p className="text-body-xs text-muted mt-0.5 uppercase tracking-wider">Reimbursements, approved</p>
             </div>
             <div className="bg-card border border-bone rounded-card px-3 py-2 text-center">
               <p className="font-mono text-display-sm text-ash">{fmt(extras.reimbPending)}</p>
-              <p className="text-body-xs text-muted mt-0.5">Reimbursements, pending</p>
+              <p className="text-body-xs text-muted mt-0.5 uppercase tracking-wider">Reimbursements, pending</p>
             </div>
           </div>
           {(extras.stipendItems.length > 0 || extras.reimbItems.length > 0) && (
@@ -296,7 +296,7 @@ export function BudgetView({ budgetItems, revenueItems, contractSummaries, canSe
         return (
           <div className="border border-brick/30 rounded-card p-4 bg-brick/5">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h3 className="font-display text-display-xs text-ink">Co-production settlement</h3>
+              <h3 className="font-display text-display-xs text-ink">Co-Production Settlement</h3>
               <span className="text-body-xs text-muted">
                 {coproduction.leadName} {coproduction.leadPct}% · {coproduction.partnerName} {coproduction.partnerPct}% of {basisLabel}
               </span>

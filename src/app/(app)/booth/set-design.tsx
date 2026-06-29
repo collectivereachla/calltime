@@ -280,15 +280,15 @@ export function SetDesign({ productionId, scenes, elements, references, mileston
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-card border border-bone rounded-card px-4 py-3 text-center">
               <p className="font-mono text-data-md text-ink">{elements.filter((e) => e.status !== "cut").length}</p>
-              <p className="text-body-xs text-muted">Set pieces</p>
+              <p className="text-body-xs text-muted uppercase tracking-wider">Set pieces</p>
             </div>
             <div className="bg-card border border-bone rounded-card px-4 py-3 text-center">
               <p className="font-mono text-data-md text-ink">{elements.filter((e) => e.status === "complete").length}</p>
-              <p className="text-body-xs text-muted">Complete</p>
+              <p className="text-body-xs text-muted uppercase tracking-wider">Complete</p>
             </div>
             <div className="bg-card border border-bone rounded-card px-4 py-3 text-center">
               <p className="font-mono text-data-md text-ink">{references.length}</p>
-              <p className="text-body-xs text-muted">References</p>
+              <p className="text-body-xs text-muted uppercase tracking-wider">References</p>
             </div>
           </div>
 

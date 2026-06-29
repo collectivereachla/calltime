@@ -704,7 +704,7 @@ export function DesignRoom({ config, productionId, scenes, elements, references,
             </div>
             <div className="bg-card border border-bone rounded-card px-4 py-3 text-center">
               <p className="font-mono text-data-md text-ink">{references.length}</p>
-              <p className="text-body-xs text-muted">References</p>
+              <p className="text-body-xs text-muted uppercase tracking-wider">References</p>
             </div>
           </div>
 

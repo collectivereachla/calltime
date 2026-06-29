@@ -38,7 +38,7 @@ export default function NewProductionPage() {
           &larr; Home
         </Link>
         <h1 className="font-display text-display-md text-ink mt-3">
-          New production
+          New Production
         </h1>
       </div>
 

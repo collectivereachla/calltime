@@ -48,6 +48,9 @@ const MODE_COOKIE = "calltime_mode";
 const TULIA_NEUTRALS: Record<string, string> = {
   paper: "#14181F", card: "#1E242E", ink: "#ECE7DD", ash: "#9AA0AC", bone: "#2C333F", muted: "#7F8794",
 };
+// In Tulia, the brand accent shifts from Apollo red to The Public's poster blue
+// (the running-light glow of a dark house). Cue-light statuses stay as-is.
+const TULIA_ACCENT: Record<string, string> = { brick: "#1E5BD6" };
 
 export async function getMode(): Promise<"ase" | "tulia"> {
   try {
@@ -60,7 +63,7 @@ export async function getMode(): Promise<"ase" | "tulia"> {
 
 export function themeToCss(t: ThemeTokens, mode: "ase" | "tulia" = "ase"): string {
   const c = { ...(t.colors || {}) };
-  if (mode === "tulia") Object.assign(c, TULIA_NEUTRALS);
+  if (mode === "tulia") Object.assign(c, TULIA_NEUTRALS, TULIA_ACCENT);
   const lines: string[] = [];
   for (const k of COLOR_KEYS) {
     const v = c[k];

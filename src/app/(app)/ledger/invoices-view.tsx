@@ -520,7 +520,7 @@ export function InvoicesView(props: Props) {
             <div className="bg-card border border-bone rounded-card p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-body-xs text-muted">How you'll be paid</p>
+                  <p className="text-body-xs text-muted uppercase tracking-wider">How you'll be paid</p>
                   <p className="text-body-sm text-ink">{myInvoice?.payment_method ? (paymentMethods.find((m) => m.method === myInvoice!.payment_method)?.label || myInvoice!.payment_method) : "Not set"}{myInvoice?.payment_details ? ` (${myInvoice.payment_details})` : ""}</p>
                 </div>
                 {!payEdit && (
@@ -592,19 +592,19 @@ export function InvoicesView(props: Props) {
           <h3 className="text-body-md font-medium text-ink mb-3">Submit Your Invoice</h3>
           <div className="grid grid-cols-2 gap-x-6 gap-y-3 mb-4">
             <div>
-              <p className="text-body-xs text-muted">Bill to</p>
+              <p className="text-body-xs text-muted uppercase tracking-wider">Bill to</p>
               <p className="text-body-sm text-ink">{myContract.billTo || "—"}</p>
             </div>
             <div>
-              <p className="text-body-xs text-muted">Role</p>
+              <p className="text-body-xs text-muted uppercase tracking-wider">Role</p>
               <p className="text-body-sm text-ink">{myContract.role_title}</p>
             </div>
             <div>
-              <p className="text-body-xs text-muted">Amount (from your contract)</p>
+              <p className="text-body-xs text-muted uppercase tracking-wider">Amount (from your contract)</p>
               <p className="text-body-md font-semibold text-ink">{base !== null ? money(base) : "—"}</p>
             </div>
             <div>
-              <p className="text-body-xs text-muted">On contract</p>
+              <p className="text-body-xs text-muted uppercase tracking-wider">On contract</p>
               <p className="text-body-sm text-ash">{myContract.compensation || "—"}</p>
             </div>
           </div>

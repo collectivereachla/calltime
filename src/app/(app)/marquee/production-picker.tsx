@@ -12,7 +12,7 @@ export function ProductionPicker({
   const router = useRouter();
   return (
     <label className="inline-flex items-center gap-2">
-      <span className="text-body-xs text-muted">Production</span>
+      <span className="text-body-xs text-muted uppercase tracking-wider">Production</span>
       <select
         value={selected}
         onChange={(e) => router.push(`/marquee?p=${e.target.value}`)}

@@ -18,7 +18,7 @@ export default function AboutPage() {
         Calltime is built on <span className="font-medium">ubuntu</span> &mdash; I am because we are. The people own their accounts; the company exists because of its people. A company can remove someone from a show, but it can never delete the person. The work belongs to the artists who make it.
       </p>
 
-      <h2 className="font-display text-display-sm text-ink mb-2">The ghost light</h2>
+      <h2 className="font-display text-display-sm text-ink mb-2">The Ghost Light</h2>
       <p className="text-body-md text-ink leading-relaxed mb-4">
         The ghost light is the single bare bulb left burning on a stage when the theatre is dark and empty. Practically, it keeps anyone who enters from crossing a black stage in the dark. In the lore, it is company for the spirits of the house, a light so the stage is never truly alone. Either way it is an act of care: the theatre looking after whoever comes next.
       </p>
@@ -36,7 +36,7 @@ export default function AboutPage() {
         </p>
       </div>
 
-      <h2 className="font-display text-display-sm text-ink mb-3 mt-10">The words</h2>
+      <h2 className="font-display text-display-sm text-ink mb-3 mt-10">The Words</h2>
       <div className="space-y-3">
         <div>
           <p className="text-body-md text-ink"><span className="font-medium">Àṣẹ</span> <span className="font-mono text-data-sm text-ash">ah-SHAY</span> <span className="text-ash">· Yoruba</span></p>

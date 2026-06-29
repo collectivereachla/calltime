@@ -558,7 +558,7 @@ export default async function HomePage() {
                   <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 pt-4 border-t border-bone">
                     {prod.first_rehearsal && (
                       <div>
-                        <p className="text-body-xs text-muted">First rehearsal</p>
+                        <p className="text-body-xs text-muted uppercase tracking-wider">First rehearsal</p>
                         <p className="font-mono text-data-sm text-ink">
                           {new Date(prod.first_rehearsal + "T00:00:00").toLocaleDateString("en-US", {
                             month: "short", day: "numeric", year: "numeric",
@@ -568,7 +568,7 @@ export default async function HomePage() {
                     )}
                     {prod.opening_date && (
                       <div>
-                        <p className="text-body-xs text-muted">Opening</p>
+                        <p className="text-body-xs text-muted uppercase tracking-wider">Opening</p>
                         <p className="font-mono text-data-sm text-ink">
                           {new Date(prod.opening_date + "T00:00:00").toLocaleDateString("en-US", {
                             month: "short", day: "numeric", year: "numeric",

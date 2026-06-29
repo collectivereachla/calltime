@@ -201,7 +201,7 @@ export function TemplatesView({ templates, productionId, contractCounts, systemT
                 </div>
 
                 <div className="bg-paper border border-bone rounded-card px-4 py-3">
-                  <p className="text-body-xs text-muted font-medium mb-1">Available placeholders</p>
+                  <p className="text-body-xs text-muted font-medium mb-1 uppercase tracking-wider">Available placeholders</p>
                   <p className="text-body-xs text-ash font-mono">
                     {"{{performer_name}}"} · {"{{role_title}}"} · {"{{compensation}}"} · {"{{production_title}}"} · {"{{organization_name}}"} · {"{{start_date}}"} · {"{{end_date}}"} · {"{{performance_dates}}"}
                   </p>

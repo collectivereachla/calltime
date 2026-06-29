@@ -648,7 +648,7 @@ function ChatRoom({ members, conversationId = null, convOrgId, roomKind, orgId, 
         {messages.length === 0 && (
           <div className="flex-1 flex flex-col items-center justify-center py-20 px-4">
             <span className="text-3xl mb-3 opacity-40">💬</span>
-            <h3 className="font-display text-display-sm text-ink mb-2">The Greenroom is quiet</h3>
+            <h3 className="font-display text-display-sm text-ink mb-2">The Greenroom is quiet.</h3>
             <p className="text-body-sm text-ash text-center max-w-sm">
               {roomKind === "production"
                 ? "Everyone in this production can talk here — cast, crew, families, and the team."

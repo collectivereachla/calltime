@@ -345,7 +345,7 @@ export default async function SpinePage({
       {!activeScript ? (
         <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
           <span className="text-3xl mb-3 opacity-40">📜</span>
-          <h3 className="font-display text-display-sm text-ink mb-2">Script not loaded yet</h3>
+          <h3 className="font-display text-display-sm text-ink mb-2">Script not loaded yet.</h3>
           {canManage && productionIds.length > 0 ? (
             <ImportScript productionId={productionIds[0]} />
           ) : (
@@ -357,7 +357,7 @@ export default async function SpinePage({
       ) : lines.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
           <span className="text-3xl mb-3 opacity-40">📜</span>
-          <h3 className="font-display text-display-sm text-ink mb-2">Script is being prepared</h3>
+          <h3 className="font-display text-display-sm text-ink mb-2">Script is being prepared.</h3>
           <p className="text-body-sm text-ash max-w-md leading-relaxed">
             The script record exists but scenes are still being imported. Check back soon.
           </p>

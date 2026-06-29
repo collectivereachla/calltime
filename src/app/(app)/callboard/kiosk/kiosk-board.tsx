@@ -173,7 +173,7 @@ export function KioskBoard({
         <p className="text-body-md text-ash text-center py-12">No calls scheduled today.</p>
       ) : openCalls.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-display-sm text-ink mb-2">Check-in not open yet</p>
+          <p className="text-display-sm text-ink mb-2">Check-in not open yet.</p>
           {nextOpenMin !== null && nextCallEvent ? (
             <p className="text-body-md text-ash">
               Opens at {fmtTime(`${String(Math.floor(nextOpenMin / 60)).padStart(2, "0")}:${String(nextOpenMin % 60).padStart(2, "0")}`)}

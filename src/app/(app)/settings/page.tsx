@@ -139,7 +139,7 @@ export default async function SettingsPage() {
       <SettingsForm person={person} userEmail={user.email || ""} />
 
       <div className="mt-10 pt-8 border-t border-bone">
-        <h3 className="font-display text-display-sm mb-1">My conflicts</h3>
+        <h3 className="font-display text-display-sm mb-1">My Conflicts</h3>
         <p className="text-body-sm text-ash mb-3">Submit and edit the dates you can&rsquo;t make it &mdash; single days, ranges, part of a day, or repeating &mdash; all in one place.</p>
         <a href="/availability" className="inline-block px-4 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 transition-colors">Open my conflict calendar</a>
       </div>

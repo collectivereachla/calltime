@@ -235,7 +235,7 @@ export function AvailabilityCalendar({ conflicts, inferred = [], windowStart, wi
   return (
     <div className="max-w-2xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="flex items-start justify-between gap-3 mb-1">
-        <h1 className="font-display text-display-md text-ink">My conflicts</h1>
+        <h1 className="font-display text-display-md text-ink">My Conflicts</h1>
         {!showForm && (
           <button onClick={() => openAdd()} className="px-4 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 transition-colors shrink-0">
             Add conflict

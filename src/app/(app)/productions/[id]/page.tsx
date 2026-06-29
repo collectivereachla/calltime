@@ -230,7 +230,7 @@ export default async function ProductionPage({ params }: Props) {
         <div className="flex gap-8 mb-8 pb-6 border-b border-bone">
           {production.first_rehearsal && (
             <div>
-              <p className="text-body-xs text-muted">First rehearsal</p>
+              <p className="text-body-xs text-muted uppercase tracking-wider">First rehearsal</p>
               <p className="font-mono text-data-md text-ink">
                 {new Date(production.first_rehearsal + "T00:00:00").toLocaleDateString("en-US", {
                   month: "short",
@@ -242,7 +242,7 @@ export default async function ProductionPage({ params }: Props) {
           )}
           {production.opening_date && (
             <div>
-              <p className="text-body-xs text-muted">Opening</p>
+              <p className="text-body-xs text-muted uppercase tracking-wider">Opening</p>
               <p className="font-mono text-data-md text-ink">
                 {new Date(production.opening_date + "T00:00:00").toLocaleDateString("en-US", {
                   month: "short",
@@ -254,7 +254,7 @@ export default async function ProductionPage({ params }: Props) {
           )}
           {production.closing_date && (
             <div>
-              <p className="text-body-xs text-muted">Closing</p>
+              <p className="text-body-xs text-muted uppercase tracking-wider">Closing</p>
               <p className="font-mono text-data-md text-ink">
                 {new Date(production.closing_date + "T00:00:00").toLocaleDateString("en-US", {
                   month: "short",
@@ -265,7 +265,7 @@ export default async function ProductionPage({ params }: Props) {
             </div>
           )}
           <div>
-            <p className="text-body-xs text-muted">Status</p>
+            <p className="text-body-xs text-muted uppercase tracking-wider">Status</p>
             <p className="font-mono text-data-md text-ink">
               {production.status.replace(/_/g, " ")}
             </p>
