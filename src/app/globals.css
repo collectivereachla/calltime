@@ -28,6 +28,9 @@
   font-display: swap;
 }
 
+/* Marquee — Tanker, reserved for the wordmark / big marquee moments only. */
+.font-marquee { font-family: "Tanker", system-ui, sans-serif; }
+
 @theme {
   --color-paper: #FAF7F1;
   --color-card: #FFFFFF;

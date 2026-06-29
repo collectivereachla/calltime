@@ -11,7 +11,7 @@ export default async function LandingPage() {
     <div className="min-h-screen">
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 md:px-10 py-5">
-        <span className="font-display text-display-sm tracking-tight">
+        <span className="font-marquee text-display-sm tracking-tight">
           Calltime<span className="text-brick">.</span>
         </span>
         <div className="flex items-center gap-4">

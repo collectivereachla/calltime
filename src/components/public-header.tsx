@@ -34,7 +34,7 @@ export function PublicHeader({ back }: { back?: { href: string; label: string } 
               ← {back.label}
             </Link>
           ) : (
-            <Link href="/directory" className="font-display text-body-lg text-ink hover:text-brick transition-colors">
+            <Link href="/directory" className="font-marquee text-body-lg text-ink hover:text-brick transition-colors">
               Calltime<span className="text-brick">.</span>
             </Link>
           )}
@@ -42,7 +42,7 @@ export function PublicHeader({ back }: { back?: { href: string; label: string } 
 
         <div className="flex items-center gap-3">
           {back && (
-            <Link href="/directory" className="font-display text-body-lg text-ink hover:text-brick transition-colors">
+            <Link href="/directory" className="font-marquee text-body-lg text-ink hover:text-brick transition-colors">
               Calltime<span className="text-brick">.</span>
             </Link>
           )}

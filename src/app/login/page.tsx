@@ -70,7 +70,7 @@ function LoginInner() {
           </Link>
         )}
         {/* Wordmark */}
-        <h1 className="font-display text-display-lg text-center mb-12">
+        <h1 className="font-marquee text-display-lg text-center mb-12">
           Calltime<span className="text-brick">.</span>
         </h1>
 
