@@ -420,15 +420,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     const item = seq[index];
     if (!item) return;
     (async () => {
-      if (mode === "learn") {
-        if (item.speakable) {
-          await speak(item.content, { voiceURI: item.mine ? undefined : charVoiceURI(item.character || "") });
-          if (!cancelRef.current) setTimeout(() => { if (!cancelRef.current) next(); }, 200);
-        } else {
-          await new Promise((res) => setTimeout(res, 1000));
-          if (!cancelRef.current) next();
-        }
-      } else if (mode === "run") {
+      if (mode === "run") {
         if (item.mine) {
           listenRun(item);
         } else if (item.speakable) {
@@ -549,7 +541,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                   <button key={m} onClick={() => setMode(m)} className={`px-3 py-2 rounded-card border text-body-sm transition-colors ${mode === m ? "border-brick bg-brick/5 text-ink" : "border-bone text-ink hover:border-ash"}`}>{lab}</button>
                 ))}
               </div>
-              <p className="text-body-xs text-muted mt-1.5 max-w-md">{mode === "learn" ? "Hear the whole scene in character with your lines shown — tap any word to hear it. Best when you're still learning." : mode === "run" ? ("Perform the whole scene off-book; it advances when you pause. At the end you get line notes — skipped lines, dropped words, accuracy." + (supported ? "" : " (needs Chrome for this mode.)")) : "It reads the cues; you say your lines out loud. Stuck? Use Call line to be fed it word by word."}</p>
+              <p className="text-body-xs text-muted mt-1.5 max-w-md">{mode === "learn" ? "Your lines are shown while you say them; it reads the other characters' cues and listens for you — it won't read your line (tap a word for its pronunciation). Best when you're still learning." : mode === "run" ? ("Perform the whole scene off-book; it advances when you pause. At the end you get line notes — skipped lines, dropped words, accuracy." + (supported ? "" : " (needs Chrome for this mode.)")) : "It reads the cues; you say your lines out loud. Stuck? Use Call line to be fed it word by word."}</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 mb-3">
@@ -735,11 +727,11 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
             <button onClick={start} className="px-5 py-2.5 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90">Run it again</button>
           </div>
         )
-      ) : (mode === "rehearse" && item.mine) ? (
+      ) : ((mode === "rehearse" || mode === "learn") && item.mine) ? (
         <div>
           <p className="text-body-xs text-brick uppercase tracking-wider mb-2 font-medium">Your line{item.act != null ? ` · Act ${item.act}${item.scene != null ? `, Sc ${item.scene}` : ""}` : ""}</p>
           <div className="bg-card border border-bone rounded-card p-5 min-h-[120px] flex flex-col justify-center">
-            {revealed || (result && result.pass) ? (
+            {mode === "learn" || revealed || (result && result.pass) ? (
               <Passage text={item.content} variant="mine" scansionOn={scansion} />
             ) : callReveal > 0 ? (
               <p className="text-display-sm font-display text-ink leading-snug">{item.content.split(/\s+/).slice(0, callReveal).join(" ")} <span className="text-muted">…</span></p>
@@ -761,8 +753,12 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                 {listening ? "Listening…" : result ? "Try again" : "🎙 Speak"}
               </button>
             )}
-            <button onClick={() => setCallReveal((c) => c + 1)} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Call line</button>
-            <button onClick={() => { setRevealed(true); if (window.speechSynthesis) speak(item.content); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Reveal &amp; hear</button>
+            {mode === "rehearse" && (
+              <>
+                <button onClick={() => setCallReveal((c) => c + 1)} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Call line</button>
+                <button onClick={() => { setRevealed(true); if (window.speechSynthesis) speak(item.content); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Reveal &amp; hear</button>
+              </>
+            )}
             <button onClick={() => { setScore((s) => ({ correct: s.correct + 1, attempts: s.attempts + 1 })); next(); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">I had it</button>
             <button onClick={next} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">Skip →</button>
           </div>
