@@ -355,6 +355,8 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
         firstRehearsal={prodFirstRehearsal}
         closingDate={prodClosing}
         rosterCount={rosterIds.length}
+        productionId={activeProductions[0].id}
+        members={companyMembers.map((m) => ({ id: m.id, name: m.name, department: m.department }))}
       />
     );
   }
