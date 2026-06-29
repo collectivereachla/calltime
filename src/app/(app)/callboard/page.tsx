@@ -9,6 +9,7 @@ import { EditEventButton } from "./edit-event";
 import { CallboardTabs } from "./callboard-tabs";
 import { ProductionAvailability } from "./production-availability";
 import { PrintButton } from "./print-button";
+import { CalendarLink } from "@/components/calendar-link";
 import { PersonFilter } from "./person-filter";
 import { PublishWeekButton } from "./publish-week-button";
 import { renderRichText } from "@/lib/rich-text";
@@ -33,7 +34,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
 
   const { data: person } = await supabase
     .from("people")
-    .select("id")
+    .select("id, calendar_token")
     .eq("id", personId!)
     .single();
 
@@ -428,6 +429,12 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
       {canManage && companyMembers.length > 0 && (
         <div className="mb-6 print:hidden">
           <PersonFilter members={companyMembers} />
+        </div>
+      )}
+
+      {(person as { calendar_token?: string } | null)?.calendar_token && (
+        <div className="mb-6 print:hidden bg-card border border-bone rounded-card px-5 py-4">
+          <CalendarLink token={(person as unknown as { calendar_token: string }).calendar_token} />
         </div>
       )}
 
