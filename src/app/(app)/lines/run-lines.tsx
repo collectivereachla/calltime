@@ -442,10 +442,11 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
         if (item.mine) {
           if (mode === "rehearse" && supported && settingsRef.current.autoRead) listen(item.content);
         } else if (item.speakable) {
-          if (settingsRef.current.autoRead) { await speak(item.content, { voiceURI: charVoiceURI(item.character || "") }); if (!cancelRef.current) setTimeout(() => { if (!cancelRef.current) next(); }, 150); }
+          if (settingsRef.current.autoRead) await speak(item.content, { voiceURI: charVoiceURI(item.character || "") });
+          // Learn waits for the actor to click Next; Rehearse flows on to the actor's line.
+          if (!cancelRef.current && mode === "rehearse") setTimeout(() => { if (!cancelRef.current) next(); }, 150);
         } else {
-          await new Promise((res) => setTimeout(res, 1100));
-          if (!cancelRef.current) next();
+          if (mode === "rehearse") { await new Promise((res) => setTimeout(res, 1100)); if (!cancelRef.current) next(); }
         }
       }
     })();
