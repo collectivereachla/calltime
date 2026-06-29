@@ -62,7 +62,7 @@ function notificationIcon(type: string) {
   }
 }
 
-export function NotificationBell({ unreadCount }: Props) {
+export function NotificationBell({ unreadCount, dark = false }: Props & { dark?: boolean }) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
@@ -138,7 +138,7 @@ export function NotificationBell({ unreadCount }: Props) {
       <button
         ref={buttonRef}
         onClick={toggleOpen}
-        className="relative p-1.5 text-ash hover:text-ink transition-colors"
+        className={`relative p-1.5 transition-colors ${dark ? "text-bone/70 hover:text-paper" : "text-ash hover:text-ink"}`}
         title="Notifications"
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
       >

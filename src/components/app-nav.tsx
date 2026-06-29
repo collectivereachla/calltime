@@ -121,38 +121,38 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
   return (
     <>
       {/* Desktop sidebar — hidden on mobile */}
-      <nav style={{ width: railW }} className="hidden md:flex shrink-0 border-r border-bone bg-paper flex-col h-screen sticky top-0 relative">
-        <div className={`border-b border-bone ${collapsed ? "py-5 flex justify-center" : "px-5 py-6"}`}>
-          <Link href="/home" title="Home" className="font-marquee text-ink hover:opacity-80 transition-opacity" style={collapsed ? { fontSize: '1.75rem', lineHeight: '1' } : { fontSize: '3rem', lineHeight: '1', letterSpacing: '-0.015em', whiteSpace: 'nowrap' }}>
+      <nav style={{ width: railW }} className="hidden md:flex shrink-0 border-r border-white/10 bg-ink flex-col h-screen sticky top-0 relative">
+        <div className={`border-b border-white/10 ${collapsed ? "py-5 flex justify-center" : "px-5 py-6"}`}>
+          <Link href="/home" title="Home" className="font-marquee text-paper hover:opacity-80 transition-opacity" style={collapsed ? { fontSize: '1.75rem', lineHeight: '1' } : { fontSize: '3rem', lineHeight: '1', letterSpacing: '-0.015em', whiteSpace: 'nowrap' }}>
             {collapsed ? <>C<span className="text-bulb">.</span></> : <>Calltime<span className="text-bulb">.</span></>}
           </Link>
         </div>
 
         {!collapsed && orgs.length > 0 && (
-          <div className="px-5 py-3 border-b border-bone flex items-center justify-between">
+          <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between">
             <div className="min-w-0">
-              <p className="text-body-xs text-muted uppercase tracking-wider mb-1">Organization</p>
+              <p className="text-body-xs text-bone/50 uppercase tracking-wider mb-1">Organization</p>
               {(() => {
                 const slug = activeOrgSlug || orgs.find((o) => o.name === activeOrgName)?.slug || orgs[0]?.slug;
                 const label = activeOrgName || orgs[0].name;
                 return slug
-                  ? <Link href={`/org/${slug}`} className="text-body-sm font-medium text-ink truncate block hover:text-brick transition-colors">{label}</Link>
-                  : <p className="text-body-sm font-medium text-ink truncate">{label}</p>;
+                  ? <Link href={`/org/${slug}`} className="text-body-sm font-medium text-paper truncate block hover:text-brick transition-colors">{label}</Link>
+                  : <p className="text-body-sm font-medium text-paper truncate">{label}</p>;
               })()}
             </div>
-            <NotificationBell unreadCount={notificationCount} />
+            <NotificationBell unreadCount={notificationCount} dark />
           </div>
         )}
         {collapsed && orgs.length > 0 && (
-          <div className="flex justify-center py-3 border-b border-bone">
-            <NotificationBell unreadCount={notificationCount} />
+          <div className="flex justify-center py-3 border-b border-white/10">
+            <NotificationBell unreadCount={notificationCount} dark />
           </div>
         )}
 
         {!collapsed && productions.length > 1 && (
-          <div className="px-5 py-3 border-b border-bone">
-            <p className="text-body-xs text-muted uppercase tracking-wider mb-1.5">Production</p>
-            <ProductionSwitcher productions={productions} activeId={activeProductionId} />
+          <div className="px-5 py-3 border-b border-white/10">
+            <p className="text-body-xs text-bone/50 uppercase tracking-wider mb-1.5">Production</p>
+            <ProductionSwitcher productions={productions} activeId={activeProductionId} dark />
           </div>
         )}
 
@@ -161,7 +161,7 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
             const isActive = pathname.startsWith(room.path);
             if (isRoomLocked(room)) {
               return (
-                <div key={room.path} title={collapsed ? room.name : undefined} className={`flex items-center text-body-sm text-muted cursor-default py-2 ${collapsed ? "justify-center px-0" : "gap-3 px-5"}`}>
+                <div key={room.path} title={collapsed ? room.name : undefined} className={`flex items-center text-body-sm text-bone/50 cursor-default py-2 ${collapsed ? "justify-center px-0" : "gap-3 px-5"}`}>
                   <span className="text-xs w-4 text-center opacity-40">{room.icon}</span>
                   {!collapsed && <span className="opacity-40">{room.name}</span>}
                   {!collapsed && <span className="ml-auto text-[10px] opacity-40">🔒</span>}
@@ -178,11 +178,11 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
                 title={collapsed ? room.name : "Drag to reorder"}
                 className={`group relative flex items-center py-2 text-body-sm transition-colors ${collapsed ? "justify-center px-0" : "gap-2 pl-3 pr-5"} ${dragPath === room.path ? "opacity-40" : ""} ${
                   isActive
-                    ? "text-brick font-medium bg-brick/5 border-r-2 border-brick"
-                    : "text-ink hover:text-brick hover:bg-brick/5"
+                    ? "text-brick font-medium bg-brick/15 border-r-2 border-brick"
+                    : "text-paper hover:text-brick hover:bg-brick/15"
                 }`}>
-                {!collapsed && <span className="text-ash/30 group-hover:text-ash text-[11px] leading-none select-none cursor-grab" aria-hidden>⠿</span>}
-                <span className={`text-xs w-4 text-center ${isActive ? "text-brick" : "text-ash"}`}>{room.icon}</span>
+                {!collapsed && <span className="text-white/20 group-hover:text-bone/60 text-[11px] leading-none select-none cursor-grab" aria-hidden>⠿</span>}
+                <span className={`text-xs w-4 text-center ${isActive ? "text-brick" : "text-bone/60"}`}>{room.icon}</span>
                 {!collapsed && room.name}
                 {!collapsed && getBadge(room) > 0 && (
                   <span className="ml-auto text-[10px] font-medium bg-brick text-paper rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
@@ -198,30 +198,30 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
         </div>
 
         {collapsed ? (
-          <div className="border-t border-bone py-3 flex flex-col items-center gap-3">
-            <ModeToggle />
-            <Link href="/settings" title="Settings" className="text-body-sm text-muted hover:text-brick transition-colors">⚙</Link>
+          <div className="border-t border-white/10 py-3 flex flex-col items-center gap-3">
+            <ModeToggle dark />
+            <Link href="/settings" title="Settings" className="text-body-sm text-bone/50 hover:text-brick transition-colors">⚙</Link>
             <form action={logout}>
-              <button type="submit" title="Sign out" className="text-body-sm text-muted hover:text-brick transition-colors">⏻</button>
+              <button type="submit" title="Sign out" className="text-body-sm text-bone/50 hover:text-brick transition-colors">⏻</button>
             </form>
           </div>
         ) : (
-          <div className="border-t border-bone px-5 py-4">
+          <div className="border-t border-white/10 px-5 py-4">
             <div className="flex items-center justify-between mb-2 gap-2">
-              <p className="text-body-sm font-medium text-ink truncate">{displayName}</p>
-              <ModeToggle />
+              <p className="text-body-sm font-medium text-paper truncate">{displayName}</p>
+              <ModeToggle dark />
             </div>
             <div className="flex items-center gap-3">
-              <Link href="/settings" className="text-body-xs text-muted hover:text-brick transition-colors">
+              <Link href="/settings" className="text-body-xs text-bone/50 hover:text-brick transition-colors">
                 Settings
               </Link>
               <span className="text-bone">·</span>
-              <Link href="/about" className="text-body-xs text-muted hover:text-brick transition-colors">
+              <Link href="/about" className="text-body-xs text-bone/50 hover:text-brick transition-colors">
                 About
               </Link>
               <span className="text-bone">·</span>
               <form action={logout}>
-                <button type="submit" className="text-body-xs text-muted hover:text-brick transition-colors">
+                <button type="submit" className="text-body-xs text-bone/50 hover:text-brick transition-colors">
                   Sign out
                 </button>
               </form>

@@ -11,9 +11,10 @@ interface Production {
 interface Props {
   productions: Production[];
   activeId: string | null;
+  dark?: boolean;
 }
 
-export function ProductionSwitcher({ productions, activeId }: Props) {
+export function ProductionSwitcher({ productions, activeId, dark = false }: Props) {
   const router = useRouter();
 
   if (productions.length <= 1) return null;
@@ -27,7 +28,7 @@ export function ProductionSwitcher({ productions, activeId }: Props) {
     <select
       value={activeId || ""}
       onChange={(e) => handleChange(e.target.value)}
-      className="w-full px-2 py-1.5 bg-paper border border-bone rounded-card text-body-xs text-ink focus:border-brick focus:outline-none transition-colors truncate"
+      className={`w-full px-2 py-1.5 rounded-card text-body-xs focus:border-brick focus:outline-none transition-colors truncate ${dark ? "bg-ink border border-white/20 text-paper" : "bg-paper border border-bone text-ink"}`}
     >
       {productions.map((p) => (
         <option key={p.id} value={p.id}>

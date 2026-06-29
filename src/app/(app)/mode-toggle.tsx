@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { setMode } from "./mode-actions";
 
-export function ModeToggle() {
+export function ModeToggle({ dark = false }: { dark?: boolean }) {
   const router = useRouter();
   const [mode, setLocal] = useState<"ase" | "tulia">("ase");
   const [busy, setBusy] = useState(false);
@@ -28,7 +28,7 @@ export function ModeToggle() {
       onClick={toggle}
       disabled={busy}
       title={mode === "tulia" ? "Tulia (too-LEE-ah), Swahili: calm, rest. Tap for Àṣẹ." : "Àṣẹ (ah-SHAY), Yoruba: life force. Tap for Tulia."}
-      className="shrink-0 text-body-xs text-muted hover:text-brick transition-colors disabled:opacity-50"
+      className={`shrink-0 text-body-xs transition-colors disabled:opacity-50 ${dark ? "text-bone/70 hover:text-paper" : "text-muted hover:text-brick"}`}
     >
       {mode === "tulia" ? "☾ Tulia" : "☀ Àṣẹ"}
     </button>
