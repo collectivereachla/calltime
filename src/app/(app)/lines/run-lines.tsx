@@ -772,7 +772,10 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
 
           <div className="flex flex-wrap gap-2 mt-4">
             {mode === "learn" ? (
-              <button onClick={next} className="px-5 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90">Next →</button>
+              <>
+                <button onClick={() => speak(item.content)} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">🔊 Say line</button>
+                <button onClick={next} className="px-5 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90">Next →</button>
+              </>
             ) : (
               <>
                 {supported && (
