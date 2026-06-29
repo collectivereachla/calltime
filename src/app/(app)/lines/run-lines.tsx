@@ -486,9 +486,9 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     transInFlight.current.add(k);
     (async () => {
       try {
-        const res = await fetch("/api/verse-coach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: cleanForSpeech(item.content) }) });
+        const res = await fetch("/api/translate-line", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: cleanForSpeech(item.content) }) });
         const data = await res.json();
-        setTransData((prev) => ({ ...prev, [k]: res.ok && data.paraphrase ? data.paraphrase : "" }));
+        setTransData((prev) => ({ ...prev, [k]: res.ok && data.translation ? data.translation : "" }));
       } catch { setTransData((prev) => ({ ...prev, [k]: "" })); }
       finally { transInFlight.current.delete(k); }
     })();
@@ -762,7 +762,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
             )}
             {heard && !revealed && <p className="text-body-sm text-ash mt-3">heard: &ldquo;{heard}&rdquo;</p>}
           </div>
-          {translate && transData[item.content] && <p className="text-body-sm text-ash italic mt-2 border-l-2 border-bone pl-3">{transData[item.content]}</p>}
+          {translate && <p className="text-body-sm text-ash italic mt-2 border-l-2 border-bone pl-3">{transData[item.content] === undefined ? "Translating…" : (transData[item.content] || "—")}</p>}
 
           {result && (
             <div className={`mt-3 text-body-sm rounded-card px-3 py-2 ${result.pass ? "bg-confirmed/10 text-confirmed" : "bg-tentative/10 text-tentative"}`}>
@@ -808,7 +808,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
           <div className={`rounded-card p-5 ${item.speakable ? "bg-card border border-bone" : "bg-bone/30"}`}>
             <Passage text={item.content} variant={item.mine ? "mine" : item.speakable ? "cue" : "context"} scansionOn={scansion} />
           </div>
-          {translate && item.speakable && transData[item.content] && <p className="text-body-sm text-ash italic mt-2 border-l-2 border-bone pl-3">{transData[item.content]}</p>}
+          {translate && item.speakable && <p className="text-body-sm text-ash italic mt-2 border-l-2 border-bone pl-3">{transData[item.content] === undefined ? "Translating…" : (transData[item.content] || "—")}</p>}
           <div className="flex gap-2 mt-4">
             <button onClick={() => { stopAll(); next(); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Next →</button>
             {item.speakable && <button onClick={() => speak(item.content, { voiceURI: item.mine ? undefined : charVoiceURI(item.character || "") })} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">🔊 {item.mine ? "Replay" : "Replay cue"}</button>}
