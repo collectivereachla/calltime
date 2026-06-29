@@ -141,9 +141,11 @@ export async function WhatChanged({
 
   if (feed.length === 0) {
     return (
-      <div className="bg-card border border-bone rounded-card p-5">
-        <h3 className="font-display text-display-sm mb-2">What changed</h3>
+      <div>
+        <p className="text-body-xs text-muted uppercase tracking-wider mb-2">What changed</p>
+        <div className="bg-card border border-bone rounded-card p-5">
         <p className="text-body-sm text-muted">No activity yet. Events, contracts, and notes will appear here as your productions move.</p>
+        </div>
       </div>
     );
   }
@@ -170,8 +172,9 @@ export async function WhatChanged({
   }
 
   return (
-    <div className="bg-card border border-bone rounded-card p-5">
-      <h3 className="font-display text-display-sm mb-4">What changed</h3>
+    <div>
+      <p className="text-body-xs text-muted uppercase tracking-wider mb-2">What changed</p>
+      <div className="bg-card border border-bone rounded-card p-5">
       <div className="space-y-5">
         {grouped.map((group) => (
           <div key={group.label}>
@@ -201,6 +204,7 @@ export async function WhatChanged({
           </div>
         ))}
       </div>
+    </div>
     </div>
   );
 }

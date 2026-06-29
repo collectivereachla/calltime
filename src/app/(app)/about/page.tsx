@@ -10,7 +10,7 @@ export default function AboutPage() {
           <line x1="120" y1="104" x2="120" y2="186" stroke="var(--color-ink)" strokeWidth="6" strokeLinecap="round" />
           <ellipse cx="120" cy="190" rx="40" ry="9" fill="none" stroke="var(--color-ink)" strokeWidth="5" />
         </svg>
-        <h1 className="font-marquee text-display-lg text-ink mt-4">Calltime<span className="text-brick">.</span></h1>
+        <h1 className="font-marquee text-display-lg text-ink mt-4">Calltime<span className="text-bulb">.</span></h1>
         <p className="text-body-md text-ash mt-2">Production management, actor-first.</p>
       </div>
 

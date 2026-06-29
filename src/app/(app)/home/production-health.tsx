@@ -197,11 +197,12 @@ export async function ProductionHealth({ productionId, productionTitle }: Props)
   if (totalPeople - withAccount > 5) alerts.push({ text: `${totalPeople - withAccount} people haven't logged in`, link: "/company", level: "warning" });
 
   return (
-    <div className="bg-card border border-bone rounded-card p-5 mb-6">
+    <div className="mb-6">
+      <p className="text-body-xs text-muted uppercase tracking-wider mb-2">Production Health</p>
+      <div className="bg-card border border-bone rounded-card p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="font-display text-display-sm text-ink">Production Health</h2>
-          <p className="text-body-xs text-muted mt-0.5">{productionTitle}</p>
+          <p className="text-body-xs text-muted">{productionTitle}</p>
         </div>
         <span className={`px-3 py-1 rounded-full text-body-xs font-medium ${statusBg[overallStatus]} ${statusColors[overallStatus]}`}>
           {overallLabel}
@@ -259,6 +260,7 @@ export async function ProductionHealth({ productionId, productionTitle }: Props)
           </p>
         </div>
       )}
+    </div>
     </div>
   );
 }

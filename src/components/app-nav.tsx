@@ -78,10 +78,10 @@ export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, n
   return (
     <>
       {/* Desktop sidebar — hidden on mobile */}
-      <nav className="hidden md:flex w-56 shrink-0 border-r border-bone bg-paper flex-col h-screen sticky top-0">
+      <nav className="hidden md:flex w-60 shrink-0 border-r border-bone bg-paper flex-col h-screen sticky top-0">
         <div className="px-5 py-6 border-b border-bone">
-          <Link href="/home" className="font-marquee text-ink hover:opacity-80 transition-opacity" style={{ fontSize: '3.25rem', lineHeight: '1', letterSpacing: '-0.015em' }}>
-            Calltime<span className="text-brick">.</span>
+          <Link href="/home" className="font-marquee text-ink hover:opacity-80 transition-opacity" style={{ fontSize: '3rem', lineHeight: '1', letterSpacing: '-0.015em', whiteSpace: 'nowrap' }}>
+            Calltime<span className="text-bulb">.</span>
           </Link>
         </div>
 
@@ -159,7 +159,7 @@ export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, n
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-paper border-b border-bone px-4 py-3 flex items-center justify-between">
         <Link href="/home" className="font-marquee text-display-md text-ink">
-          Calltime<span className="text-brick">.</span>
+          Calltime<span className="text-bulb">.</span>
         </Link>
         <div className="flex items-center gap-2">
           {productions.length > 1 && (

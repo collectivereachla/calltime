@@ -298,18 +298,19 @@ export default async function HomePage() {
 
       {/* Director's letter (CRE-23) — surfaced to everyone assigned */}
       {directorLetters.map((dl) => (
+        <div key={dl.production_id} className="mb-8">
+        <p className="text-body-xs text-muted uppercase tracking-wider mb-1">
+          From the director{showOrgOnCalls || activeProductions.length > 1 ? ` · ${dl.prodTitle}` : ""}
+        </p>
         <a
-          key={dl.production_id}
           href={`/productions/${dl.production_id}`}
-          className="block mb-8 bg-card border border-brick/20 rounded-card px-5 py-4 hover:shadow-card-hover transition-shadow"
+          className="block bg-card border border-brick/20 rounded-card px-5 py-4 hover:shadow-card-hover transition-shadow"
         >
-          <p className="text-body-xs text-muted uppercase tracking-wider mb-1">
-            From the director{showOrgOnCalls || activeProductions.length > 1 ? ` · ${dl.prodTitle}` : ""}
-          </p>
           {dl.title && <h3 className="font-display text-display-sm text-ink mb-1">{dl.title}</h3>}
           <p className="text-body-sm text-ash line-clamp-3 whitespace-pre-wrap">{dl.body}</p>
           <span className="text-body-xs text-brick mt-2 inline-block">Read the letter &rarr;</span>
         </a>
+        </div>
       ))}
 
       {/* CRE-14: schedule conflicts across shows/companies */}

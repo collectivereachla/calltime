@@ -48,7 +48,10 @@ export function CallboardTabs({
 
       {/* Availability tab — company conflict calendar (lead view) */}
       {tab === "availability" && availabilityContent && (
-        <div className="print:hidden">{availabilityContent}</div>
+        <div className="print:hidden">
+          <p className="text-body-xs text-muted uppercase tracking-wider mb-3">Availability</p>
+          {availabilityContent}
+        </div>
       )}
     </div>
   );
