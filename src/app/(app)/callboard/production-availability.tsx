@@ -5,7 +5,7 @@
 // extend earlier or later. Shows, per day, who has declared a conflict (ranges +
 // weekly-recurring expanded) and which days are mandatory calls.
 
-import { useState, Fragment } from "react";
+import { useState } from "react";
 
 type Conflict = {
   person_id: string;
@@ -38,6 +38,26 @@ function fmtTime(t: string | null) {
   const period = hour >= 12 ? "PM" : "AM";
   const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
   return `${h12}:${m} ${period}`;
+}
+
+function buildMonths(start: Date, end: Date) {
+  const months: { label: string; weeks: (Date | null)[][] }[] = [];
+  let cur = new Date(start.getFullYear(), start.getMonth(), 1);
+  const last = new Date(end.getFullYear(), end.getMonth(), 1);
+  while (cur <= last) {
+    const y = cur.getFullYear(), m = cur.getMonth();
+    const firstDow = new Date(y, m, 1).getDay();
+    const days = new Date(y, m + 1, 0).getDate();
+    const cells: (Date | null)[] = [];
+    for (let i = 0; i < firstDow; i++) cells.push(null);
+    for (let d = 1; d <= days; d++) cells.push(new Date(y, m, d));
+    while (cells.length % 7 !== 0) cells.push(null);
+    const weeks: (Date | null)[][] = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+    months.push({ label: cur.toLocaleDateString("en-US", { month: "long", year: "numeric" }), weeks });
+    cur = new Date(y, m + 1, 1);
+  }
+  return months;
 }
 
 type DayHit = { name: string; type: string | null; description: string | null; window: string | null };
@@ -114,7 +134,6 @@ export function ProductionAvailability({
 
   const datesWithHits = Array.from(byDay.keys()).filter((d) => d >= iso(start) && d <= iso(end)).sort();
 
-  let lastLabel = "";
 
   return (
     <div>
@@ -130,46 +149,41 @@ export function ProductionAvailability({
         <button onClick={() => setLater((l) => Math.min(l + 1, 18))} className="text-body-xs font-medium px-3 py-1.5 rounded-card border border-bone text-ash hover:text-ink hover:border-ash transition-colors">Show later →</button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 mb-1">
-        {dow.map((d) => <div key={d} className="text-center text-body-xs text-muted py-1">{d}</div>)}
-      </div>
-      <div className="space-y-1">
-        {weeks.map((week, wi) => {
-          const rep = week[3];
-          const label = `${rep.toLocaleDateString("en-US", { month: "long" })} ${rep.getFullYear()}`;
-          const showLabel = label !== lastLabel;
-          if (showLabel) lastLabel = label;
-          return (
-            <Fragment key={wi}>
-              {showLabel && (
-                <div className="pt-3 pb-1">
-                  <span className="font-display text-body-md text-ink">{label}</span>
+      <div className="space-y-6">
+        {buildMonths(start, end).map((mo) => (
+          <div key={mo.label}>
+            <div className="pb-2"><span className="font-display text-body-lg text-ink">{mo.label}</span></div>
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {dow.map((d) => <div key={d} className="text-center text-body-xs font-medium text-muted py-1">{d}</div>)}
+            </div>
+            <div className="space-y-1">
+              {mo.weeks.map((week, wi) => (
+                <div key={wi} className="grid grid-cols-7 gap-1">
+                  {week.map((d, di) => {
+                    if (!d) return <div key={di} className="aspect-square" />;
+                    const ds = iso(d);
+                    const within = inWindow(d);
+                    const hits = byDay.get(ds)?.length || 0;
+                    const isMand = mandatory.has(ds);
+                    return (
+                      <div key={ds}
+                        className={`aspect-square rounded-card text-body-sm flex flex-col items-center justify-center border ${
+                          !within ? "border-transparent text-bone"
+                          : isMand ? "border-ink/60 bg-ink/5 text-ink"
+                          : hits > 0 ? "bg-brick/10 border-brick/30 text-ink"
+                          : "bg-card border-bone text-ash"
+                        }`}>
+                        <span className={isMand ? "font-semibold" : ""}>{d.getDate()}</span>
+                        {within && hits > 0 && <span className="text-[10px] leading-none text-brick font-medium">{hits} out</span>}
+                        {within && isMand && hits === 0 && <span className="text-[9px] leading-none text-muted">must</span>}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-              <div className="grid grid-cols-7 gap-1">
-                {week.map((d) => {
-                  const ds = iso(d);
-                  const within = inWindow(d);
-                  const hits = byDay.get(ds)?.length || 0;
-                  const isMand = mandatory.has(ds);
-                  return (
-                    <div key={ds}
-                      className={`aspect-square rounded-card text-body-sm flex flex-col items-center justify-center border ${
-                        !within ? "border-transparent text-bone"
-                        : isMand ? "border-ink/60 bg-ink/5 text-ink"
-                        : hits > 0 ? "bg-brick/10 border-brick/30 text-ink"
-                        : "bg-card border-bone text-ash"
-                      }`}>
-                      <span className={isMand ? "font-semibold" : ""}>{d.getDate()}</span>
-                      {within && hits > 0 && <span className="text-[10px] leading-none text-brick font-medium">{hits} out</span>}
-                      {within && isMand && hits === 0 && <span className="text-[9px] leading-none text-muted">must</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            </Fragment>
-          );
-        })}
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
       <div className="flex flex-wrap items-center gap-4 mt-4 text-body-xs text-ash">
         <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-brick/10 border border-brick/30 inline-block" /> Someone&rsquo;s out</span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { markDayUnavailable, deleteConflict, submitConflict } from "@/app/(app)/callboard/conflict-actions";
 
@@ -45,6 +45,26 @@ function fmtTime(t: string | null) {
   const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
   return `${h12}:${m} ${period}`;
 }
+function buildMonths(start: Date, end: Date) {
+  const months: { label: string; weeks: (Date | null)[][] }[] = [];
+  let cur = new Date(start.getFullYear(), start.getMonth(), 1);
+  const last = new Date(end.getFullYear(), end.getMonth(), 1);
+  while (cur <= last) {
+    const y = cur.getFullYear(), m = cur.getMonth();
+    const firstDow = new Date(y, m, 1).getDay();
+    const days = new Date(y, m + 1, 0).getDate();
+    const cells: (Date | null)[] = [];
+    for (let i = 0; i < firstDow; i++) cells.push(null);
+    for (let d = 1; d <= days; d++) cells.push(new Date(y, m, d));
+    while (cells.length % 7 !== 0) cells.push(null);
+    const weeks: (Date | null)[][] = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+    months.push({ label: cur.toLocaleDateString("en-US", { month: "long", year: "numeric" }), weeks });
+    cur = new Date(y, m + 1, 1);
+  }
+  return months;
+}
+
 function recurDesc(rule: string | null): string | null {
   if (!rule) return null;
   const day = (rule.match(/BYDAY=([A-Z]{2})/) || [])[1];
@@ -321,42 +341,41 @@ export function AvailabilityCalendar({ conflicts, inferred = [], windowStart, wi
       )}
 
       {/* Calendar */}
-      <div className="grid grid-cols-7 gap-1 mb-1">
-        {dow.map((d) => <div key={d} className="text-center text-body-xs text-muted py-1">{d}</div>)}
-      </div>
-      <div className="space-y-1">
-        {(() => { let lastLabel = ""; return weeks.map((week, wi) => {
-          const rep = week[3];
-          const label = `${rep.toLocaleDateString("en-US", { month: "long" })} ${rep.getFullYear()}`;
-          const showLabel = label !== lastLabel;
-          if (showLabel) lastLabel = label;
-          return (
-            <Fragment key={wi}>
-              {showLabel && <div className="pt-3 pb-1"><span className="font-display text-body-md text-ink">{label}</span></div>}
-              <div className="grid grid-cols-7 gap-1">
-                {week.map((d) => {
-                  const ds = iso(d);
-                  const within = inWindow(d);
-                  const isSingle = !!singleAllDay[ds];
-                  const isCovered = !!coveredId[ds];
-                  const isToday = ds === todayStr;
-                  return (
-                    <button key={ds} type="button" disabled={!within || busy === ds} onClick={() => toggle(ds)}
-                      title={within ? (isCovered ? "Conflict — tap to edit/clear" : "Tap if you can't make it") : ""}
-                      className={`aspect-square rounded-card text-body-sm flex flex-col items-center justify-center border transition-colors ${
-                        !within ? "border-transparent text-bone cursor-default"
-                        : isSingle ? "bg-brick/15 border-brick/40 text-brick font-medium"
-                        : isCovered ? "bg-brick/5 border-brick/30 text-brick"
-                        : "bg-card border-bone text-ink hover:border-ash"
-                      } ${isToday && within ? "ring-1 ring-ash" : ""} disabled:opacity-60`}>
-                      <span>{d.getDate()}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </Fragment>
-          );
-        }); })()}
+      <div className="space-y-6">
+        {buildMonths(start, end).map((mo) => (
+          <div key={mo.label}>
+            <div className="pb-2"><span className="font-display text-body-lg text-ink">{mo.label}</span></div>
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {dow.map((d) => <div key={d} className="text-center text-body-xs font-medium text-muted py-1">{d}</div>)}
+            </div>
+            <div className="space-y-1">
+              {mo.weeks.map((week, wi) => (
+                <div key={wi} className="grid grid-cols-7 gap-1">
+                  {week.map((d, di) => {
+                    if (!d) return <div key={di} className="aspect-square" />;
+                    const ds = iso(d);
+                    const within = inWindow(d);
+                    const isSingle = !!singleAllDay[ds];
+                    const isCovered = !!coveredId[ds];
+                    const isToday = ds === todayStr;
+                    return (
+                      <button key={ds} type="button" disabled={!within || busy === ds} onClick={() => toggle(ds)}
+                        title={within ? (isCovered ? "Conflict — tap to edit/clear" : "Tap if you can't make it") : ""}
+                        className={`aspect-square rounded-card text-body-sm flex flex-col items-center justify-center border transition-colors ${
+                          !within ? "border-transparent text-bone cursor-default"
+                          : isSingle ? "bg-brick/15 border-brick/40 text-brick font-medium"
+                          : isCovered ? "bg-brick/5 border-brick/30 text-brick"
+                          : "bg-card border-bone text-ink hover:border-ash"
+                        } ${isToday && within ? "ring-1 ring-ash" : ""} disabled:opacity-60`}>
+                        <span>{d.getDate()}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
       <div className="flex items-center gap-4 mt-5 text-body-xs text-ash">
         <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-brick/15 border border-brick/40 inline-block" /> Single day</span>
