@@ -5,6 +5,7 @@ import { PreviewBar } from "@/components/preview-bar";
 import { getActiveProductionId } from "@/lib/active-production";
 import { getViewer, getPreviewablePeople } from "@/lib/viewer";
 import { ThemeStyle } from "./theme-style";
+import { SwRegister } from "./sw-register";
 
 export default async function AppLayout({
   children,
@@ -235,6 +236,7 @@ export default async function AppLayout({
   return (
     <div className="min-h-screen flex">
       <ThemeStyle />
+      <SwRegister />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-card focus:bg-ink focus:px-4 focus:py-2 focus:text-paper focus:text-body-sm"

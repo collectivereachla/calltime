@@ -1,6 +1,7 @@
 // Calltime Service Worker — push notifications + basic caching
 
-const CACHE_NAME = "calltime-v1";
+const CACHE_NAME = "calltime-v2";
+const RUNTIME = "calltime-runtime-v2";
 
 // Push notification handler
 self.addEventListener("push", (event) => {
@@ -59,9 +60,33 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((names) =>
       Promise.all(
-        names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
+        names.filter((name) => name !== CACHE_NAME && name !== RUNTIME).map((name) => caches.delete(name))
       )
     )
   );
   self.clients.claim();
+});
+
+
+// Offline support — network-first for same-origin GET; cache as fallback.
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+  let url;
+  try { url = new URL(req.url); } catch { return; }
+  if (url.origin !== self.location.origin) return;      // skip Supabase, fonts, Sentry, PostHog
+  if (url.pathname.startsWith("/api/")) return;          // never cache API / auth
+  event.respondWith(
+    fetch(req)
+      .then((res) => {
+        if (res && res.status === 200 && res.type === "basic") {
+          const copy = res.clone();
+          caches.open(RUNTIME).then((c) => c.put(req, copy)).catch(() => {});
+        }
+        return res;
+      })
+      .catch(() =>
+        caches.match(req).then((cached) => cached || (req.mode === "navigation" ? caches.match("/callboard").then((c) => c || caches.match("/home")) : undefined))
+      )
+  );
 });
