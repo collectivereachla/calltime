@@ -143,6 +143,10 @@ export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, n
               Settings
             </Link>
             <span className="text-bone">·</span>
+            <Link href="/about" className="text-body-xs text-muted hover:text-brick transition-colors">
+              About
+            </Link>
+            <span className="text-bone">·</span>
             <form action={logout}>
               <button type="submit" className="text-body-xs text-muted hover:text-brick transition-colors">
                 Sign out
