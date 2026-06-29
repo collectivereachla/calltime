@@ -192,6 +192,14 @@ export default async function SettingsPage() {
       {isOwner && orgData && <SchedulingPolicy orgId={orgData.id} leadDays={leadDays} />}
 
       {isOwner && orgData && (
+        <div className="mt-10 pt-8 border-t border-bone">
+          <h3 className="font-display text-display-sm mb-1">Data export</h3>
+          <p className="text-body-sm text-ash mb-3">Download your organization&rsquo;s roster, productions, and schedule as a JSON file. Your data is always yours.</p>
+          <a href="/api/org-export" className="inline-block px-4 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 transition-colors">Download org data</a>
+        </div>
+      )}
+
+      {isOwner && orgData && (
         <div className="mt-10">
           <BrandColor orgId={orgData.id} current={accentDefault} logoUrl={orgData.logo_url} />
         </div>
