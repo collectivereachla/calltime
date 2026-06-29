@@ -124,7 +124,7 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
       {/* Desktop sidebar — hidden on mobile */}
       <nav style={{ width: railW }} className="hidden md:flex shrink-0 border-r border-white/10 bg-ink flex-col h-screen sticky top-0 relative">
         <div className={`border-b border-white/10 ${collapsed ? "py-5 flex justify-center" : "px-5 py-6"}`}>
-          <Link href="/home" title="Home" className="font-marquee text-paper hover:opacity-80 transition-opacity inline-flex items-center" style={collapsed ? undefined : { fontSize: '3rem', lineHeight: '1', letterSpacing: '-0.015em', whiteSpace: 'nowrap' }}>
+          <Link href="/home" title="Home" className="font-marquee text-paper hover:opacity-80 transition-opacity inline-flex items-center" style={collapsed ? undefined : { fontSize: '1.7rem', lineHeight: '1.05', letterSpacing: '0', whiteSpace: 'nowrap' }}>
             {collapsed ? (
               <svg viewBox="0 0 240 240" width="36" height="36" aria-label="Calltime" role="img">
                 <path d="M86 138 Q96 56 120 50 Q144 56 154 138" fill="none" stroke="#C8B79A" strokeWidth="7" strokeLinecap="round" />
