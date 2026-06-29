@@ -150,7 +150,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const [autoRead, setAutoRead] = useState(true);
   const [rate, setRate] = useState(0.95);
   const [strictness, setStrictness] = useState(0.6);
-  const [mode, setMode] = useState<"learn" | "rehearse">("learn");
+  const [mode, setMode] = useState<"learn" | "rehearse" | "run">("learn");
   const [startPos, setStartPos] = useState<"top" | "entrance">("top");
   const [onlyCues, setOnlyCues] = useState(false);
   const [callReveal, setCallReveal] = useState(0);
@@ -270,6 +270,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const cloudCacheRef = useRef<Map<string, string>>(new Map());
   const sbRef = useRef(createClient());
   const scanInFlight = useRef<Set<string>>(new Set());
+  const recordingsRef = useRef<{ character: string; script: string; said: string }[]>([]);
 
   const stopAll = useCallback(() => {
     cancelRef.current = true;
@@ -362,6 +363,32 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     try { r.start(); setListening(true); } catch {}
   }, [supported, evaluate]);
 
+  const listenRun = useCallback((item: Item) => {
+    if (!supported) { setTimeout(() => { if (!cancelRef.current) next(); }, 2500); return; }
+    const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    try { recogRef.current?.abort?.(); } catch {}
+    const r = new SR();
+    r.lang = "en-US"; r.interimResults = true; r.continuous = true;
+    let finalText = ""; let finished = false; let timer: ReturnType<typeof setTimeout> | undefined;
+    const bump = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => { try { r.stop(); } catch {} }, 2600); };
+    const finish = () => {
+      if (finished) return; finished = true; if (timer) clearTimeout(timer);
+      setListening(false);
+      recordingsRef.current.push({ character, script: item.content, said: finalText.trim() });
+      if (!cancelRef.current) next();
+    };
+    r.onstart = () => bump();
+    r.onresult = (e: any) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) { const res = e.results[i]; if (res.isFinal) finalText += res[0].transcript + " "; else interim += res[0].transcript; }
+      setHeard((finalText + interim).trim()); bump();
+    };
+    r.onend = finish;
+    r.onerror = () => {};
+    recogRef.current = r; setHeard("");
+    try { r.start(); setListening(true); } catch { finish(); }
+  }, [supported, character, next]);
+
   useEffect(() => {
     if (phase !== "run") return;
     cancelRef.current = false;
@@ -372,6 +399,16 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
         if (item.speakable) {
           await speak(item.content, { voiceURI: item.mine ? undefined : charVoiceURI(item.character || "") });
           if (!cancelRef.current) setTimeout(() => { if (!cancelRef.current) next(); }, 200);
+        } else {
+          await new Promise((res) => setTimeout(res, 1000));
+          if (!cancelRef.current) next();
+        }
+      } else if (mode === "run") {
+        if (item.mine) {
+          listenRun(item);
+        } else if (item.speakable) {
+          await speak(item.content, { voiceURI: charVoiceURI(item.character || "") });
+          if (!cancelRef.current) setTimeout(() => { if (!cancelRef.current) next(); }, 150);
         } else {
           await new Promise((res) => setTimeout(res, 1000));
           if (!cancelRef.current) next();
@@ -422,7 +459,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
 
   function start() {
     if (!character) return;
-    setIndex(startIndex); setScore({ correct: 0, attempts: 0 }); setResult(null); setRevealed(false); setHeard(""); setCallReveal(0);
+    setIndex(startIndex); setScore({ correct: 0, attempts: 0 }); setResult(null); setRevealed(false); setHeard(""); setCallReveal(0); recordingsRef.current = [];
     setPhase("run");
   }
   function quit() { stopAll(); setPhase("setup"); }
@@ -483,11 +520,11 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
             <div className="mb-5">
               <span className="text-body-xs text-muted uppercase tracking-wider block mb-1.5">Mode</span>
               <div className="flex flex-wrap gap-2">
-                {([["learn", "Learn — read along"], ["rehearse", "Rehearse — cue & line"]] as const).map(([m, lab]) => (
+                {([["learn", "Learn — read along"], ["rehearse", "Rehearse — cue & line"], ["run", "Run — off-book"]] as const).map(([m, lab]) => (
                   <button key={m} onClick={() => setMode(m)} className={`px-3 py-2 rounded-card border text-body-sm transition-colors ${mode === m ? "border-brick bg-brick/5 text-ink" : "border-bone text-ink hover:border-ash"}`}>{lab}</button>
                 ))}
               </div>
-              <p className="text-body-xs text-muted mt-1.5 max-w-md">{mode === "learn" ? "Hear the whole scene in character with your lines shown — tap any word to hear it. Best when you're still learning." : "It reads the cues; you say your lines out loud. Stuck? Use Call line to be fed it word by word."}</p>
+              <p className="text-body-xs text-muted mt-1.5 max-w-md">{mode === "learn" ? "Hear the whole scene in character with your lines shown — tap any word to hear it. Best when you're still learning." : mode === "run" ? ("Perform the whole scene off-book; it advances when you pause. At the end you get line notes — skipped lines, dropped words, accuracy." + (supported ? "" : " (needs Chrome for this mode.)")) : "It reads the cues; you say your lines out loud. Stuck? Use Call line to be fed it word by word."}</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 mb-3">
@@ -614,11 +651,52 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
       </div>
 
       {done ? (
-        <div className="text-center py-16">
-          <p className="font-display text-display-md text-ink mb-2">Scene complete</p>
-          <p className="text-body-md text-ash mb-6">You nailed {score.correct} of {score.attempts} attempted.</p>
-          <button onClick={start} className="px-5 py-2.5 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90">Run it again</button>
-        </div>
+        mode === "run" ? (() => {
+          const recs = recordingsRef.current;
+          const notes = recs.map((rec) => {
+            const said = rec.said;
+            const sc = said ? Math.max(similarity(rec.script, said), coverage(rec.script, said) * 0.97) : 0;
+            const bag = new Map<string, number>(); tokens(said).forEach((w) => bag.set(w, (bag.get(w) || 0) + 1));
+            const missing: string[] = [];
+            for (const w of tokens(rec.script)) { const c = bag.get(w) || 0; if (c > 0) bag.set(w, c - 1); else missing.push(w); }
+            const status = !said ? "skipped" : sc >= 0.9 ? "clean" : sc >= 0.6 ? "minor" : "reworded";
+            return { script: rec.script, said, status, score: sc, missing };
+          });
+          const clean = notes.filter((n) => n.status === "clean").length;
+          const avg = notes.length ? Math.round(notes.reduce((a, b) => a + b.score, 0) / notes.length * 100) : 0;
+          const badge: Record<string, string> = { clean: "bg-confirmed/10 text-confirmed", minor: "bg-tentative/10 text-tentative", reworded: "bg-conflict/10 text-conflict", skipped: "bg-conflict/10 text-conflict" };
+          const lbl: Record<string, string> = { clean: "Clean", minor: "Minor slips", reworded: "Reworded", skipped: "Skipped" };
+          return (
+            <div className="py-2">
+              <p className="font-display text-display-md text-ink mb-1">Line notes</p>
+              <p className="text-body-md text-ash mb-5">{notes.length} line{notes.length === 1 ? "" : "s"} run · {clean} clean · {avg}% average</p>
+              {notes.length === 0 ? (
+                <p className="text-body-sm text-muted">No lines captured yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {notes.map((n, i) => (
+                    <div key={i} className="bg-card border border-bone rounded-card p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-body-xs font-medium px-2 py-0.5 rounded-full ${badge[n.status]}`}>{lbl[n.status]}</span>
+                        {n.status !== "skipped" && <span className="text-body-xs text-muted font-mono">{Math.round(n.score * 100)}%</span>}
+                      </div>
+                      <p className="text-body-sm text-ink">{n.script}</p>
+                      {n.missing.length > 0 && <p className="text-body-xs text-conflict mt-1">Dropped: {n.missing.slice(0, 12).join(", ")}{n.missing.length > 12 ? "…" : ""}</p>}
+                      {n.said && n.status !== "clean" && <p className="text-body-xs text-muted mt-1">You said: &ldquo;{n.said}&rdquo;</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button onClick={start} className="mt-6 px-5 py-2.5 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90">Run it again</button>
+            </div>
+          );
+        })() : (
+          <div className="text-center py-16">
+            <p className="font-display text-display-md text-ink mb-2">Scene complete</p>
+            <p className="text-body-md text-ash mb-6">You nailed {score.correct} of {score.attempts} attempted.</p>
+            <button onClick={start} className="px-5 py-2.5 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90">Run it again</button>
+          </div>
+        )
       ) : (mode === "rehearse" && item.mine) ? (
         <div>
           <p className="text-body-xs text-brick uppercase tracking-wider mb-2 font-medium">Your line{item.act != null ? ` · Act ${item.act}${item.scene != null ? `, Sc ${item.scene}` : ""}` : ""}</p>
@@ -649,6 +727,18 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
             <button onClick={() => { setRevealed(true); if (window.speechSynthesis) speak(item.content); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Reveal &amp; hear</button>
             <button onClick={() => { setScore((s) => ({ correct: s.correct + 1, attempts: s.attempts + 1 })); next(); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">I had it</button>
             <button onClick={next} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">Skip →</button>
+          </div>
+        </div>
+      ) : (mode === "run" && item.mine) ? (
+        <div>
+          <p className="text-body-xs text-brick uppercase tracking-wider mb-2 font-medium">Your line — go</p>
+          <div className="bg-card border border-bone rounded-card p-5 min-h-[120px] flex flex-col justify-center">
+            <p className="text-body-md text-muted italic">{listening ? "Listening… perform it" : "…"}</p>
+            {heard && <p className="text-body-sm text-ash mt-3">{heard}</p>}
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => { try { recogRef.current?.stop?.(); } catch {} }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Next line →</button>
+            <button onClick={() => { stopAll(); setIndex(seq.length); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">End &amp; see notes</button>
           </div>
         </div>
       ) : (
