@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ModeToggle } from "@/app/(app)/mode-toggle";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { logout } from "@/app/auth/actions";
 import { NotificationBell } from "./notification-bell";
 import { ProductionSwitcher } from "./production-switcher";
@@ -75,10 +75,56 @@ export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, n
 
   const visibleRooms = rooms.filter((r) => (!("adminOnly" in r && r.adminOnly) || isAdmin) && (r.path !== "/booth" || boothAccess) && (r.path !== "/dressing-room" || !boothAccess) && (r.path !== "/seating" || seatingAccess) && !hiddenRooms.includes(r.path.replace("/", "")));
 
+  // Resizable + reorderable desktop rail (per-browser, persisted in localStorage)
+  const MIN_W = 224, MAX_W = 460, DEFAULT_W = 240;
+  const [railW, setRailW] = useState(DEFAULT_W);
+  const [order, setOrder] = useState<string[] | null>(null);
+  const [dragPath, setDragPath] = useState<string | null>(null);
+  const resizing = useRef(false);
+
+  useEffect(() => {
+    try {
+      const w = parseInt(localStorage.getItem("ct_rail_w") || "", 10);
+      if (!Number.isNaN(w)) setRailW(Math.min(MAX_W, Math.max(MIN_W, w)));
+      const o = localStorage.getItem("ct_room_order");
+      if (o) setOrder(JSON.parse(o));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    function move(e: PointerEvent) { if (resizing.current) setRailW(Math.min(MAX_W, Math.max(MIN_W, e.clientX))); }
+    function up() {
+      if (!resizing.current) return;
+      resizing.current = false; document.body.style.userSelect = "";
+      try { localStorage.setItem("ct_rail_w", String(railW)); } catch {}
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+  }, [railW]);
+
+  const orderedRooms = (() => {
+    if (!order) return visibleRooms;
+    const idx = (path: string) => { const i = order.indexOf(path); return i === -1 ? 999 : i; };
+    return [...visibleRooms].sort((a, b) => idx(a.path) - idx(b.path));
+  })();
+
+  function reorder(targetPath: string) {
+    if (!dragPath || dragPath === targetPath) { setDragPath(null); return; }
+    const base = orderedRooms.map((r) => r.path);
+    const from = base.indexOf(dragPath), to = base.indexOf(targetPath);
+    if (from === -1 || to === -1) { setDragPath(null); return; }
+    base.splice(to, 0, base.splice(from, 1)[0]);
+    setOrder(base);
+    try { localStorage.setItem("ct_room_order", JSON.stringify(base)); } catch {}
+    setDragPath(null);
+  }
+
+
   return (
     <>
       {/* Desktop sidebar — hidden on mobile */}
-      <nav className="hidden md:flex w-60 shrink-0 border-r border-bone bg-paper flex-col h-screen sticky top-0">
+      <nav style={{ width: railW }} className="hidden md:flex shrink-0 border-r border-bone bg-paper flex-col h-screen sticky top-0 relative">
         <div className="px-5 py-6 border-b border-bone">
           <Link href="/home" className="font-marquee text-ink hover:opacity-80 transition-opacity" style={{ fontSize: '3rem', lineHeight: '1', letterSpacing: '-0.015em', whiteSpace: 'nowrap' }}>
             Calltime<span className="text-bulb">.</span>
@@ -103,7 +149,7 @@ export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, n
         )}
 
         <div className="flex-1 overflow-y-auto py-2">
-          {visibleRooms.map((room) => {
+          {orderedRooms.map((room) => {
             const isActive = pathname.startsWith(room.path);
             if (isRoomLocked(room)) {
               return (
@@ -116,11 +162,18 @@ export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, n
             }
             return (
               <Link key={room.path} href={room.path}
-                className={`flex items-center gap-3 px-5 py-2 text-body-sm transition-colors ${
+                draggable
+                onDragStart={() => setDragPath(room.path)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => reorder(room.path)}
+                onDragEnd={() => setDragPath(null)}
+                title="Drag to reorder"
+                className={`group flex items-center gap-2 pl-3 pr-5 py-2 text-body-sm transition-colors ${dragPath === room.path ? "opacity-40" : ""} ${
                   isActive
                     ? "text-brick font-medium bg-brick/5 border-r-2 border-brick"
                     : "text-ink hover:text-brick hover:bg-brick/5"
                 }`}>
+                <span className="text-ash/30 group-hover:text-ash text-[11px] leading-none select-none cursor-grab" aria-hidden>⠿</span>
                 <span className={`text-xs w-4 text-center ${isActive ? "text-brick" : "text-ash"}`}>{room.icon}</span>
                 {room.name}
                 {getBadge(room) > 0 && (
@@ -154,6 +207,13 @@ export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, n
             </form>
           </div>
         </div>
+        {/* Drag to resize the rail */}
+        <div
+          onPointerDown={(e) => { resizing.current = true; document.body.style.userSelect = "none"; e.preventDefault(); }}
+          onDoubleClick={() => { setRailW(DEFAULT_W); try { localStorage.setItem("ct_rail_w", String(DEFAULT_W)); } catch {} }}
+          title="Drag to resize · double-click to reset"
+          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-brick/30 active:bg-brick/40 transition-colors"
+        />
       </nav>
 
       {/* Mobile top bar */}
