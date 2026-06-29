@@ -151,6 +151,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const [rate, setRate] = useState(0.95);
   const [strictness, setStrictness] = useState(0.6);
   const [scansion, setScansion] = useState(false);
+  const [scanData, setScanData] = useState<Record<string, { scansion: string; syllable_count: number; meter: string; is_regular: boolean; note: string }>>({});
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [voiceURI, setVoiceURI] = useState<string>("cloud:en-US-Chirp3-HD-Charon");
   const [castVoices, setCastVoices] = useState<Record<string, string>>({});
@@ -243,6 +244,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const cloudCacheRef = useRef<Map<string, string>>(new Map());
   const sbRef = useRef(createClient());
+  const scanInFlight = useRef<Set<string>>(new Set());
 
   const stopAll = useCallback(() => {
     cancelRef.current = true;
@@ -354,6 +356,35 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, phase, seq]);
 
+  // Accurate scansion via Claude (/api/verse-coach), cached per line; heuristic shown until it lands.
+  useEffect(() => {
+    if (!scansion || phase !== "run") return;
+    const item = seq[index];
+    if (!item || !item.speakable) return;
+    const lns = lineate(item.content);
+    const missing = lns.filter((l) => !scanData[l] && !scanInFlight.current.has(l));
+    if (missing.length === 0) return;
+    missing.forEach((l) => scanInFlight.current.add(l));
+    (async () => {
+      try {
+        const res = await fetch("/api/verse-coach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: missing.join("\n") }) });
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.lines)) {
+          setScanData((prev) => {
+            const n = { ...prev };
+            data.lines.forEach((ln: { scansion?: string; syllable_count?: number; meter?: string; is_regular?: boolean; note?: string }, i: number) => {
+              const key = missing[i];
+              if (key) n[key] = { scansion: ln.scansion || "", syllable_count: ln.syllable_count || 0, meter: ln.meter || "", is_regular: ln.is_regular !== false, note: ln.note || "" };
+            });
+            return n;
+          });
+        }
+      } catch {}
+      finally { missing.forEach((l) => scanInFlight.current.delete(l)); }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scansion, index, phase, seq, scanData]);
+
   function start() {
     if (!character) return;
     setIndex(0); setScore({ correct: 0, attempts: 0 }); setResult(null); setRevealed(false); setHeard("");
@@ -375,7 +406,17 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                 <button key={j} type="button" onClick={() => sayWord(tok)} title="Tap to hear it" className="hover:text-brick hover:underline decoration-dotted underline-offset-2 transition-colors">{tok}</button>
               ))}
             </p>
-            {scansionOn && variant !== "context" && <Marks text={ln} />}
+            {scansionOn && variant !== "context" && (() => {
+              const sd = scanData[ln];
+              if (sd && sd.scansion) return (
+                <p className="font-mono text-[11px] text-muted mt-0.5">
+                  <span className="tracking-[0.2em]">{sd.scansion}</span>
+                  <span className="ml-2">{sd.syllable_count} syl{sd.meter ? ` · ${sd.meter}` : ""}</span>
+                  {!sd.is_regular && sd.note && <span className="block text-tentative mt-0.5">{sd.note}</span>}
+                </p>
+              );
+              return <Marks text={ln} />;
+            })()}
           </div>
         ))}
       </div>
