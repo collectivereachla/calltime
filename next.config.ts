@@ -30,8 +30,8 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.fontshare.com",
+      "font-src 'self' https://fonts.gstatic.com https://cdn.fontshare.com https://api.fontshare.com",
       "img-src 'self' blob: data: https://*.supabase.co https://drive.google.com https://drive.usercontent.google.com https://*.googleusercontent.com",
       "media-src 'self' blob: https://*.supabase.co",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://us.i.posthog.com https://us-assets.i.posthog.com",
