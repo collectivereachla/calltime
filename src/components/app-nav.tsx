@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ModeToggle } from "@/app/(app)/mode-toggle";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { logout } from "@/app/auth/actions";
@@ -133,8 +134,9 @@ export function AppNav({ displayName, orgs, activeOrgName = null, badges = {}, n
         </div>
 
         <div className="border-t border-bone px-5 py-4">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2 gap-2">
             <p className="text-body-sm font-medium text-ink truncate">{displayName}</p>
+            <ModeToggle />
           </div>
           <div className="flex items-center gap-3">
             <Link href="/settings" className="text-body-xs text-muted hover:text-brick transition-colors">

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 
 export type ThemeTokens = {
   colors: Record<string, string>;
@@ -41,8 +42,25 @@ function fontStack(name: string) {
   return FONT_STACKS[name] || `"${name.replace(/["\\;{}]/g, "")}", sans-serif`;
 }
 
-export function themeToCss(t: ThemeTokens): string {
-  const c = t.colors || {};
+const MODE_COOKIE = "calltime_mode";
+// Tulia (dark) overrides only the neutrals; the brand accent + statuses + fonts
+// carry over from the Àṣẹ theme so the two modes stay in the same family.
+const TULIA_NEUTRALS: Record<string, string> = {
+  paper: "#14181F", card: "#1E242E", ink: "#ECE7DD", ash: "#9AA0AC", bone: "#2C333F", muted: "#7F8794",
+};
+
+export async function getMode(): Promise<"ase" | "tulia"> {
+  try {
+    const c = await cookies();
+    return c.get(MODE_COOKIE)?.value === "tulia" ? "tulia" : "ase";
+  } catch {
+    return "ase";
+  }
+}
+
+export function themeToCss(t: ThemeTokens, mode: "ase" | "tulia" = "ase"): string {
+  const c = { ...(t.colors || {}) };
+  if (mode === "tulia") Object.assign(c, TULIA_NEUTRALS);
   const lines: string[] = [];
   for (const k of COLOR_KEYS) {
     const v = c[k];

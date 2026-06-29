@@ -1,8 +1,8 @@
-import { getTheme, themeToCss } from "@/lib/theme";
+import { getTheme, themeToCss, getMode } from "@/lib/theme";
 
-// Injects the live theme as :root CSS-variable overrides (over the @theme
-// defaults). Seeded with current values, so no change until edited.
+// Injects the live theme as :root CSS-variable overrides. Mode (Àṣẹ/Tulia)
+// comes from the calltime_mode cookie; Tulia darkens the neutrals.
 export async function ThemeStyle() {
-  const css = themeToCss(await getTheme());
-  return <style id="ct-theme">{css}</style>;
+  const [theme, mode] = await Promise.all([getTheme(), getMode()]);
+  return <style id="ct-theme">{themeToCss(theme, mode)}</style>;
 }
