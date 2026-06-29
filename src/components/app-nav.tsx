@@ -46,6 +46,7 @@ const rooms = [
   { name: "Company", path: "/company", icon: "◎", mobile: true },
   { name: "Greenroom", path: "/greenroom", icon: "◌", mobile: true },
   { name: "Spine", path: "/spine", icon: "▥" },
+  { name: "Lines", path: "/lines", icon: "❝", mobile: true },
   { name: "Run", path: "/run", icon: "▶" },
   { name: "Booth", path: "/booth", icon: "◧" },
   { name: "Dressing Room", path: "/dressing-room", icon: "◨" },
