@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendSms, toE164US } from "@/lib/sms";
 import {
   sendEmail,
   buildEventCallEmail,
@@ -30,8 +31,9 @@ export async function sendEventCallEmails(eventId: string) {
         id,
         person_id,
         email_sent_at,
+        sms_sent_at,
         call_time,
-        people!inner ( id, full_name, preferred_name, email ),
+        people!inner ( id, full_name, preferred_name, email, phone, sms_opt_in ),
         schedule_events!inner (
           id, ics_sequence, title, event_type, event_date, start_time, end_time, location,
           productions!inner ( title ),
@@ -50,6 +52,7 @@ export async function sendEventCallEmails(eventId: string) {
     if (!calls || calls.length === 0) return;
 
     const sentIds: string[] = [];
+    const smsSentIds: string[] = [];
 
     for (const call of calls) {
       const person = call.people as unknown as {
@@ -57,6 +60,8 @@ export async function sendEventCallEmails(eventId: string) {
         full_name: string;
         preferred_name: string | null;
         email: string | null;
+        phone: string | null;
+        sms_opt_in: boolean | null;
       };
       const event = call.schedule_events as unknown as {
         id: string;
@@ -70,6 +75,21 @@ export async function sendEventCallEmails(eventId: string) {
         productions: { title: string };
         organizations: { name: string };
       };
+
+      // Text reminder (independent of email): opted-in members with a phone,
+      // sent once per call (gated on sms_sent_at).
+      const callRow = call as unknown as { sms_sent_at: string | null; call_time: string | null };
+      const e164 = toE164US(person.phone);
+      if (person.sms_opt_in && e164 && !callRow.sms_sent_at) {
+        const smsStart = (call as unknown as { call_time: string | null }).call_time || event.start_time;
+        const when = new Date(event.event_date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+        const time = smsStart ? " " + new Date("1970-01-01T" + smsStart).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+        const sms = await sendSms({
+          to: e164,
+          body: `Calltime: you're called for ${event.title} — ${when}${time}${event.location ? " @ " + event.location : ""}. Reply C to confirm. Reply STOP to opt out.`,
+        });
+        if (sms.success) smsSentIds.push(call.id);
+      }
 
       if (!person.email) continue;
 
@@ -126,6 +146,13 @@ export async function sendEventCallEmails(eventId: string) {
         .from("event_calls")
         .update({ email_sent_at: new Date().toISOString() })
         .in("id", sentIds);
+    }
+
+    if (smsSentIds.length > 0) {
+      await supabase
+        .from("event_calls")
+        .update({ sms_sent_at: new Date().toISOString() })
+        .in("id", smsSentIds);
     }
 
     console.log(

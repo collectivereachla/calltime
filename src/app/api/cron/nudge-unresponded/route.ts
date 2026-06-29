@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail, buildNudgeEmail } from "@/lib/email";
 import { sendEventCallEmails } from "@/lib/email-triggers";
 import { createNotification } from "@/lib/notifications";
+import { sendSms, toE164US } from "@/lib/sms";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export async function GET(request: Request) {
     .from("event_calls")
     .select(`
       id, person_id, nudge_sent_at, nudge_count, call_time,
-      people!inner ( id, full_name, preferred_name, email ),
+      people!inner ( id, full_name, preferred_name, email, phone, sms_opt_in ),
       schedule_events!inner (
         title, event_type, event_date, start_time, end_time,
         published, org_id,
@@ -146,12 +147,13 @@ export async function GET(request: Request) {
   // Group by person.
   type Ev = { title: string; date: string; startTime: string | null; productionTitle: string };
   const byPerson = new Map<string, {
-    name: string; email: string | null; orgName: string; orgId: string;
+    name: string; email: string | null; phone: string | null; smsOptIn: boolean;
+    orgName: string; orgId: string;
     callIds: string[]; events: Ev[];
   }>();
 
   for (const row of unresponded) {
-    const person = row.people as unknown as { id: string; full_name: string; preferred_name: string | null; email: string | null };
+    const person = row.people as unknown as { id: string; full_name: string; preferred_name: string | null; email: string | null; phone: string | null; sms_opt_in: boolean | null };
     const event = row.schedule_events as unknown as {
       title: string; event_date: string; start_time: string | null; org_id: string;
       productions: { title: string }; organizations: { name: string };
@@ -160,6 +162,8 @@ export async function GET(request: Request) {
       byPerson.set(person.id, {
         name: person.preferred_name || person.full_name.split(" ")[0],
         email: person.email,
+        phone: person.phone,
+        smsOptIn: person.sms_opt_in === true,
         orgName: event.organizations.name,
         orgId: event.org_id,
         callIds: [], events: [],
@@ -173,7 +177,7 @@ export async function GET(request: Request) {
     });
   }
 
-  let emailed = 0, pushed = 0, failed = 0;
+  let emailed = 0, pushed = 0, failed = 0, texted = 0;
   const nudgedIds: string[] = [];
 
   for (const [personId, person] of byPerson) {
@@ -206,6 +210,16 @@ export async function GET(request: Request) {
       } else {
         emailed++;
       }
+    }
+
+    // Text reminder for opted-in members with a phone.
+    const e164 = toE164US(person.phone);
+    if (person.smsOptIn && e164) {
+      const sms = await sendSms({
+        to: e164,
+        body: `Calltime reminder: ${n} call${n === 1 ? "" : "s"} need${n === 1 ? "s" : ""} your response. Reply C to confirm all, or open ${appUrl}/callboard. Reply STOP to opt out.`,
+      });
+      if (sms.success) texted++;
     }
 
     nudgedIds.push(...person.callIds);
@@ -258,6 +272,6 @@ export async function GET(request: Request) {
     message: "Nudge run complete",
     firstSends,
     people: byPerson.size,
-    emailed, pushed, failed,
+    emailed, pushed, failed, texted,
   });
 }
