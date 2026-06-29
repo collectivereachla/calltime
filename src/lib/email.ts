@@ -1,18 +1,14 @@
-import { Resend } from "resend";
+// Transactional email via SendGrid (same provider as the org campaigns).
+// Templates below are unchanged; only the transport differs.
 
-let _resend: Resend | null = null;
+const FROM =
+  process.env.SENDGRID_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || "Calltime <notifications@checkcalltime.art>";
 
-function getResend() {
-  if (!_resend) {
-    const key = process.env.RESEND_API_KEY;
-    if (!key) throw new Error("RESEND_API_KEY not set");
-    _resend = new Resend(key);
-  }
-  return _resend;
+function parseFrom(v: string): { email: string; name?: string } {
+  const m = v.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+  if (m) return { name: m[1] || undefined, email: m[2].trim() };
+  return { email: v.trim() };
 }
-
-const FROM_ADDRESS =
-  process.env.RESEND_FROM_EMAIL || "Calltime <onboarding@resend.dev>";
 
 export async function sendEmail({
   to,
@@ -25,21 +21,37 @@ export async function sendEmail({
   html: string;
   attachments?: { filename: string; content: string; contentType?: string }[];
 }) {
+  const key = process.env.SENDGRID_API_KEY;
+  if (!key) {
+    console.error("SENDGRID_API_KEY not set");
+    return { error: "Email not configured" };
+  }
   try {
-    const { data, error } = await getResend().emails.send({
-      from: FROM_ADDRESS,
-      to,
+    const body: Record<string, unknown> = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: parseFrom(FROM),
       subject,
-      html,
-      ...(attachments && attachments.length > 0 ? { attachments } : {}),
-    });
-
-    if (error) {
-      console.error("Email send failed:", error);
-      return { error: error.message };
+      content: [{ type: "text/html", value: html }],
+    };
+    if (attachments && attachments.length > 0) {
+      body.attachments = attachments.map((a) => ({
+        content: a.content,
+        filename: a.filename,
+        type: a.contentType || "application/octet-stream",
+        disposition: "attachment",
+      }));
     }
-
-    return { success: true, id: data?.id };
+    const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.status >= 200 && res.status < 300) {
+      return { success: true, id: res.headers.get("x-message-id") || undefined };
+    }
+    const detail = await res.text();
+    console.error("SendGrid send failed:", res.status, detail.slice(0, 300));
+    return { error: `SendGrid ${res.status}` };
   } catch (err) {
     console.error("Email error:", err);
     return { error: "Failed to send email" };
