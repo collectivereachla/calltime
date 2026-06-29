@@ -16,12 +16,18 @@ export type Line = {
 const SPEAKABLE = new Set(["dialogue", "lyric"]);
 
 const CLOUD_VOICES = [
-  { id: "en-US-Chirp3-HD-Charon", label: "Natural — Charon (deep)" },
-  { id: "en-US-Chirp3-HD-Kore", label: "Natural — Kore (warm)" },
-  { id: "en-US-Chirp3-HD-Aoede", label: "Natural — Aoede (bright)" },
-  { id: "en-US-Chirp3-HD-Puck", label: "Natural — Puck (lively)" },
-  { id: "en-US-Chirp3-HD-Fenrir", label: "Natural — Fenrir (gravel)" },
+  { id: "en-US-Chirp3-HD-Charon", label: "Charon (deep)" },
+  { id: "en-US-Chirp3-HD-Fenrir", label: "Fenrir (gravel)" },
+  { id: "en-US-Chirp3-HD-Orus", label: "Orus (firm)" },
+  { id: "en-US-Chirp3-HD-Puck", label: "Puck (lively)" },
+  { id: "en-US-Chirp3-HD-Aoede", label: "Aoede (bright)" },
+  { id: "en-US-Chirp3-HD-Kore", label: "Kore (warm)" },
+  { id: "en-US-Chirp3-HD-Leda", label: "Leda (youthful)" },
+  { id: "en-US-Chirp3-HD-Zephyr", label: "Zephyr (airy)" },
 ];
+function hashStr(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
+function autoVoiceId(name: string) { return CLOUD_VOICES[hashStr(name.toLowerCase()) % CLOUD_VOICES.length].id; }
+function autoVoiceLabel(name: string) { const id = autoVoiceId(name); return (CLOUD_VOICES.find((v) => v.id === id) || CLOUD_VOICES[0]).label; }
 
 const SMALLNUM = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty"];
 const FILLERS = new Set(["um","uh","er","ah","hmm"]);
@@ -123,6 +129,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const [scansion, setScansion] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [voiceURI, setVoiceURI] = useState<string>("cloud:en-US-Chirp3-HD-Charon");
+  const [castVoices, setCastVoices] = useState<Record<string, string>>({});
 
   const supported = typeof window !== "undefined" && (("SpeechRecognition" in window) || ("webkitSpeechRecognition" in window));
 
@@ -131,6 +138,13 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     const hit = characters.find((c) => c.name.toLowerCase() === suggestedCharacter.toLowerCase());
     if (hit) setCharacter(hit.name);
   }, [suggestedCharacter, characters, character]);
+
+  useEffect(() => { try { const r = localStorage.getItem("ct_cast_voices"); if (r) setCastVoices(JSON.parse(r)); } catch {} }, []);
+
+  function setCast(name: string, id: string) {
+    setCastVoices((prev) => { const n = { ...prev }; if (id) n[name] = id; else delete n[name]; try { localStorage.setItem("ct_cast_voices", JSON.stringify(n)); } catch {} return n; });
+  }
+  const charVoiceURI = (name: string) => `cloud:${castVoices[name] || autoVoiceId(name)}`;
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -185,15 +199,15 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     setListening(false);
   }, []);
 
-  const browserSpeak = useCallback((text: string, rate: number) => {
+  const browserSpeak = useCallback((text: string, rate: number, uri?: string) => {
     return new Promise<void>((resolve) => {
       try {
         const synth = window.speechSynthesis;
         if (!synth) { resolve(); return; }
         const u = new SpeechSynthesisUtterance(text);
         u.rate = rate;
-        const uri = voiceRef.current.uri;
-        const chosen = voiceRef.current.list.find((v) => v.voiceURI === uri);
+        const useUri = uri ?? voiceRef.current.uri;
+        const chosen = voiceRef.current.list.find((v) => v.voiceURI === useUri);
         if (chosen) u.voice = chosen;
         u.onend = () => resolve(); u.onerror = () => resolve();
         synth.speak(u);
@@ -222,13 +236,13 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     } catch { return false; }
   }, []);
 
-  const speak = useCallback(async (text: string, opts?: { rate?: number }) => {
+  const speak = useCallback(async (text: string, opts?: { rate?: number; voiceURI?: string }) => {
     const clean = cleanForSpeech(text);
     if (!clean) return;
     const rate = opts?.rate ?? settingsRef.current.rate;
-    const v = voiceRef.current.uri;
+    const v = opts?.voiceURI ?? voiceRef.current.uri;
     if (v.startsWith("cloud:")) { const ok = await cloudSpeak(clean, v.slice(6), rate); if (ok) return; }
-    await browserSpeak(clean, rate);
+    await browserSpeak(clean, rate, v);
   }, [cloudSpeak, browserSpeak]);
 
   const sayWord = useCallback((w: string) => {
@@ -277,7 +291,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
       if (item.mine) {
         if (supported && settingsRef.current.autoRead) listen(item.content);
       } else if (item.speakable) {
-        if (settingsRef.current.autoRead) { await speak(item.content); if (!cancelRef.current) setTimeout(() => { if (!cancelRef.current) next(); }, 150); }
+        if (settingsRef.current.autoRead) { await speak(item.content, { voiceURI: charVoiceURI(item.character || "") }); if (!cancelRef.current) setTimeout(() => { if (!cancelRef.current) next(); }, 150); }
       } else {
         await new Promise((res) => setTimeout(res, 1100));
         if (!cancelRef.current) next();
@@ -369,8 +383,26 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                 </select>
                 <button type="button" onClick={() => speak("O, sir, content you. I follow him to serve my turn upon him.")} className="text-body-xs text-brick hover:underline">Preview</button>
               </div>
-              <p className="text-body-xs text-muted mt-1.5 max-w-md">The Natural voices are studio-quality and cached, so repeats stay free. Device voices work offline but sound robotic.</p>
+              <p className="text-body-xs text-muted mt-1.5 max-w-md">Used for your own lines on reveal. The Natural voices are studio-quality and cached, so repeats stay free.</p>
             </div>
+
+            {character && characters.filter((c) => c.name !== character).length > 0 && (
+              <div className="mb-6">
+                <span className="text-body-xs text-muted uppercase tracking-wider block mb-1">Cast voices — who you hear</span>
+                <p className="text-body-xs text-muted mb-2 max-w-md">Each role is auto-assigned its own voice so a scene sounds like a scene. Override any of them.</p>
+                <div className="max-h-52 overflow-y-auto border border-bone rounded-card divide-y divide-bone">
+                  {characters.filter((c) => c.name !== character).map((c) => (
+                    <div key={c.name} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <span className="text-body-sm text-ink truncate">{c.name}</span>
+                      <select value={castVoices[c.name] || ""} onChange={(e) => setCast(c.name, e.target.value)} className="px-2 py-1 bg-paper border border-bone rounded-card text-body-xs text-ink shrink-0">
+                        <option value="">Auto ({autoVoiceLabel(c.name)})</option>
+                        {CLOUD_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <label className="flex items-center gap-2 text-body-sm text-ink mb-3 cursor-pointer">
               <input type="checkbox" checked={autoRead} onChange={(e) => setAutoRead(e.target.checked)} className="rounded border-bone text-brick focus:ring-brick" />
               Read cues aloud{supported ? " and listen for my lines" : ""}
@@ -458,7 +490,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
           </div>
           <div className="flex gap-2 mt-4">
             <button onClick={() => { stopAll(); next(); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Next →</button>
-            {item.speakable && <button onClick={() => speak(item.content)} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">🔊 Replay cue</button>}
+            {item.speakable && <button onClick={() => speak(item.content, { voiceURI: charVoiceURI(item.character || "") })} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">🔊 Replay cue</button>}
           </div>
         </div>
       )}
