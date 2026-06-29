@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   const text: string = typeof body.text === "string" ? body.text.slice(0, 2000).trim() : "";
   if (!text) return NextResponse.json({ error: "No text" }, { status: 400 });
 
-  const prompt = `Translate the following lines from a play into clear, modern, plain English. Give a short paraphrase that captures what the character is DOING and means — actable intention, not a word-for-word gloss. Keep it to 1-3 sentences. Respond with ONLY raw JSON, no markdown: {"translation":"..."}.
+  const prompt = `Rewrite the following lines in plain, modern English — a direct, literal translation of what is being said, sentence for sentence, in today's words. Same meaning and roughly the same length. Do NOT add interpretation, subtext, meaning, analysis, acting or stage notes, or commentary of any kind. Just the words in modern English. Respond with ONLY raw JSON, no markdown: {"translation":"..."}.
 
 LINES:
 ${text}`;
