@@ -145,7 +145,7 @@ function Marks({ text }: { text: string }) {
 
 type Item = Line & { idx: number; mine: boolean; speakable: boolean };
 
-export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTitle: string; lines: Line[]; suggestedCharacter: string | null }) {
+export function RunLines({ scriptId, scriptTitle, lines, suggestedCharacter }: { scriptId: string; scriptTitle: string; lines: Line[]; suggestedCharacter: string | null }) {
   const characters = useMemo(() => {
     const m = new Map<string, number>();
     for (const l of lines) if (SPEAKABLE.has(l.line_type) && l.character) {
@@ -301,7 +301,9 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const sbRef = useRef(createClient());
   const scanInFlight = useRef<Set<string>>(new Set());
   const transInFlight = useRef<Set<string>>(new Set());
-  const recordingsRef = useRef<{ character: string; script: string; said: string }[]>([]);
+  const recordingsRef = useRef<{ line_number: number; character: string; script: string; said: string; ms: number }[]>([]);
+  const paceRef = useRef<Record<number, number>>({});
+  const savedRef = useRef(false);
 
   const stopAll = useCallback(() => {
     cancelRef.current = true;
@@ -403,11 +405,16 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     const r = new SR();
     r.lang = "en-US"; r.interimResults = true; r.continuous = true;
     let finalText = ""; let finished = false; let timer: ReturnType<typeof setTimeout> | undefined;
-    const bump = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => { try { r.stop(); } catch {} }, 2600); };
+    const startedAt = Date.now();
+    // adaptive pause window: longer for lines this actor usually takes longer on
+    const expected = paceRef.current[item.line_number];
+    const silenceMs = expected ? Math.min(3500, Math.max(1500, Math.round(expected * 0.3))) : 2600;
+    const bump = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => { try { r.stop(); } catch {} }, silenceMs); };
     const finish = () => {
       if (finished) return; finished = true; if (timer) clearTimeout(timer);
       setListening(false);
-      recordingsRef.current.push({ character, script: item.content, said: finalText.trim() });
+      const ms = Date.now() - startedAt;
+      recordingsRef.current.push({ line_number: item.line_number, character, script: item.content, said: finalText.trim(), ms });
       if (!cancelRef.current) next();
     };
     r.onstart = () => bump();
@@ -426,7 +433,14 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     if (phase !== "run") return;
     cancelRef.current = false;
     const item = seq[index];
-    if (!item) return;
+    if (!item) {
+      if (mode === "run" && !savedRef.current && recordingsRef.current.some((x) => x.ms)) {
+        savedRef.current = true;
+        const items = recordingsRef.current.filter((x) => x.ms).map((x) => ({ line_number: x.line_number, ms: x.ms }));
+        sbRef.current.rpc("save_run_timings", { p_script_id: scriptId, p_items: items }).then(() => {}, () => {});
+      }
+      return;
+    }
     (async () => {
       if (mode === "run") {
         if (item.mine) {
@@ -503,8 +517,19 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
 
   function start() {
     if (!character) return;
-    setIndex(startIndex); setScore({ correct: 0, attempts: 0 }); setResult(null); setRevealed(false); setHeard(""); setCallReveal(0); recordingsRef.current = [];
+    setIndex(startIndex); setScore({ correct: 0, attempts: 0 }); setResult(null); setRevealed(false); setHeard(""); setCallReveal(0);
+    recordingsRef.current = []; savedRef.current = false;
     setPhase("run");
+    if (mode === "run") {
+      (async () => {
+        try {
+          const { data } = await sbRef.current.rpc("get_run_timings", { p_script_id: scriptId });
+          const map: Record<number, number> = {};
+          for (const row of (data || []) as { line_number: number; avg_ms: number }[]) map[row.line_number] = row.avg_ms;
+          paceRef.current = map;
+        } catch {}
+      })();
+    }
   }
   function quit() { stopAll(); setPhase("setup"); }
 
@@ -713,7 +738,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
             const missing: string[] = [];
             for (const w of tokens(rec.script)) { const c = bag.get(w) || 0; if (c > 0) bag.set(w, c - 1); else missing.push(w); }
             const status = !said ? "skipped" : sc >= 0.9 ? "clean" : sc >= 0.6 ? "minor" : "reworded";
-            return { script: rec.script, said, status, score: sc, missing };
+            return { script: rec.script, said, status, score: sc, missing, ms: rec.ms, avg: paceRef.current[rec.line_number] };
           });
           const clean = notes.filter((n) => n.status === "clean").length;
           const avg = notes.length ? Math.round(notes.reduce((a, b) => a + b.score, 0) / notes.length * 100) : 0;
@@ -732,6 +757,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                       <div className="flex items-center gap-2 mb-1">
                         <span className={`text-body-xs font-medium px-2 py-0.5 rounded-full ${badge[n.status]}`}>{lbl[n.status]}</span>
                         {n.status !== "skipped" && <span className="text-body-xs text-muted font-mono">{Math.round(n.score * 100)}%</span>}
+                        {n.ms ? <span className="text-body-xs text-muted font-mono">{(n.ms / 1000).toFixed(1)}s{n.avg ? ` · usually ${(n.avg / 1000).toFixed(1)}s` : ""}</span> : null}
                       </div>
                       <p className="text-body-sm text-ink">{n.script}</p>
                       {n.missing.length > 0 && <p className="text-body-xs text-conflict mt-1">Dropped: {n.missing.slice(0, 12).join(", ")}{n.missing.length > 12 ? "…" : ""}</p>}

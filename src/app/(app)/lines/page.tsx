@@ -58,5 +58,5 @@ export default async function LinesPage() {
     suggested = (asg?.role_title as string | null) ?? null;
   }
 
-  return <RunLines scriptTitle={script.title || "Run Lines"} lines={lines} suggestedCharacter={suggested} />;
+  return <RunLines scriptId={script.id} scriptTitle={script.title || "Run Lines"} lines={lines} suggestedCharacter={suggested} />;
 }
