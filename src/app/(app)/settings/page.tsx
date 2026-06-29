@@ -13,6 +13,7 @@ import { NotificationSettings } from "./notification-settings";
 import { W9Card } from "./w9-card";
 import { CheckinPinCard } from "./checkin-pin-card";
 import { FinanceAccess } from "./finance-access";
+import { SchedulingPolicy } from "./scheduling-policy";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -78,6 +79,7 @@ export default async function SettingsPage() {
   let orgData: { id: string; name: string; slug: string; description: string | null; city: string | null; state: string | null; website: string | null; logo_url: string | null } | null = null;
   let hiddenRooms: string[] = [];
   let financeMembers: { id: string; name: string; role: string; finance: boolean }[] = [];
+  let leadDays = 0;
   let accentDefault: string | null = null;
   let hideAi = false;
   let tzDefault: string | null = null;
@@ -93,12 +95,13 @@ export default async function SettingsPage() {
         .eq("id", settingsOrgId)
         .single();
       if (data) {
-        const { settings, ...rest } = data as typeof data & { settings: { hidden_rooms?: string[]; accent_color?: string; hide_ai?: boolean; timezone?: string } | null };
+        const { settings, ...rest } = data as typeof data & { settings: { hidden_rooms?: string[]; accent_color?: string; hide_ai?: boolean; timezone?: string; conflict_lead_days?: number } | null };
         orgData = rest;
         hiddenRooms = Array.isArray(settings?.hidden_rooms) ? settings!.hidden_rooms! : [];
         accentDefault = settings?.accent_color || null;
         hideAi = !!settings?.hide_ai;
         tzDefault = settings?.timezone || null;
+        leadDays = typeof settings?.conflict_lead_days === "number" ? settings!.conflict_lead_days! : 0;
       }
       const { data: mem } = await supabase
         .from("org_memberships")
@@ -185,6 +188,8 @@ export default async function SettingsPage() {
       {isOwner && orgData && financeMembers.length > 0 && (
         <FinanceAccess orgId={orgData.id} members={financeMembers} />
       )}
+
+      {isOwner && orgData && <SchedulingPolicy orgId={orgData.id} leadDays={leadDays} />}
 
       {isOwner && orgData && (
         <div className="mt-10">

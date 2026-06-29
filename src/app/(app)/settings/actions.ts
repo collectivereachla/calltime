@@ -245,3 +245,11 @@ export async function setOrgTimezone(orgId: string, timezone: string) {
   revalidatePath("/settings");
   return { success: true };
 }
+
+export async function setConflictLeadDays(orgId: string, days: number) {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_org_conflict_lead_days", { p_org_id: orgId, p_days: days });
+  if (error) return { error: error.message };
+  revalidatePath("/settings");
+  return { ok: true };
+}
