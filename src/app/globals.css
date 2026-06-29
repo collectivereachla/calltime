@@ -31,6 +31,11 @@
 /* Marquee — Tanker, reserved for the wordmark / big marquee moments only. */
 .font-marquee { font-family: "Tanker", system-ui, sans-serif; }
 
+/* Tanker carries the big display sizes (page titles, heroes); Satoshi handles
+   smaller subheads, labels, and body. Keeps the marquee energy without the
+   condensed face cramping small text. Looser tracking suits Tanker. */
+.text-display-lg, .text-display-md { font-family: "Tanker", system-ui, sans-serif; letter-spacing: 0; }
+
 @theme {
   --color-paper: #FAF7F1;
   --color-card: #FFFFFF;
