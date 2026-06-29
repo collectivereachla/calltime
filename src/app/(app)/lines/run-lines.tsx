@@ -14,7 +14,6 @@ export type Line = {
 
 const SPEAKABLE = new Set(["dialogue", "lyric"]);
 
-// ---- text helpers ----
 const SMALLNUM = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty"];
 const FILLERS = new Set(["um","uh","er","ah","hmm"]);
 function expand(s: string) {
@@ -30,8 +29,21 @@ function normalize(s: string) {
   t = t.replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
   return t.split(" ").filter((w) => w && !FILLERS.has(w)).join(" ");
 }
+function tokens(s: string) { const n = normalize(s); return n ? n.split(" ") : []; }
 function cleanForSpeech(s: string) {
   return s.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ").replace(/[♪♫*_]/g, " ").replace(/\s+/g, " ").trim();
+}
+function similarity(a: string, b: string) {
+  const x = tokens(a), y = tokens(b);
+  if (x.length === 0 && y.length === 0) return 1;
+  if (x.length === 0 || y.length === 0) return 0;
+  const dp = Array.from({ length: x.length + 1 }, () => new Array(y.length + 1).fill(0));
+  for (let i = 0; i <= x.length; i++) dp[i][0] = i;
+  for (let j = 0; j <= y.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= x.length; i++)
+    for (let j = 1; j <= y.length; j++)
+      dp[i][j] = x[i - 1] === y[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+  return 1 - dp[x.length][y.length] / Math.max(x.length, y.length);
 }
 function coverage(target: string, said: string) {
   const t = tokens(target), s = tokens(said);
@@ -49,62 +61,53 @@ function syllables(word: string) {
   const m = w.match(/[aeiouy]+/g);
   return Math.max(1, m ? m.length : 1);
 }
-function scan(text: string) {
-  const words = text.split(/\s+/).filter(Boolean).map((w) => ({ w, s: syllables(w) }));
-  const count = words.reduce((a, b) => a + b.s, 0);
-  return { words, count, pentameter: count === 10 };
+function countSyllables(text: string) {
+  return text.split(/\s+/).filter(Boolean).reduce((a, w) => a + syllables(w), 0);
 }
-function tokens(s: string) {
-  const n = normalize(s);
-  return n ? n.split(" ") : [];
+// Split a flattened speech into verse-ish lines (~10 syllables, breaking at clause ends).
+function lineate(text: string): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const out: string[] = [];
+  let cur: string[] = [], syl = 0;
+  for (const w of words) {
+    cur.push(w); syl += syllables(w);
+    const clause = /[.,;:!?—]$/.test(w);
+    if (syl >= 10 || (syl >= 7 && clause)) { out.push(cur.join(" ")); cur = []; syl = 0; }
+  }
+  if (cur.length) out.push(cur.join(" "));
+  return out;
 }
-// word-level Levenshtein -> similarity 0..1
-function similarity(a: string, b: string) {
-  const x = tokens(a), y = tokens(b);
-  if (x.length === 0 && y.length === 0) return 1;
-  if (x.length === 0 || y.length === 0) return 0;
-  const dp = Array.from({ length: x.length + 1 }, () => new Array(y.length + 1).fill(0));
-  for (let i = 0; i <= x.length; i++) dp[i][0] = i;
-  for (let j = 0; j <= y.length; j++) dp[0][j] = j;
-  for (let i = 1; i <= x.length; i++)
-    for (let j = 1; j <= y.length; j++)
-      dp[i][j] = x[i - 1] === y[j - 1]
-        ? dp[i - 1][j - 1]
-        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-  const dist = dp[x.length][y.length];
-  return 1 - dist / Math.max(x.length, y.length);
+function Marks({ text }: { text: string }) {
+  const n = countSyllables(text);
+  const marks = Array.from({ length: Math.max(n, 1) }, (_, i) => (i % 2 === 0 ? "˘" : "´")).join(" ");
+  return (
+    <p className="font-mono text-[11px] text-muted mt-0.5">
+      <span className="tracking-[0.3em]">{marks}</span>
+      <span className="ml-2">({n}{n === 10 ? " · pentameter" : ""})</span>
+    </p>
+  );
 }
 
 type Item = Line & { idx: number; mine: boolean; speakable: boolean };
 
 export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTitle: string; lines: Line[]; suggestedCharacter: string | null }) {
-  // ---- setup ----
   const characters = useMemo(() => {
     const m = new Map<string, number>();
-    for (const l of lines) {
-      if (SPEAKABLE.has(l.line_type) && l.character) {
-        const c = l.character.trim();
-        if (c) m.set(c, (m.get(c) || 0) + 1);
-      }
+    for (const l of lines) if (SPEAKABLE.has(l.line_type) && l.character) {
+      const c = l.character.trim(); if (c) m.set(c, (m.get(c) || 0) + 1);
     }
     return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }));
   }, [lines]);
 
   const scenes = useMemo(() => {
-    const seen = new Set<string>();
-    const out: { act: number | null; scene: number | null; key: string }[] = [];
-    for (const l of lines) {
-      const key = `${l.act ?? "-"}.${l.scene ?? "-"}`;
-      if (!seen.has(key)) { seen.add(key); out.push({ act: l.act, scene: l.scene, key }); }
-    }
+    const seen = new Set<string>(); const out: { act: number | null; scene: number | null; key: string }[] = [];
+    for (const l of lines) { const key = `${l.act ?? "-"}.${l.scene ?? "-"}`; if (!seen.has(key)) { seen.add(key); out.push({ act: l.act, scene: l.scene, key }); } }
     return out;
   }, [lines]);
 
   const [character, setCharacter] = useState<string>("");
   const [sceneKey, setSceneKey] = useState<string>("all");
   const [phase, setPhase] = useState<"setup" | "run">("setup");
-
-  // settings
   const [autoRead, setAutoRead] = useState(true);
   const [rate, setRate] = useState(0.95);
   const [strictness, setStrictness] = useState(0.6);
@@ -112,14 +115,12 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
 
   const supported = typeof window !== "undefined" && (("SpeechRecognition" in window) || ("webkitSpeechRecognition" in window));
 
-  // suggested character preselect
   useEffect(() => {
     if (!suggestedCharacter || character) return;
     const hit = characters.find((c) => c.name.toLowerCase() === suggestedCharacter.toLowerCase());
     if (hit) setCharacter(hit.name);
   }, [suggestedCharacter, characters, character]);
 
-  // ---- sequence ----
   const seq = useMemo<Item[]>(() => {
     let ls = lines;
     if (sceneKey !== "all") ls = lines.filter((l) => `${l.act ?? "-"}.${l.scene ?? "-"}` === sceneKey);
@@ -132,10 +133,9 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
 
   const myCount = useMemo(() => seq.filter((s) => s.mine).length, [seq]);
 
-  // ---- run state ----
   const [index, setIndex] = useState(0);
   const [listening, setListening] = useState(false);
-  const [heard, setHeard] = useState("");           // interim/last transcript
+  const [heard, setHeard] = useState("");
   const [result, setResult] = useState<null | { pass: boolean; score: number; said: string }>(null);
   const [revealed, setRevealed] = useState(false);
   const [score, setScore] = useState({ correct: 0, attempts: 0 });
@@ -159,8 +159,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
         if (!synth) { resolve(); return; }
         const u = new SpeechSynthesisUtterance(cleanForSpeech(text));
         u.rate = opts?.rate ?? settingsRef.current.rate;
-        u.onend = () => resolve();
-        u.onerror = () => resolve();
+        u.onend = () => resolve(); u.onerror = () => resolve();
         synth.speak(u);
       } catch { resolve(); }
     });
@@ -171,10 +170,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     speak(w.replace(/[^\p{L}\p{N}'\-]/gu, ""), { rate: 0.6 });
   }, [speak]);
 
-  const next = useCallback(() => {
-    setResult(null); setRevealed(false); setHeard("");
-    setIndex((i) => i + 1);
-  }, []);
+  const next = useCallback(() => { setResult(null); setRevealed(false); setHeard(""); setIndex((i) => i + 1); }, []);
 
   const evaluate = useCallback((saidRaw: string, target: string) => {
     const s = Math.max(similarity(target, saidRaw), coverage(target, saidRaw) * 0.97);
@@ -189,47 +185,34 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     try { recogRef.current?.abort?.(); } catch {}
     const r = new SR();
-    r.lang = "en-US";
-    r.interimResults = true;
-    r.maxAlternatives = 3;
-    r.continuous = false;
+    r.lang = "en-US"; r.interimResults = true; r.maxAlternatives = 3; r.continuous = false;
     let finalText = "";
     r.onresult = (e: any) => {
       let interim = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
-        if (res.isFinal) finalText += res[0].transcript + " ";
-        else interim += res[0].transcript;
+        if (res.isFinal) finalText += res[0].transcript + " "; else interim += res[0].transcript;
       }
       setHeard((finalText + interim).trim());
     };
-    r.onend = () => {
-      setListening(false);
-      const said = finalText.trim();
-      if (said) evaluate(said, target);
-    };
+    r.onend = () => { setListening(false); const said = finalText.trim(); if (said) evaluate(said, target); };
     r.onerror = () => setListening(false);
     recogRef.current = r;
     setHeard(""); setResult(null);
     try { r.start(); setListening(true); } catch {}
   }, [supported, evaluate]);
 
-  // drive the current step
   useEffect(() => {
     if (phase !== "run") return;
     cancelRef.current = false;
     const item = seq[index];
-    if (!item) return; // finished
+    if (!item) return;
     (async () => {
       if (item.mine) {
         if (supported && settingsRef.current.autoRead) listen(item.content);
       } else if (item.speakable) {
-        if (settingsRef.current.autoRead) {
-          await speak(item.content);
-          if (!cancelRef.current) setTimeout(() => { if (!cancelRef.current) next(); }, 150);
-        }
+        if (settingsRef.current.autoRead) { await speak(item.content); if (!cancelRef.current) setTimeout(() => { if (!cancelRef.current) next(); }, 150); }
       } else {
-        // context line (stage direction, song title) — show briefly, advance
         await new Promise((res) => setTimeout(res, 1100));
         if (!cancelRef.current) next();
       }
@@ -245,33 +228,27 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   }
   function quit() { stopAll(); setPhase("setup"); }
 
-  function ScansionPanel({ text }: { text: string }) {
-    const sc = scan(cleanForSpeech(text));
-    const marks = Array.from({ length: Math.min(sc.count, 40) }, (_, i) => (i % 2 === 0 ? "\u02d8" : "\u00b4")).join(" ");
+  function Passage({ text, variant, scansionOn }: { text: string; variant: "mine" | "cue" | "context"; scansionOn: boolean }) {
+    const ls = lineate(text);
+    const cls = variant === "mine" ? "text-display-sm font-display text-ink leading-snug"
+      : variant === "context" ? "text-body-sm text-muted italic leading-snug"
+      : "text-body-lg text-ink leading-snug";
     return (
-      <div className="mt-2 text-body-xs text-muted">
-        <span className="font-mono tracking-widest">{marks}</span>
-        <span className="ml-2">{sc.count} syllables{sc.pentameter ? " \u00b7 iambic pentameter" : ""} \u00b7 approx.</span>
+      <div className="space-y-1.5">
+        {ls.map((ln, i) => (
+          <div key={i}>
+            <p className={cls}>
+              {ln.split(/(\s+)/).map((tok, j) => /\s+/.test(tok) ? tok : (
+                <button key={j} type="button" onClick={() => sayWord(tok)} title="Tap to hear it" className="hover:text-brick hover:underline decoration-dotted underline-offset-2 transition-colors">{tok}</button>
+              ))}
+            </p>
+            {scansionOn && variant !== "context" && <Marks text={ln} />}
+          </div>
+        ))}
       </div>
     );
   }
 
-  // ---- render: word-by-word tappable line (pronunciation) ----
-  function SpokenLine({ text, className = "" }: { text: string; className?: string }) {
-    return (
-      <p className={className}>
-        {text.split(/(\s+)/).map((tok, i) =>
-          /\s+/.test(tok) ? tok : (
-            <button key={i} type="button" onClick={() => sayWord(tok)} title="Tap to hear it" className="hover:text-brick hover:underline decoration-dotted underline-offset-2 transition-colors">
-              {tok}
-            </button>
-          )
-        )}
-      </p>
-    );
-  }
-
-  // ======== SETUP ========
   if (phase === "setup") {
     return (
       <div className="max-w-2xl mx-auto px-4 md:px-8 py-8">
@@ -311,7 +288,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
               </label>
             </div>
 
-            <label className="flex items-center gap-2 text-body-sm text-ink mb-6 cursor-pointer">
+            <label className="flex items-center gap-2 text-body-sm text-ink mb-3 cursor-pointer">
               <input type="checkbox" checked={autoRead} onChange={(e) => setAutoRead(e.target.checked)} className="rounded border-bone text-brick focus:ring-brick" />
               Read cues aloud{supported ? " and listen for my lines" : ""}
             </label>
@@ -329,21 +306,19 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
             <button onClick={start} disabled={!character} className="px-5 py-2.5 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 disabled:opacity-40">
               Start{character ? ` as ${character}` : ""}
             </button>
-            <p className="text-body-xs text-muted mt-3">Tip: tap any word — in a cue or your own line — to hear it pronounced slowly. Useful for names and Shakespeare.</p>
+            <p className="text-body-xs text-muted mt-3">Tip: tap any word to hear it pronounced slowly. Lines are auto-broken into verse-length lines (the script is stored as paragraphs), so the meter guide is approximate.</p>
           </>
         )}
       </div>
     );
   }
 
-  // ======== RUN ========
   const item = seq[index];
   const done = !item;
   const upcoming = seq.slice(index + 1).find((s) => s.speakable);
 
   return (
     <div className="max-w-2xl mx-auto px-4 md:px-8 py-6">
-      {/* header */}
       <div className="flex items-center justify-between mb-5">
         <div>
           <p className="text-body-xs text-muted uppercase tracking-wider">{character}{sceneKey !== "all" ? " · this section" : ""}</p>
@@ -362,12 +337,11 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
           <button onClick={start} className="px-5 py-2.5 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90">Run it again</button>
         </div>
       ) : item.mine ? (
-        // ---- MY LINE ----
         <div>
           <p className="text-body-xs text-brick uppercase tracking-wider mb-2 font-medium">Your line{item.act != null ? ` · Act ${item.act}${item.scene != null ? `, Sc ${item.scene}` : ""}` : ""}</p>
           <div className="bg-card border border-bone rounded-card p-5 min-h-[120px] flex flex-col justify-center">
             {revealed || (result && result.pass) ? (
-              <><SpokenLine text={item.content} className="text-display-sm font-display text-ink leading-snug" />{scansion && <ScansionPanel text={item.content} />}</>
+              <Passage text={item.content} variant="mine" scansionOn={scansion} />
             ) : (
               <p className="text-body-md text-muted italic">{listening ? "Listening… say your line" : "Your line — say it out loud"}</p>
             )}
@@ -386,20 +360,18 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                 {listening ? "Listening…" : result ? "Try again" : "🎙 Speak"}
               </button>
             )}
-            <button onClick={() => { setRevealed(true); window.speechSynthesis && speak(item.content); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Reveal &amp; hear</button>
+            <button onClick={() => { setRevealed(true); if (window.speechSynthesis) speak(item.content); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Reveal &amp; hear</button>
             <button onClick={() => { setScore((s) => ({ correct: s.correct + 1, attempts: s.attempts + 1 })); next(); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">I had it</button>
             <button onClick={next} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">Skip →</button>
           </div>
         </div>
       ) : (
-        // ---- CUE / CONTEXT LINE ----
         <div>
           <p className="text-body-xs text-muted uppercase tracking-wider mb-2">
             {item.speakable ? (item.character || "Cue") : (item.line_type === "stage_direction" ? "Stage direction" : item.line_type.replace(/_/g, " "))}
           </p>
           <div className={`rounded-card p-5 ${item.speakable ? "bg-card border border-bone" : "bg-bone/30"}`}>
-            <SpokenLine text={item.content} className={item.speakable ? "text-body-lg text-ink leading-snug" : "text-body-sm text-muted italic leading-snug"} />
-            {scansion && item.speakable && <ScansionPanel text={item.content} />}
+            <Passage text={item.content} variant={item.speakable ? "cue" : "context"} scansionOn={scansion} />
           </div>
           <div className="flex gap-2 mt-4">
             <button onClick={() => { stopAll(); next(); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Next →</button>

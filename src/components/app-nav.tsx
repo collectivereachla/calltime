@@ -126,7 +126,7 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
         <div className={`border-b border-white/10 ${collapsed ? "py-5 flex justify-center" : "px-5 py-6"}`}>
           <Link href="/home" title="Home" className="font-marquee text-paper hover:opacity-80 transition-opacity inline-flex items-center" style={collapsed ? undefined : { fontSize: '1.7rem', lineHeight: '1.05', letterSpacing: '0', whiteSpace: 'nowrap' }}>
             {collapsed ? (
-              <svg viewBox="0 0 240 240" width="36" height="36" aria-label="Calltime" role="img">
+              <svg viewBox="0 0 240 240" width="42" height="42" aria-label="Calltime" role="img">
                 <path d="M86 138 Q96 56 120 50 Q144 56 154 138" fill="none" stroke="#C8B79A" strokeWidth="7" strokeLinecap="round" />
                 <circle cx="120" cy="92" r="15" fill="#E0301E" />
                 <line x1="120" y1="104" x2="120" y2="186" stroke="#F4EFE4" strokeWidth="7" strokeLinecap="round" />
@@ -170,7 +170,7 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
             if (isRoomLocked(room)) {
               return (
                 <div key={room.path} title={collapsed ? room.name : undefined} className={`flex items-center text-body-sm text-bone/50 cursor-default py-2 ${collapsed ? "justify-center px-0" : "gap-3 px-5"}`}>
-                  <span className="text-xs w-4 text-center opacity-40">{room.icon}</span>
+                  <span className={`text-center opacity-40 ${collapsed ? "text-2xl" : "text-xs w-4"}`}>{room.icon}</span>
                   {!collapsed && <span className="opacity-40">{room.name}</span>}
                   {!collapsed && <span className="ml-auto text-[10px] opacity-40">🔒</span>}
                 </div>
@@ -190,7 +190,7 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
                     : "text-paper hover:text-brick hover:bg-brick/15"
                 }`}>
                 {!collapsed && <span className="text-white/20 group-hover:text-bone/60 text-[11px] leading-none select-none cursor-grab" aria-hidden>⠿</span>}
-                <span className={`text-xs w-4 text-center ${isActive ? "text-brick" : "text-bone/60"}`}>{room.icon}</span>
+                <span className={`text-center ${collapsed ? "text-2xl" : "text-xs w-4"} ${isActive ? "text-brick" : "text-bone/60"}`}>{room.icon}</span>
                 {!collapsed && room.name}
                 {!collapsed && getBadge(room) > 0 && (
                   <span className="ml-auto text-[10px] font-medium bg-brick text-paper rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
@@ -208,9 +208,9 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
         {collapsed ? (
           <div className="border-t border-white/10 py-3 flex flex-col items-center gap-3">
             <ModeToggle dark />
-            <Link href="/settings" title="Settings" className="text-body-sm text-bone/50 hover:text-brick transition-colors">⚙</Link>
+            <Link href="/settings" title="Settings" className="text-2xl leading-none text-bone/50 hover:text-brick transition-colors">⚙</Link>
             <form action={logout}>
-              <button type="submit" title="Sign out" className="text-body-sm text-bone/50 hover:text-brick transition-colors">⏻</button>
+              <button type="submit" title="Sign out" className="text-2xl leading-none text-bone/50 hover:text-brick transition-colors">⏻</button>
             </form>
           </div>
         ) : (
@@ -302,7 +302,7 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
               if (isRoomLocked(room)) {
                 return (
                   <div key={room.path} className="flex items-center gap-3 px-5 py-2.5 text-body-sm text-muted">
-                    <span className="text-xs w-4 text-center opacity-40">{room.icon}</span>
+                    <span className={`text-center opacity-40 ${collapsed ? "text-2xl" : "text-xs w-4"}`}>{room.icon}</span>
                     <span className="opacity-40">{room.name}</span>
                     <span className="ml-auto text-[10px] opacity-40">🔒</span>
                   </div>
