@@ -12,6 +12,7 @@ import { TimezoneSetting } from "./timezone-setting";
 import { NotificationSettings } from "./notification-settings";
 import { W9Card } from "./w9-card";
 import { CheckinPinCard } from "./checkin-pin-card";
+import { FinanceAccess } from "./finance-access";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -76,6 +77,7 @@ export default async function SettingsPage() {
   // the settings for the org they're currently working in.
   let orgData: { id: string; name: string; slug: string; description: string | null; city: string | null; state: string | null; website: string | null; logo_url: string | null } | null = null;
   let hiddenRooms: string[] = [];
+  let financeMembers: { id: string; name: string; role: string; finance: boolean }[] = [];
   let accentDefault: string | null = null;
   let hideAi = false;
   let tzDefault: string | null = null;
@@ -98,6 +100,18 @@ export default async function SettingsPage() {
         hideAi = !!settings?.hide_ai;
         tzDefault = settings?.timezone || null;
       }
+      const { data: mem } = await supabase
+        .from("org_memberships")
+        .select("role, finance_access, people!inner(id, full_name, preferred_name, archived_at)")
+        .eq("org_id", settingsOrgId);
+      financeMembers = (mem || [])
+        .map((m) => {
+          const pp = m.people as unknown as { id: string; full_name: string; preferred_name: string | null; archived_at: string | null } | null;
+          if (!pp || pp.archived_at) return null;
+          return { id: pp.id, name: pp.preferred_name || pp.full_name, role: m.role as string, finance: m.finance_access === true };
+        })
+        .filter((x): x is { id: string; name: string; role: string; finance: boolean } => !!x)
+        .sort((a, b) => (a.role === "owner" ? 0 : 1) - (b.role === "owner" ? 0 : 1) || a.name.localeCompare(b.name));
     }
   }
 
@@ -166,6 +180,10 @@ export default async function SettingsPage() {
         <div className="mt-10">
           <RoomVisibility orgId={orgData.id} hidden={hiddenRooms} />
         </div>
+      )}
+
+      {isOwner && orgData && financeMembers.length > 0 && (
+        <FinanceAccess orgId={orgData.id} members={financeMembers} />
       )}
 
       {isOwner && orgData && (
