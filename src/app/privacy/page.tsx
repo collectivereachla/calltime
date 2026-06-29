@@ -92,6 +92,7 @@ export default function PrivacyPage() {
               <p><span className="font-medium">Supabase</span> — Database, authentication, file storage. Hosts all Calltime data.</p>
               <p><span className="font-medium">Vercel</span> — Application hosting and deployment.</p>
               <p><span className="font-medium">Resend</span> — Transactional email delivery (call notifications, invites, reminders).</p>
+              <p><span className="font-medium">Twilio</span> — SMS text reminders for members who opt in. We do not sell or share mobile information with third parties for their own marketing. Reply STOP to opt out, HELP for help. See our <a href="/sms" className="text-brick hover:underline">SMS terms</a>.</p>
               <p><span className="font-medium">Google Fonts</span> — Typography loading. No user data is transmitted.</p>
             </div>
           </section>

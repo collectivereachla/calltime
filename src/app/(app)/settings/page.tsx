@@ -12,6 +12,7 @@ import { TimezoneSetting } from "./timezone-setting";
 import { NotificationSettings } from "./notification-settings";
 import { W9Card } from "./w9-card";
 import { CheckinPinCard } from "./checkin-pin-card";
+import { SmsOptIn } from "./sms-opt-in";
 import { FinanceAccess } from "./finance-access";
 import { SchedulingPolicy } from "./scheduling-policy";
 import { ProductionScheduling } from "./production-scheduling";
@@ -29,7 +30,7 @@ export default async function SettingsPage() {
   const { data: person } = await supabase
     .from("people")
     .select(
-      "id, full_name, preferred_name, pronouns, email, phone, bio, birth_month, birth_day, is_minor, is_platform_admin"
+      "id, full_name, preferred_name, pronouns, email, phone, bio, birth_month, birth_day, is_minor, is_platform_admin, sms_opt_in"
     )
     .eq("id", personId!)
     .single();
@@ -193,6 +194,8 @@ export default async function SettingsPage() {
       <W9Card w9TaxYear={w9TaxYear} submittedAt={w9SubmittedAt} />
 
       <CheckinPinCard hasPin={hasPin} />
+
+      <SmsOptIn optedIn={(person as { sms_opt_in?: boolean }).sms_opt_in === true} phone={person.phone} />
 
       <div className="mt-10 pt-8 border-t border-bone">
         <NotificationSettings personId={person.id} />
