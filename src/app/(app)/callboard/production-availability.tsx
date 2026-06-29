@@ -64,6 +64,7 @@ type DayHit = { name: string; type: string | null; description: string | null; w
 
 export function ProductionAvailability({
   conflicts,
+  responseConflicts,
   mandatoryDates,
   eventDates,
   productionCreatedAt,
@@ -72,6 +73,7 @@ export function ProductionAvailability({
   rosterCount,
 }: {
   conflicts: Conflict[];
+  responseConflicts: { date: string; name: string; reason: string | null }[];
   mandatoryDates: string[];
   eventDates: string[];
   productionCreatedAt: string | null;
@@ -120,6 +122,13 @@ export function ProductionAvailability({
       const d = new Date(s < start ? start : s);
       while (d <= e && d <= end) { add(iso(d), hit); d.setDate(d.getDate() + 1); }
     }
+  }
+  // Call-response conflicts (someone flagged a specific call on the callboard).
+  // Merge in, but don't double-count a person already declared out that day.
+  for (const r of responseConflicts) {
+    const existing = byDay.get(r.date);
+    if (existing && existing.some((h) => h.name === r.name)) continue;
+    add(r.date, { name: r.name, type: "flagged a call", description: r.reason, window: null });
   }
 
   // Grid weeks

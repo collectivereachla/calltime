@@ -335,10 +335,15 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
     const { data: edata } = await supabase
       .from("schedule_events").select("event_date").in("production_id", productionIds);
     const eventDates = [...new Set((edata || []).map((e) => e.event_date as string))];
+    const activeTitle = activeProductions[0]?.title;
+    const responseConflicts = conflicts
+      .filter((c) => c.production_title === activeTitle)
+      .map((c) => ({ date: c.event_date, name: c.person_name, reason: c.conflict_reason }));
 
     availabilityContent = (
       <ProductionAvailability
         conflicts={rosterConflicts}
+        responseConflicts={responseConflicts}
         mandatoryDates={mandatoryDates}
         eventDates={eventDates}
         productionCreatedAt={prodCreatedAt}
