@@ -150,6 +150,10 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const [autoRead, setAutoRead] = useState(true);
   const [rate, setRate] = useState(0.95);
   const [strictness, setStrictness] = useState(0.6);
+  const [mode, setMode] = useState<"learn" | "rehearse">("learn");
+  const [startPos, setStartPos] = useState<"top" | "entrance">("top");
+  const [onlyCues, setOnlyCues] = useState(false);
+  const [callReveal, setCallReveal] = useState(0);
   const [scansion, setScansion] = useState(false);
   const [scanData, setScanData] = useState<Record<string, { scansion: string; syllable_count: number; meter: string; is_regular: boolean; note: string }>>({});
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -219,14 +223,35 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const seq = useMemo<Item[]>(() => {
     let ls = lines;
     if (sceneKey !== "all") ls = lines.filter((l) => `${l.act ?? "-"}.${l.scene ?? "-"}` === sceneKey);
-    return ls.map((l, i) => {
+    let items = ls.map((l, i) => {
       const speakable = SPEAKABLE.has(l.line_type);
       const mine = speakable && !!character && (l.character || "").trim().toLowerCase() === character.toLowerCase();
       return { ...l, idx: i, mine, speakable };
     });
-  }, [lines, sceneKey, character]);
+    if (onlyCues) {
+      const keep = new Set<number>();
+      items.forEach((it, i) => {
+        if (!it.mine) return;
+        keep.add(i);
+        for (let j = i - 1; j >= 0; j--) { if (items[j].speakable) { keep.add(j); break; } }
+      });
+      items = items.filter((_, i) => keep.has(i)).map((it, i) => ({ ...it, idx: i }));
+    }
+    return items;
+  }, [lines, sceneKey, character, onlyCues]);
 
   const myCount = useMemo(() => seq.filter((s) => s.mine).length, [seq]);
+
+  const startIndex = useMemo(() => {
+    if (startPos === "top") return 0;
+    const firstMine = seq.findIndex((x) => x.mine);
+    if (firstMine < 0) return 0;
+    for (let j = firstMine; j >= 0; j--) {
+      const it = seq[j];
+      if (it.line_type === "stage_direction" && /enter/i.test(it.content) && character && it.content.toLowerCase().includes(character.toLowerCase())) return j;
+    }
+    return Math.max(0, firstMine - 1);
+  }, [seq, startPos, character]);
 
   const [index, setIndex] = useState(0);
   const [listening, setListening] = useState(false);
@@ -305,7 +330,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     speak(w.replace(/[^\p{L}\p{N}'\-]/gu, ""), { rate: 0.6 });
   }, [speak]);
 
-  const next = useCallback(() => { setResult(null); setRevealed(false); setHeard(""); setIndex((i) => i + 1); }, []);
+  const next = useCallback(() => { setResult(null); setRevealed(false); setHeard(""); setCallReveal(0); setIndex((i) => i + 1); }, []);
 
   const evaluate = useCallback((saidRaw: string, target: string) => {
     const s = Math.max(similarity(target, saidRaw), coverage(target, saidRaw) * 0.97);
@@ -343,18 +368,28 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     const item = seq[index];
     if (!item) return;
     (async () => {
-      if (item.mine) {
-        if (supported && settingsRef.current.autoRead) listen(item.content);
-      } else if (item.speakable) {
-        if (settingsRef.current.autoRead) { await speak(item.content, { voiceURI: charVoiceURI(item.character || "") }); if (!cancelRef.current) setTimeout(() => { if (!cancelRef.current) next(); }, 150); }
+      if (mode === "learn") {
+        if (item.speakable) {
+          await speak(item.content, { voiceURI: item.mine ? undefined : charVoiceURI(item.character || "") });
+          if (!cancelRef.current) setTimeout(() => { if (!cancelRef.current) next(); }, 200);
+        } else {
+          await new Promise((res) => setTimeout(res, 1000));
+          if (!cancelRef.current) next();
+        }
       } else {
-        await new Promise((res) => setTimeout(res, 1100));
-        if (!cancelRef.current) next();
+        if (item.mine) {
+          if (supported && settingsRef.current.autoRead) listen(item.content);
+        } else if (item.speakable) {
+          if (settingsRef.current.autoRead) { await speak(item.content, { voiceURI: charVoiceURI(item.character || "") }); if (!cancelRef.current) setTimeout(() => { if (!cancelRef.current) next(); }, 150); }
+        } else {
+          await new Promise((res) => setTimeout(res, 1100));
+          if (!cancelRef.current) next();
+        }
       }
     })();
     return () => { cancelRef.current = true; try { window.speechSynthesis?.cancel(); } catch {} try { recogRef.current?.abort?.(); } catch {} try { audioRef.current?.pause(); } catch {} };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, phase, seq]);
+  }, [index, phase, seq, mode]);
 
   // Accurate scansion via Claude (/api/verse-coach), cached per line; heuristic shown until it lands.
   useEffect(() => {
@@ -387,7 +422,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
 
   function start() {
     if (!character) return;
-    setIndex(0); setScore({ correct: 0, attempts: 0 }); setResult(null); setRevealed(false); setHeard("");
+    setIndex(startIndex); setScore({ correct: 0, attempts: 0 }); setResult(null); setRevealed(false); setHeard(""); setCallReveal(0);
     setPhase("run");
   }
   function quit() { stopAll(); setPhase("setup"); }
@@ -443,6 +478,35 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                   <span className="text-body-xs text-muted font-mono">{c.count} lines</span>
                 </button>
               ))}
+            </div>
+
+            <div className="mb-5">
+              <span className="text-body-xs text-muted uppercase tracking-wider block mb-1.5">Mode</span>
+              <div className="flex flex-wrap gap-2">
+                {([["learn", "Learn — read along"], ["rehearse", "Rehearse — cue & line"]] as const).map(([m, lab]) => (
+                  <button key={m} onClick={() => setMode(m)} className={`px-3 py-2 rounded-card border text-body-sm transition-colors ${mode === m ? "border-brick bg-brick/5 text-ink" : "border-bone text-ink hover:border-ash"}`}>{lab}</button>
+                ))}
+              </div>
+              <p className="text-body-xs text-muted mt-1.5 max-w-md">{mode === "learn" ? "Hear the whole scene in character with your lines shown — tap any word to hear it. Best when you're still learning." : "It reads the cues; you say your lines out loud. Stuck? Use Call line to be fed it word by word."}</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 mb-3">
+              <label className="text-body-sm text-ink">
+                <span className="text-body-xs text-muted uppercase tracking-wider block mb-1">Start at</span>
+                <select value={startPos} onChange={(e) => setStartPos(e.target.value as "top" | "entrance")} className="px-3 py-2 bg-paper border border-bone rounded-card text-body-sm text-ink">
+                  <option value="top">Top of section</option>
+                  <option value="entrance">My entrance</option>
+                </select>
+              </label>
+              <label className="text-body-sm text-ink">
+                <span className="text-body-xs text-muted uppercase tracking-wider block mb-1">Speed</span>
+                <input type="range" min={0.6} max={1.3} step={0.05} value={rate} onChange={(e) => setRate(parseFloat(e.target.value))} className="accent-brick align-middle" />
+                <span className="text-body-xs text-muted font-mono ml-2">{rate.toFixed(2)}x</span>
+              </label>
+              <label className="flex items-center gap-2 text-body-sm text-ink mt-5">
+                <input type="checkbox" checked={onlyCues} onChange={(e) => setOnlyCues(e.target.checked)} className="rounded border-bone text-brick focus:ring-brick" />
+                Only my lines &amp; cues
+              </label>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 mb-6">
@@ -539,7 +603,9 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
       <div className="flex items-center justify-between mb-5">
         <div>
           <p className="text-body-xs text-muted uppercase tracking-wider">{character}{sceneKey !== "all" ? " · this section" : ""}</p>
-          <p className="text-body-sm text-ash font-mono">{score.correct}/{score.attempts} hit{score.attempts === 1 ? "" : "s"} · {myCount} of your lines</p>
+          {mode === "rehearse"
+            ? <p className="text-body-sm text-ash font-mono">{score.correct}/{score.attempts} hit{score.attempts === 1 ? "" : "s"} · {myCount} of your lines</p>
+            : <p className="text-body-sm text-ash font-mono">Read-along · {myCount} of your lines</p>}
         </div>
         <div className="flex items-center gap-4">
           <button onClick={() => setScansion((v) => !v)} className={`text-body-sm transition-colors ${scansion ? "text-brick" : "text-muted hover:text-ink"}`}>Scansion</button>
@@ -553,12 +619,14 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
           <p className="text-body-md text-ash mb-6">You nailed {score.correct} of {score.attempts} attempted.</p>
           <button onClick={start} className="px-5 py-2.5 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90">Run it again</button>
         </div>
-      ) : item.mine ? (
+      ) : (mode === "rehearse" && item.mine) ? (
         <div>
           <p className="text-body-xs text-brick uppercase tracking-wider mb-2 font-medium">Your line{item.act != null ? ` · Act ${item.act}${item.scene != null ? `, Sc ${item.scene}` : ""}` : ""}</p>
           <div className="bg-card border border-bone rounded-card p-5 min-h-[120px] flex flex-col justify-center">
             {revealed || (result && result.pass) ? (
               <Passage text={item.content} variant="mine" scansionOn={scansion} />
+            ) : callReveal > 0 ? (
+              <p className="text-display-sm font-display text-ink leading-snug">{item.content.split(/\s+/).slice(0, callReveal).join(" ")} <span className="text-muted">…</span></p>
             ) : (
               <p className="text-body-md text-muted italic">{listening ? "Listening… say your line" : "Your line — say it out loud"}</p>
             )}
@@ -577,6 +645,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                 {listening ? "Listening…" : result ? "Try again" : "🎙 Speak"}
               </button>
             )}
+            <button onClick={() => setCallReveal((c) => c + 1)} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Call line</button>
             <button onClick={() => { setRevealed(true); if (window.speechSynthesis) speak(item.content); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Reveal &amp; hear</button>
             <button onClick={() => { setScore((s) => ({ correct: s.correct + 1, attempts: s.attempts + 1 })); next(); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">I had it</button>
             <button onClick={next} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">Skip →</button>
@@ -584,15 +653,15 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
         </div>
       ) : (
         <div>
-          <p className="text-body-xs text-muted uppercase tracking-wider mb-2">
-            {item.speakable ? (item.character || "Cue") : (item.line_type === "stage_direction" ? "Stage direction" : item.line_type.replace(/_/g, " "))}
+          <p className={`text-body-xs uppercase tracking-wider mb-2 ${item.mine ? "text-brick font-medium" : "text-muted"}`}>
+            {item.mine ? `You — ${character}` : item.speakable ? (item.character || "Cue") : (item.line_type === "stage_direction" ? "Stage direction" : item.line_type.replace(/_/g, " "))}
           </p>
           <div className={`rounded-card p-5 ${item.speakable ? "bg-card border border-bone" : "bg-bone/30"}`}>
-            <Passage text={item.content} variant={item.speakable ? "cue" : "context"} scansionOn={scansion} />
+            <Passage text={item.content} variant={item.mine ? "mine" : item.speakable ? "cue" : "context"} scansionOn={scansion} />
           </div>
           <div className="flex gap-2 mt-4">
             <button onClick={() => { stopAll(); next(); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Next →</button>
-            {item.speakable && <button onClick={() => speak(item.content, { voiceURI: charVoiceURI(item.character || "") })} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">🔊 Replay cue</button>}
+            {item.speakable && <button onClick={() => speak(item.content, { voiceURI: item.mine ? undefined : charVoiceURI(item.character || "") })} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">🔊 {item.mine ? "Replay" : "Replay cue"}</button>}
           </div>
         </div>
       )}
