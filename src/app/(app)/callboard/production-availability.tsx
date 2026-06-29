@@ -190,7 +190,6 @@ export function ProductionAvailability({
                         {within && hasEvent && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-tentative" />}
                         <span className={isMand ? "font-semibold" : ""}>{d.getDate()}</span>
                         {within && hits > 0 && <span className="text-[10px] leading-none text-brick font-medium">{hits} out</span>}
-                        {within && isMand && hits === 0 && <span className="text-[9px] leading-none text-muted">must</span>}
                       </div>
                     );
                   })}
