@@ -47,15 +47,16 @@ function buildMonths(start: Date, end: Date) {
 }
 
 type DayHit = { name: string; type: string | null; description: string | null; window: string | null };
+type EventInfo = { title: string; date: string; start_time: string | null; end_time: string | null; event_type: string | null; kind: string | null; location: string | null; mandatory: boolean; published: boolean };
 
 export function ProductionAvailability({
-  conflicts, responseConflicts, mandatoryDates, eventDates,
+  conflicts, responseConflicts, mandatoryDates, eventDates, events = [],
   productionCreatedAt, firstRehearsal, closingDate, rosterCount,
   productionId, members,
 }: {
   conflicts: Conflict[];
   responseConflicts: { date: string; name: string; reason: string | null }[];
-  mandatoryDates: string[]; eventDates: string[];
+  mandatoryDates: string[]; eventDates: string[]; events?: EventInfo[];
   productionCreatedAt: string | null; firstRehearsal: string | null; closingDate: string | null;
   rosterCount: number; productionId: string; members: Member[];
 }) {
@@ -85,6 +86,9 @@ export function ProductionAvailability({
 
   const mandatory = new Set(mandatoryDates);
   const scheduled = new Set(eventDates);
+  const eventsByDay = new Map<string, EventInfo[]>();
+  for (const ev of events) { if (!eventsByDay.has(ev.date)) eventsByDay.set(ev.date, []); eventsByDay.get(ev.date)!.push(ev); }
+  for (const list of eventsByDay.values()) list.sort((a, b) => (a.start_time || "").localeCompare(b.start_time || ""));
 
   const byDay = new Map<string, DayHit[]>();
   const add = (ds: string, hit: DayHit) => { if (!byDay.has(ds)) byDay.set(ds, []); byDay.get(ds)!.push(hit); };
@@ -211,6 +215,23 @@ export function ProductionAvailability({
             </div>
 
             {mandatory.has(sel) && <p className="text-body-xs font-medium text-ink bg-ink/10 rounded-card px-3 py-1.5 mb-3">Mandatory call — the company can&rsquo;t conflict this day.</p>}
+
+            {/* On the calendar this day */}
+            {(eventsByDay.get(sel) || []).length > 0 && (
+              <div className="mb-4">
+                <p className="text-body-xs text-muted uppercase tracking-wider mb-1.5">On the calendar</p>
+                <div className="space-y-1">
+                  {eventsByDay.get(sel)!.map((ev, i) => (
+                    <div key={i} className="flex items-baseline gap-2 text-body-sm">
+                      <span className="font-mono text-data-sm text-ink whitespace-nowrap">{ev.start_time ? fmtTime(ev.start_time) : "TBD"}{ev.end_time ? `\u2013${fmtTime(ev.end_time)}` : ""}</span>
+                      <span className="text-ink font-medium">{ev.title}</span>
+                      {ev.location && <span className="text-muted">&middot; {ev.location}</span>}
+                      {!ev.published && <span className="text-body-xs text-tentative">draft</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Who's out */}
             <div className="mb-4">

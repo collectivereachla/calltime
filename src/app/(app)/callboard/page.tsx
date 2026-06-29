@@ -339,8 +339,19 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
       .from("schedule_events").select("event_date").in("production_id", productionIds).eq("mandatory", true).eq("published", true);
     const mandatoryDates = [...new Set((mdata || []).map((m) => m.event_date as string))];
     const { data: edata } = await supabase
-      .from("schedule_events").select("event_date").in("production_id", productionIds);
+      .from("schedule_events").select("title, event_date, start_time, end_time, event_type, kind, location, mandatory, published").in("production_id", productionIds);
     const eventDates = [...new Set((edata || []).map((e) => e.event_date as string))];
+    const events = (edata || []).map((e) => ({
+      title: (e.title as string | null) ?? "Call",
+      date: e.event_date as string,
+      start_time: (e.start_time as string | null) ?? null,
+      end_time: (e.end_time as string | null) ?? null,
+      event_type: (e.event_type as string | null) ?? null,
+      kind: (e.kind as string | null) ?? null,
+      location: (e.location as string | null) ?? null,
+      mandatory: (e.mandatory as boolean | null) ?? false,
+      published: (e.published as boolean | null) ?? false,
+    }));
     const activeTitle = activeProductions[0]?.title;
     const responseConflicts = conflicts
       .filter((c) => c.production_title === activeTitle)
@@ -352,6 +363,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
         responseConflicts={responseConflicts}
         mandatoryDates={mandatoryDates}
         eventDates={eventDates}
+        events={events}
         productionCreatedAt={prodCreatedAt}
         firstRehearsal={prodFirstRehearsal}
         closingDate={prodClosing}
