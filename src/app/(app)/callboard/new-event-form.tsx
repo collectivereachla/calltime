@@ -173,6 +173,19 @@ export function NewEventForm({ productions, companyMembers }: Props) {
           </div>
         </div>
 
+        {/* Calendar — rehearsal (company-wide) vs production (tagged only) */}
+        <div>
+          <label className="block text-body-xs text-ash mb-1">Calendar</label>
+          <select
+            name="kind"
+            defaultValue="rehearsal"
+            className="w-full px-3 py-2 bg-paper border border-bone rounded-card text-body-sm text-ink focus:border-brick focus:outline-none transition-colors"
+          >
+            <option value="rehearsal">Rehearsal — the whole company sees it</option>
+            <option value="production">Production — only the people you tag</option>
+          </select>
+        </div>
+
         {/* Title */}
         <div>
           <label className="block text-body-xs text-ash mb-1">Title</label>

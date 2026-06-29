@@ -18,6 +18,7 @@ export async function createScheduleEvent(formData: FormData) {
   const title = formData.get("title") as string;
   const eventDate = formData.get("event_date") as string;
   const eventType = formData.get("event_type") as string;
+  const kind = ((formData.get("kind") as string) === "production") ? "production" : "rehearsal";
   const startTime = (formData.get("start_time") as string) || null;
   const endTime = (formData.get("end_time") as string) || null;
   const location = (formData.get("location") as string) || null;
@@ -83,6 +84,7 @@ export async function createScheduleEvent(formData: FormData) {
       p_location: location,
       p_notes: notes,
       p_call_everyone: callEveryone,
+      p_kind: kind,
     });
     if (error) {
       if (created === 0) return { error: error.message };

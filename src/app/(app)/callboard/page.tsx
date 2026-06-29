@@ -21,8 +21,8 @@ function formatTime(time: string): string {
   return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
 }
 
-export default async function CallboardPage({ searchParams }: { searchParams: Promise<{ person?: string }> }) {
-  const { person: filterPersonId } = await searchParams;
+export default async function CallboardPage({ searchParams }: { searchParams: Promise<{ person?: string; cal?: string }> }) {
+  const { person: filterPersonId, cal } = await searchParams;
   const supabase = await createClient();
 
   const { personId } = await getViewer(supabase);
@@ -88,6 +88,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
     location: string | null;
     notes: string | null;
     production_id: string;
+    kind: string;
     published: boolean;
     productions: { title: string };
     event_calls: {
@@ -113,6 +114,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
         location,
         notes,
         production_id,
+        kind,
         mandatory,
         published,
         productions(title),
@@ -240,7 +242,7 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
   }
 
   // Filter events by person if filter is active
-  const displayEvents = filterPersonId
+  const personEvents = filterPersonId
     ? events.filter((e) => {
         const calls = e.event_calls as unknown as { person_id: string; people: unknown }[] || [];
         return calls.some((c) => {
@@ -249,6 +251,9 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
         });
       })
     : events;
+  const displayEvents = personEvents.filter((e) =>
+    cal === "rehearsal" ? e.kind !== "production" : cal === "production" ? e.kind === "production" : true
+  );
 
   // Group events by date
   const eventsByDate = new Map<string, typeof events>();
@@ -403,6 +408,20 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
         </div>
       )}
 
+      {/* Calendar filter — Rehearsal / Production / All (leads only) */}
+      {canManage && (
+        <div className="mb-4 flex gap-1 print:hidden">
+          {([["all", "All"], ["rehearsal", "Rehearsal"], ["production", "Production"]] as [string, string][]).map(([v, l]) => (
+            <Link key={v} href={v === "all" ? "/callboard" : `/callboard?cal=${v}`}
+              className={`px-3 py-1.5 text-body-xs font-medium rounded-card transition-colors ${
+                (cal || "all") === v ? "bg-ink text-paper" : "text-ash hover:text-ink border border-bone"
+              }`}>
+              {l}
+            </Link>
+          ))}
+        </div>
+      )}
+
       {/* Person filter */}
       {canManage && companyMembers.length > 0 && (
         <div className="mb-6 print:hidden">
@@ -511,6 +530,11 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
                             <span className="text-body-xs text-muted">
                               {prod.title}
                             </span>
+                            {event.kind === "production" && (
+                              <span className="text-body-xs font-medium px-1.5 py-0.5 rounded bg-ink/10 text-ink">
+                                Production
+                              </span>
+                            )}
                             {canManage && !event.published && (
                               <span className="text-body-xs font-medium px-1.5 py-0.5 rounded bg-bone text-ash">
                                 Draft
