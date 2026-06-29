@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveHeadshots } from "@/lib/headshot";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { PublicHeader } from "@/components/public-header";
@@ -70,6 +71,11 @@ export default async function OrgPage({
   }
   const isMember = !!viewerRole;
   const canManage = viewerRole === "owner" || viewerRole === "production";
+
+  // Headshots are private promo-asset paths — sign them (admin, read-only) or pass full URLs through.
+  const headshotMap = roster.length
+    ? await resolveHeadshots(createAdminClient(), roster.map((m) => m.headshot_url), { width: 120 })
+    : new Map<string, string>();
 
   // Fetch public productions for this org
   const { data: productions } = await supabase
@@ -285,8 +291,8 @@ export default async function OrgPage({
                     href={`/company/${m.id}`}
                     className="bg-card border border-bone rounded-card p-3 hover:shadow-card-hover transition-shadow flex flex-col items-center text-center"
                   >
-                    {m.headshot_url ? (
-                      <img loading="lazy" decoding="async" src={m.headshot_url} alt="" className="w-14 h-14 rounded-full object-cover mb-2" />
+                    {m.headshot_url && headshotMap.get(m.headshot_url) ? (
+                      <img loading="lazy" decoding="async" src={headshotMap.get(m.headshot_url)} alt="" className="w-14 h-14 rounded-full object-cover mb-2" />
                     ) : (
                       <div className="w-14 h-14 rounded-full bg-brick/10 text-brick flex items-center justify-center text-body-sm font-medium mb-2">
                         {initials}

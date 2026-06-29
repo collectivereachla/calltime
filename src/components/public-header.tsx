@@ -47,6 +47,10 @@ export function PublicHeader({ back }: { back?: { href: string; label: string } 
             </Link>
           )}
           {user ? (
+            <>
+            <Link href="/home" className="text-body-sm text-ash hover:text-brick transition-colors">
+              Your home
+            </Link>
             <button
               onClick={handleLogout}
               disabled={loading}
@@ -54,6 +58,7 @@ export function PublicHeader({ back }: { back?: { href: string; label: string } 
             >
               {loading ? "..." : "Sign out"}
             </button>
+            </>
           ) : (
             <Link href="/login" className="text-body-sm text-ash hover:text-brick transition-colors">
               Sign in

@@ -80,14 +80,14 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
   const visibleRooms = rooms.filter((r) => (!("adminOnly" in r && r.adminOnly) || isAdmin) && (r.path !== "/booth" || boothAccess) && (r.path !== "/dressing-room" || !boothAccess) && (r.path !== "/seating" || seatingAccess) && !hiddenRooms.includes(r.path.replace("/", "")));
 
   // Resizable + reorderable desktop rail (saved to the person's account)
-  const MIN_W = 224, MAX_W = 460, DEFAULT_W = 240;
-  const [railW, setRailW] = useState(initialNavWidth && initialNavWidth >= MIN_W && initialNavWidth <= MAX_W ? initialNavWidth : DEFAULT_W);
+  const MIN_W = 200, MAX_W = 460, DEFAULT_W = 240, COLLAPSED_W = 72, SNAP = 168;
+  const [railW, setRailW] = useState(initialNavWidth && initialNavWidth >= COLLAPSED_W && initialNavWidth <= MAX_W ? initialNavWidth : DEFAULT_W);
   const [order, setOrder] = useState<string[] | null>(initialNavOrder && initialNavOrder.length ? initialNavOrder : null);
   const [dragPath, setDragPath] = useState<string | null>(null);
   const resizing = useRef(false);
 
   useEffect(() => {
-    function move(e: PointerEvent) { if (resizing.current) setRailW(Math.min(MAX_W, Math.max(MIN_W, e.clientX))); }
+    function move(e: PointerEvent) { if (resizing.current) setRailW(e.clientX < SNAP ? COLLAPSED_W : Math.min(MAX_W, Math.max(MIN_W, e.clientX))); }
     function up() {
       if (!resizing.current) return;
       resizing.current = false; document.body.style.userSelect = "";
@@ -115,18 +115,20 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
     setDragPath(null);
   }
 
+  const collapsed = railW <= COLLAPSED_W + 24;
+
 
   return (
     <>
       {/* Desktop sidebar — hidden on mobile */}
       <nav style={{ width: railW }} className="hidden md:flex shrink-0 border-r border-bone bg-paper flex-col h-screen sticky top-0 relative">
-        <div className="px-5 py-6 border-b border-bone">
-          <Link href="/home" className="font-marquee text-ink hover:opacity-80 transition-opacity" style={{ fontSize: '3rem', lineHeight: '1', letterSpacing: '-0.015em', whiteSpace: 'nowrap' }}>
-            Calltime<span className="text-bulb">.</span>
+        <div className={`border-b border-bone ${collapsed ? "py-5 flex justify-center" : "px-5 py-6"}`}>
+          <Link href="/home" title="Home" className="font-marquee text-ink hover:opacity-80 transition-opacity" style={collapsed ? { fontSize: '1.75rem', lineHeight: '1' } : { fontSize: '3rem', lineHeight: '1', letterSpacing: '-0.015em', whiteSpace: 'nowrap' }}>
+            {collapsed ? <>C<span className="text-bulb">.</span></> : <>Calltime<span className="text-bulb">.</span></>}
           </Link>
         </div>
 
-        {orgs.length > 0 && (
+        {!collapsed && orgs.length > 0 && (
           <div className="px-5 py-3 border-b border-bone flex items-center justify-between">
             <div className="min-w-0">
               <p className="text-body-xs text-muted uppercase tracking-wider mb-1">Organization</p>
@@ -141,8 +143,13 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
             <NotificationBell unreadCount={notificationCount} />
           </div>
         )}
+        {collapsed && orgs.length > 0 && (
+          <div className="flex justify-center py-3 border-b border-bone">
+            <NotificationBell unreadCount={notificationCount} />
+          </div>
+        )}
 
-        {productions.length > 1 && (
+        {!collapsed && productions.length > 1 && (
           <div className="px-5 py-3 border-b border-bone">
             <p className="text-body-xs text-muted uppercase tracking-wider mb-1.5">Production</p>
             <ProductionSwitcher productions={productions} activeId={activeProductionId} />
@@ -154,10 +161,10 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
             const isActive = pathname.startsWith(room.path);
             if (isRoomLocked(room)) {
               return (
-                <div key={room.path} className="flex items-center gap-3 px-5 py-2 text-body-sm text-muted cursor-default">
+                <div key={room.path} title={collapsed ? room.name : undefined} className={`flex items-center text-body-sm text-muted cursor-default py-2 ${collapsed ? "justify-center px-0" : "gap-3 px-5"}`}>
                   <span className="text-xs w-4 text-center opacity-40">{room.icon}</span>
-                  <span className="opacity-40">{room.name}</span>
-                  <span className="ml-auto text-[10px] opacity-40">🔒</span>
+                  {!collapsed && <span className="opacity-40">{room.name}</span>}
+                  {!collapsed && <span className="ml-auto text-[10px] opacity-40">🔒</span>}
                 </div>
               );
             }
@@ -168,46 +175,59 @@ export function AppNav({ displayName, orgs, activeOrgName = null, activeOrgSlug 
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => reorder(room.path)}
                 onDragEnd={() => setDragPath(null)}
-                title="Drag to reorder"
-                className={`group flex items-center gap-2 pl-3 pr-5 py-2 text-body-sm transition-colors ${dragPath === room.path ? "opacity-40" : ""} ${
+                title={collapsed ? room.name : "Drag to reorder"}
+                className={`group relative flex items-center py-2 text-body-sm transition-colors ${collapsed ? "justify-center px-0" : "gap-2 pl-3 pr-5"} ${dragPath === room.path ? "opacity-40" : ""} ${
                   isActive
                     ? "text-brick font-medium bg-brick/5 border-r-2 border-brick"
                     : "text-ink hover:text-brick hover:bg-brick/5"
                 }`}>
-                <span className="text-ash/30 group-hover:text-ash text-[11px] leading-none select-none cursor-grab" aria-hidden>⠿</span>
+                {!collapsed && <span className="text-ash/30 group-hover:text-ash text-[11px] leading-none select-none cursor-grab" aria-hidden>⠿</span>}
                 <span className={`text-xs w-4 text-center ${isActive ? "text-brick" : "text-ash"}`}>{room.icon}</span>
-                {room.name}
-                {getBadge(room) > 0 && (
+                {!collapsed && room.name}
+                {!collapsed && getBadge(room) > 0 && (
                   <span className="ml-auto text-[10px] font-medium bg-brick text-paper rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
                     {getBadge(room)}
                   </span>
+                )}
+                {collapsed && getBadge(room) > 0 && (
+                  <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-brick" />
                 )}
               </Link>
             );
           })}
         </div>
 
-        <div className="border-t border-bone px-5 py-4">
-          <div className="flex items-center justify-between mb-2 gap-2">
-            <p className="text-body-sm font-medium text-ink truncate">{displayName}</p>
+        {collapsed ? (
+          <div className="border-t border-bone py-3 flex flex-col items-center gap-3">
             <ModeToggle />
-          </div>
-          <div className="flex items-center gap-3">
-            <Link href="/settings" className="text-body-xs text-muted hover:text-brick transition-colors">
-              Settings
-            </Link>
-            <span className="text-bone">·</span>
-            <Link href="/about" className="text-body-xs text-muted hover:text-brick transition-colors">
-              About
-            </Link>
-            <span className="text-bone">·</span>
+            <Link href="/settings" title="Settings" className="text-body-sm text-muted hover:text-brick transition-colors">⚙</Link>
             <form action={logout}>
-              <button type="submit" className="text-body-xs text-muted hover:text-brick transition-colors">
-                Sign out
-              </button>
+              <button type="submit" title="Sign out" className="text-body-sm text-muted hover:text-brick transition-colors">⏻</button>
             </form>
           </div>
-        </div>
+        ) : (
+          <div className="border-t border-bone px-5 py-4">
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <p className="text-body-sm font-medium text-ink truncate">{displayName}</p>
+              <ModeToggle />
+            </div>
+            <div className="flex items-center gap-3">
+              <Link href="/settings" className="text-body-xs text-muted hover:text-brick transition-colors">
+                Settings
+              </Link>
+              <span className="text-bone">·</span>
+              <Link href="/about" className="text-body-xs text-muted hover:text-brick transition-colors">
+                About
+              </Link>
+              <span className="text-bone">·</span>
+              <form action={logout}>
+                <button type="submit" className="text-body-xs text-muted hover:text-brick transition-colors">
+                  Sign out
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
         {/* Drag to resize the rail */}
         <div
           onPointerDown={(e) => { resizing.current = true; document.body.style.userSelect = "none"; e.preventDefault(); }}
