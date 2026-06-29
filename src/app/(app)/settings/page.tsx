@@ -26,7 +26,7 @@ export default async function SettingsPage() {
   const { data: person } = await supabase
     .from("people")
     .select(
-      "id, full_name, preferred_name, pronouns, email, phone, bio, birth_month, birth_day, is_minor"
+      "id, full_name, preferred_name, pronouns, email, phone, bio, birth_month, birth_day, is_minor, is_platform_admin"
     )
     .eq("id", personId!)
     .single();
@@ -143,6 +143,14 @@ export default async function SettingsPage() {
         <p className="text-body-sm text-ash mb-3">Submit and edit the dates you can&rsquo;t make it &mdash; single days, ranges, part of a day, or repeating &mdash; all in one place.</p>
         <a href="/availability" className="inline-block px-4 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 transition-colors">Open my conflict calendar</a>
       </div>
+
+      {(person as { is_platform_admin?: boolean }).is_platform_admin && (
+        <div className="mt-10 pt-8 border-t border-bone">
+          <h3 className="font-display text-display-sm mb-1">Appearance</h3>
+          <p className="text-body-sm text-ash mb-3">Tune Calltime&rsquo;s colors and fonts (platform admin).</p>
+          <a href="/admin/theme" className="inline-block px-4 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90 transition-colors">Open the theme editor</a>
+        </div>
+      )}
 
       <W9Card w9TaxYear={w9TaxYear} submittedAt={w9SubmittedAt} />
 
