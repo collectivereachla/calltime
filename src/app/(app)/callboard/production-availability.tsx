@@ -65,6 +65,7 @@ type DayHit = { name: string; type: string | null; description: string | null; w
 export function ProductionAvailability({
   conflicts,
   mandatoryDates,
+  eventDates,
   productionCreatedAt,
   firstRehearsal,
   closingDate,
@@ -72,6 +73,7 @@ export function ProductionAvailability({
 }: {
   conflicts: Conflict[];
   mandatoryDates: string[];
+  eventDates: string[];
   productionCreatedAt: string | null;
   firstRehearsal: string | null;
   closingDate: string | null;
@@ -91,6 +93,7 @@ export function ProductionAvailability({
   if (end < start) end = addDays(start, 28);
 
   const mandatory = new Set(mandatoryDates);
+  const scheduled = new Set(eventDates);
 
   // Expand conflicts into the days they touch within the window.
   const byDay = new Map<string, DayHit[]>();
@@ -165,14 +168,17 @@ export function ProductionAvailability({
                     const within = inWindow(d);
                     const hits = byDay.get(ds)?.length || 0;
                     const isMand = mandatory.has(ds);
+                    const hasEvent = scheduled.has(ds);
                     return (
                       <div key={ds}
-                        className={`aspect-square rounded-card text-body-sm flex flex-col items-center justify-center border ${
+                        className={`relative aspect-square rounded-card text-body-sm flex flex-col items-center justify-center border ${
                           !within ? "border-transparent text-bone"
                           : isMand ? "border-ink/60 bg-ink/5 text-ink"
                           : hits > 0 ? "bg-brick/10 border-brick/30 text-ink"
+                          : hasEvent ? "bg-tentative/5 border-tentative/40 text-ink"
                           : "bg-card border-bone text-ash"
                         }`}>
+                        {within && hasEvent && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-tentative" />}
                         <span className={isMand ? "font-semibold" : ""}>{d.getDate()}</span>
                         {within && hits > 0 && <span className="text-[10px] leading-none text-brick font-medium">{hits} out</span>}
                         {within && isMand && hits === 0 && <span className="text-[9px] leading-none text-muted">must</span>}
@@ -187,6 +193,7 @@ export function ProductionAvailability({
       </div>
       <div className="flex flex-wrap items-center gap-4 mt-4 text-body-xs text-ash">
         <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-brick/10 border border-brick/30 inline-block" /> Someone&rsquo;s out</span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-tentative/5 border border-tentative/40 inline-block" /> Has a call/event</span>
         <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-ink/5 border border-ink/60 inline-block" /> Mandatory call</span>
       </div>
 

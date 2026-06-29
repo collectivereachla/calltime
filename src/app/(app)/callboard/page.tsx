@@ -332,11 +332,15 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
     const { data: mdata } = await supabase
       .from("schedule_events").select("event_date").in("production_id", productionIds).eq("mandatory", true).eq("published", true);
     const mandatoryDates = [...new Set((mdata || []).map((m) => m.event_date as string))];
+    const { data: edata } = await supabase
+      .from("schedule_events").select("event_date").in("production_id", productionIds);
+    const eventDates = [...new Set((edata || []).map((e) => e.event_date as string))];
 
     availabilityContent = (
       <ProductionAvailability
         conflicts={rosterConflicts}
         mandatoryDates={mandatoryDates}
+        eventDates={eventDates}
         productionCreatedAt={prodCreatedAt}
         firstRehearsal={prodFirstRehearsal}
         closingDate={prodClosing}
