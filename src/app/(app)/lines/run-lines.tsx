@@ -112,6 +112,8 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const [rate, setRate] = useState(0.95);
   const [strictness, setStrictness] = useState(0.6);
   const [scansion, setScansion] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voiceURI, setVoiceURI] = useState<string>("");
 
   const supported = typeof window !== "undefined" && (("SpeechRecognition" in window) || ("webkitSpeechRecognition" in window));
 
@@ -120,6 +122,24 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     const hit = characters.find((c) => c.name.toLowerCase() === suggestedCharacter.toLowerCase());
     if (hit) setCharacter(hit.name);
   }, [suggestedCharacter, characters, character]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const load = () => {
+      const all = window.speechSynthesis.getVoices().filter((v) => /en(-|_|$)/i.test(v.lang));
+      setVoices(all);
+      setVoiceURI((cur) => {
+        if (cur) return cur;
+        let saved = ""; try { saved = localStorage.getItem("ct_tts_voice") || ""; } catch {}
+        if (saved && all.some((v) => v.voiceURI === saved)) return saved;
+        const pref = all.find((v) => /(enhanced|premium|natural|neural|siri)/i.test(v.name));
+        return (pref || all[0])?.voiceURI || "";
+      });
+    };
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+    return () => { try { window.speechSynthesis.onvoiceschanged = null; } catch {} };
+  }, []);
 
   const seq = useMemo<Item[]>(() => {
     let ls = lines;
@@ -144,6 +164,8 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const cancelRef = useRef(false);
   const settingsRef = useRef({ strictness, autoRead, rate });
   settingsRef.current = { strictness, autoRead, rate };
+  const voiceRef = useRef<{ uri: string; list: SpeechSynthesisVoice[] }>({ uri: "", list: [] });
+  voiceRef.current = { uri: voiceURI, list: voices };
 
   const stopAll = useCallback(() => {
     cancelRef.current = true;
@@ -159,6 +181,8 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
         if (!synth) { resolve(); return; }
         const u = new SpeechSynthesisUtterance(cleanForSpeech(text));
         u.rate = opts?.rate ?? settingsRef.current.rate;
+        const chosen = voiceRef.current.list.find((v) => v.voiceURI === voiceRef.current.uri);
+        if (chosen) u.voice = chosen;
         u.onend = () => resolve(); u.onerror = () => resolve();
         synth.speak(u);
       } catch { resolve(); }
@@ -288,6 +312,18 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
               </label>
             </div>
 
+            {voices.length > 0 && (
+              <div className="mb-3">
+                <span className="text-body-xs text-muted uppercase tracking-wider block mb-1">Reading voice</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select value={voiceURI} onChange={(e) => { setVoiceURI(e.target.value); try { localStorage.setItem("ct_tts_voice", e.target.value); } catch {} }} className="px-3 py-2 bg-paper border border-bone rounded-card text-body-sm text-ink max-w-xs">
+                    {voices.map((v) => <option key={v.voiceURI} value={v.voiceURI}>{v.name}</option>)}
+                  </select>
+                  <button type="button" onClick={() => speak("O, sir, content you. I follow him to serve my turn upon him.")} className="text-body-xs text-brick hover:underline">Preview</button>
+                </div>
+                <p className="text-body-xs text-muted mt-1.5 max-w-md">Default voices are robotic. On a Mac, install an enhanced English voice (System Settings &rarr; Accessibility &rarr; Spoken Content &rarr; System voices) and pick it here. Studio-grade AI voices can be added later.</p>
+              </div>
+            )}
             <label className="flex items-center gap-2 text-body-sm text-ink mb-3 cursor-pointer">
               <input type="checkbox" checked={autoRead} onChange={(e) => setAutoRead(e.target.checked)} className="rounded border-bone text-brick focus:ring-brick" />
               Read cues aloud{supported ? " and listen for my lines" : ""}
