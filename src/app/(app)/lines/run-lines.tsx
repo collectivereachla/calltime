@@ -78,7 +78,10 @@ function speechElisions(s: string) {
     .replace(/\bo'er\b/gi, "over").replace(/\bne'er\b/gi, "never").replace(/\be'er\b/gi, "ever").replace(/\be'en\b/gi, "even")
     .replace(/\b'gainst\b/gi, "against").replace(/\b'mongst\b/gi, "amongst").replace(/\b'mong\b/gi, "among")
     .replace(/\bon't\b/gi, "on it").replace(/\bin't\b/gi, "in it").replace(/\bis't\b/gi, "is it").replace(/\bto't\b/gi, "to it")
-    .replace(/\bdo't\b/gi, "do it").replace(/\bfor't\b/gi, "for it").replace(/\bby't\b/gi, "by it").replace(/\bse't\b/gi, "set");
+    .replace(/\bdo't\b/gi, "do it").replace(/\bfor't\b/gi, "for it").replace(/\bby't\b/gi, "by it").replace(/\bse't\b/gi, "set")
+    .replace(/(^|\s)'t\b/gi, "$1it")
+    .replace(/(^|\s)o'(\s)/gi, "$1of$2").replace(/(^|\s)i'(\s)/gi, "$1in$2")
+    .replace(/(^|\s)ha'(\s)/gi, "$1have$2").replace(/(^|\s)wi'(\s)/gi, "$1with$2");
 }
 function cleanForSpeech(s: string) {
   let t = s.replace(/[\u2019\u2018]/g, "'").replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ").replace(/[♪♫*_]/g, " ");
@@ -195,7 +198,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   async function autoCast() {
     setAutoCasting(true); setCastMsg("");
     try {
-      const cues = characters.filter((c) => c.name !== character);
+      const cues = characters;
       const sample = new Map<string, string>();
       for (const l of lines) {
         if (!SPEAKABLE.has(l.line_type) || !l.character) continue;
@@ -622,7 +625,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
               <p className="text-body-xs text-muted mt-1.5 max-w-md">Used for your own lines on reveal. The Natural voices are studio-quality and cached, so repeats stay free.</p>
             </div>
 
-            {character && characters.filter((c) => c.name !== character).length > 0 && (
+            {character && characters.length > 0 && (
               <div className="mb-6">
                 <span className="text-body-xs text-muted uppercase tracking-wider block mb-1">Cast voices — who you hear</span>
                 <p className="text-body-xs text-muted mb-2 max-w-md">Each role gets its own voice so a scene sounds like a scene. Auto-cast matches voices to each character (gender, age, temperament), or override any below.</p>
@@ -631,9 +634,9 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                   {castMsg && <span className="text-body-xs text-ash">{castMsg}</span>}
                 </div>
                 <div className="max-h-52 overflow-y-auto border border-bone rounded-card divide-y divide-bone">
-                  {characters.filter((c) => c.name !== character).map((c) => (
+                  {characters.map((c) => (
                     <div key={c.name} className="flex items-center justify-between gap-3 px-3 py-2">
-                      <span className="text-body-sm text-ink truncate">{c.name}</span>
+                      <span className="text-body-sm text-ink truncate">{c.name}{c.name === character ? " (you)" : ""}</span>
                       <select value={castVoices[c.name] || ""} onChange={(e) => setCast(c.name, e.target.value)} className="px-2 py-1 bg-paper border border-bone rounded-card text-body-xs text-ink shrink-0">
                         <option value="">Auto ({autoVoiceLabel(c.name)})</option>
                         <optgroup label="Female">{CLOUD_VOICES.filter((v) => v.gender === "F").map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</optgroup>
@@ -773,7 +776,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
           <div className="flex flex-wrap gap-2 mt-4">
             {mode === "learn" ? (
               <>
-                <button onClick={() => speak(item.content)} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">🔊 Say line</button>
+                <button onClick={() => speak(item.content, { voiceURI: charVoiceURI(character) })} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">🔊 Say line</button>
                 <button onClick={next} className="px-5 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90">Next →</button>
               </>
             ) : (
@@ -784,7 +787,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                   </button>
                 )}
                 <button onClick={() => setCallReveal((c) => c + 1)} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Call line</button>
-                <button onClick={() => { setRevealed(true); if (window.speechSynthesis) speak(item.content); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Reveal &amp; hear</button>
+                <button onClick={() => { setRevealed(true); speak(item.content, { voiceURI: charVoiceURI(character) }); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Reveal &amp; hear</button>
                 <button onClick={() => { setScore((s) => ({ correct: s.correct + 1, attempts: s.attempts + 1 })); next(); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">I had it</button>
                 <button onClick={next} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">Skip →</button>
               </>
