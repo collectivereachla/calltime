@@ -412,7 +412,6 @@ export default async function CallboardPage({ searchParams }: { searchParams: Pr
 
       <CallboardTabs
         canManage={canManage}
-        conflicts={conflicts}
         availabilityContent={availabilityContent}
         scheduleContent={
           <>
