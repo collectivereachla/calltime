@@ -229,7 +229,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
       setVoices(all);
       setVoiceURI((cur) => {
         let saved = ""; try { saved = localStorage.getItem("ct_tts_voice") || ""; } catch {}
-        if (saved) return saved;
+        if (saved && saved.startsWith("cloud:")) return saved;
         return cur || "cloud:en-US-Chirp3-HD-Charon";
       });
     };
@@ -351,6 +351,8 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const speak = useCallback(async (text: string, opts?: { rate?: number; voiceURI?: string }) => {
     const clean = cleanForSpeech(text);
     if (!clean) return;
+    try { window.speechSynthesis?.cancel(); } catch {}
+    try { audioRef.current?.pause(); } catch {}
     const rate = opts?.rate ?? settingsRef.current.rate;
     const v = opts?.voiceURI ?? voiceRef.current.uri;
     if (v.startsWith("cloud:")) { const ok = await cloudSpeak(clean, v.slice(6), rate); if (ok) return; }
@@ -614,15 +616,10 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                   <optgroup label="Natural — male">
                     {CLOUD_VOICES.filter((v) => v.gender === "M").map((v) => <option key={v.id} value={`cloud:${v.id}`}>{v.label}</option>)}
                   </optgroup>
-                  {voices.length > 0 && (
-                    <optgroup label="On this device">
-                      {voices.map((v) => <option key={v.voiceURI} value={v.voiceURI}>{v.name}</option>)}
-                    </optgroup>
-                  )}
                 </select>
                 <button type="button" onClick={() => speak("O, sir, content you. I follow him to serve my turn upon him.")} className="text-body-xs text-brick hover:underline">Preview</button>
               </div>
-              <p className="text-body-xs text-muted mt-1.5 max-w-md">Used for your own lines on reveal. The Natural voices are studio-quality and cached, so repeats stay free.</p>
+              <p className="text-body-xs text-muted mt-1.5 max-w-md">Default narrator voice (your character also gets its own cast voice below). Natural voices are studio-quality and cached, so repeats stay free.</p>
             </div>
 
             {character && characters.length > 0 && (
