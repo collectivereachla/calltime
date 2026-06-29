@@ -56,7 +56,7 @@ function autoVoiceLabel(name: string) { const id = autoVoiceId(name); return (CL
 const SMALLNUM = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty"];
 const FILLERS = new Set(["um","uh","er","ah","hmm"]);
 function expand(s: string) {
-  let t = s.toLowerCase().replace(/&/g, " and ");
+  let t = s.toLowerCase().replace(/[\u2019\u2018]/g, "'").replace(/&/g, " and ");
   t = t.replace(/won't/g, "will not").replace(/can't/g, "cannot").replace(/n't/g, " not")
        .replace(/'re/g, " are").replace(/'ve/g, " have").replace(/'ll/g, " will")
        .replace(/'d/g, " would").replace(/'m/g, " am").replace(/let's/g, "let us").replace(/'s/g, " is");
@@ -81,7 +81,7 @@ function speechElisions(s: string) {
     .replace(/\bdo't\b/gi, "do it").replace(/\bfor't\b/gi, "for it").replace(/\bby't\b/gi, "by it").replace(/\bse't\b/gi, "set");
 }
 function cleanForSpeech(s: string) {
-  let t = s.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ").replace(/[♪♫*_]/g, " ");
+  let t = s.replace(/[\u2019\u2018]/g, "'").replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ").replace(/[♪♫*_]/g, " ");
   t = speechElisions(t);
   return t.replace(/\s+/g, " ").trim();
 }
@@ -168,6 +168,8 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const [onlyCues, setOnlyCues] = useState(false);
   const [callReveal, setCallReveal] = useState(0);
   const [scansion, setScansion] = useState(false);
+  const [translate, setTranslate] = useState(false);
+  const [transData, setTransData] = useState<Record<string, string>>({});
   const [scanData, setScanData] = useState<Record<string, { scansion: string; syllable_count: number; meter: string; is_regular: boolean; note: string }>>({});
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [voiceURI, setVoiceURI] = useState<string>("cloud:en-US-Chirp3-HD-Charon");
@@ -295,6 +297,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
   const cloudCacheRef = useRef<Map<string, string>>(new Map());
   const sbRef = useRef(createClient());
   const scanInFlight = useRef<Set<string>>(new Set());
+  const transInFlight = useRef<Set<string>>(new Set());
   const recordingsRef = useRef<{ character: string; script: string; said: string }[]>([]);
 
   const stopAll = useCallback(() => {
@@ -432,7 +435,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
         }
       } else {
         if (item.mine) {
-          if (supported && settingsRef.current.autoRead) listen(item.content);
+          if (mode === "rehearse" && supported && settingsRef.current.autoRead) listen(item.content);
         } else if (item.speakable) {
           if (settingsRef.current.autoRead) { await speak(item.content, { voiceURI: charVoiceURI(item.character || "") }); if (!cancelRef.current) setTimeout(() => { if (!cancelRef.current) next(); }, 150); }
         } else {
@@ -473,6 +476,24 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scansion, index, phase, seq, scanData]);
+
+  useEffect(() => {
+    if (!translate || phase !== "run") return;
+    const item = seq[index];
+    if (!item || !item.speakable) return;
+    const k = item.content;
+    if (transData[k] !== undefined || transInFlight.current.has(k)) return;
+    transInFlight.current.add(k);
+    (async () => {
+      try {
+        const res = await fetch("/api/verse-coach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: cleanForSpeech(item.content) }) });
+        const data = await res.json();
+        setTransData((prev) => ({ ...prev, [k]: res.ok && data.paraphrase ? data.paraphrase : "" }));
+      } catch { setTransData((prev) => ({ ...prev, [k]: "" })); }
+      finally { transInFlight.current.delete(k); }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [translate, index, phase, seq, transData]);
 
   function start() {
     if (!character) return;
@@ -541,7 +562,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
                   <button key={m} onClick={() => setMode(m)} className={`px-3 py-2 rounded-card border text-body-sm transition-colors ${mode === m ? "border-brick bg-brick/5 text-ink" : "border-bone text-ink hover:border-ash"}`}>{lab}</button>
                 ))}
               </div>
-              <p className="text-body-xs text-muted mt-1.5 max-w-md">{mode === "learn" ? "Your lines are shown while you say them; it reads the other characters' cues and listens for you — it won't read your line (tap a word for its pronunciation). Best when you're still learning." : mode === "run" ? ("Perform the whole scene off-book; it advances when you pause. At the end you get line notes — skipped lines, dropped words, accuracy." + (supported ? "" : " (needs Chrome for this mode.)")) : "It reads the cues; you say your lines out loud. Stuck? Use Call line to be fed it word by word."}</p>
+              <p className="text-body-xs text-muted mt-1.5 max-w-md">{mode === "learn" ? "Your lines are shown; it reads the other characters' cues, then waits for you to read yours and click Next. Tap any word to hear it; toggle Translate or Scansion for help." : mode === "run" ? ("Perform the whole scene off-book; it advances when you pause. At the end you get line notes — skipped lines, dropped words, accuracy." + (supported ? "" : " (needs Chrome for this mode.)")) : "It reads the cues; you say your lines out loud. Stuck? Use Call line to be fed it word by word."}</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 mb-3">
@@ -664,6 +685,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
             : <p className="text-body-sm text-ash font-mono">Read-along · {myCount} of your lines</p>}
         </div>
         <div className="flex items-center gap-4">
+          <button onClick={() => setTranslate((v) => !v)} className={`text-body-sm transition-colors ${translate ? "text-brick" : "text-muted hover:text-ink"}`}>Translate</button>
           <button onClick={() => setScansion((v) => !v)} className={`text-body-sm transition-colors ${scansion ? "text-brick" : "text-muted hover:text-ink"}`}>Scansion</button>
           <button onClick={quit} className="text-body-sm text-muted hover:text-brick transition-colors">Done</button>
         </div>
@@ -740,6 +762,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
             )}
             {heard && !revealed && <p className="text-body-sm text-ash mt-3">heard: &ldquo;{heard}&rdquo;</p>}
           </div>
+          {translate && transData[item.content] && <p className="text-body-sm text-ash italic mt-2 border-l-2 border-bone pl-3">{transData[item.content]}</p>}
 
           {result && (
             <div className={`mt-3 text-body-sm rounded-card px-3 py-2 ${result.pass ? "bg-confirmed/10 text-confirmed" : "bg-tentative/10 text-tentative"}`}>
@@ -748,19 +771,21 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
           )}
 
           <div className="flex flex-wrap gap-2 mt-4">
-            {supported && (
-              <button onClick={() => listen(item.content)} disabled={listening} className="px-4 py-2 bg-brick text-paper text-body-sm font-medium rounded-card hover:bg-brick/90 disabled:opacity-50">
-                {listening ? "Listening…" : result ? "Try again" : "🎙 Speak"}
-              </button>
-            )}
-            {mode === "rehearse" && (
+            {mode === "learn" ? (
+              <button onClick={next} className="px-5 py-2 bg-ink text-paper text-body-sm font-medium rounded-card hover:bg-ink/90">Next →</button>
+            ) : (
               <>
+                {supported && (
+                  <button onClick={() => listen(item.content)} disabled={listening} className="px-4 py-2 bg-brick text-paper text-body-sm font-medium rounded-card hover:bg-brick/90 disabled:opacity-50">
+                    {listening ? "Listening…" : result ? "Try again" : "🎙 Speak"}
+                  </button>
+                )}
                 <button onClick={() => setCallReveal((c) => c + 1)} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Call line</button>
                 <button onClick={() => { setRevealed(true); if (window.speechSynthesis) speak(item.content); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Reveal &amp; hear</button>
+                <button onClick={() => { setScore((s) => ({ correct: s.correct + 1, attempts: s.attempts + 1 })); next(); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">I had it</button>
+                <button onClick={next} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">Skip →</button>
               </>
             )}
-            <button onClick={() => { setScore((s) => ({ correct: s.correct + 1, attempts: s.attempts + 1 })); next(); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">I had it</button>
-            <button onClick={next} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">Skip →</button>
           </div>
         </div>
       ) : (mode === "run" && item.mine) ? (
@@ -783,6 +808,7 @@ export function RunLines({ scriptTitle, lines, suggestedCharacter }: { scriptTit
           <div className={`rounded-card p-5 ${item.speakable ? "bg-card border border-bone" : "bg-bone/30"}`}>
             <Passage text={item.content} variant={item.mine ? "mine" : item.speakable ? "cue" : "context"} scansionOn={scansion} />
           </div>
+          {translate && item.speakable && transData[item.content] && <p className="text-body-sm text-ash italic mt-2 border-l-2 border-bone pl-3">{transData[item.content]}</p>}
           <div className="flex gap-2 mt-4">
             <button onClick={() => { stopAll(); next(); }} className="px-4 py-2 border border-bone text-ink text-body-sm rounded-card hover:border-ash">Next →</button>
             {item.speakable && <button onClick={() => speak(item.content, { voiceURI: item.mine ? undefined : charVoiceURI(item.character || "") })} className="px-4 py-2 text-muted text-body-sm rounded-card hover:text-ink">🔊 {item.mine ? "Replay" : "Replay cue"}</button>}
