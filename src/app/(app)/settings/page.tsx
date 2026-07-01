@@ -49,15 +49,18 @@ export default async function SettingsPage() {
   // act on a specific BTE production. Only show them to an owner of the org that
   // actually owns that script — not to every org owner.
   let canSeedTjs = false;
+  let ownsTjs = false;
+  let tjsProductionId: string | null = null;
   if (isOwner) {
     const ownedOrgIds = ownership.map((o) => o.org_id);
     const { data: tjsScript } = await supabase
       .from("scripts")
-      .select("productions!inner ( org_id )")
+      .select("productions!inner ( id, org_id )")
       .eq("id", "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
       .maybeSingle();
-    const tjsOrgId = (tjsScript?.productions as unknown as { org_id: string } | null)?.org_id;
-    canSeedTjs = !!tjsOrgId && ownedOrgIds.includes(tjsOrgId);
+    const tjsProd = tjsScript?.productions as unknown as { id: string; org_id: string } | null;
+    tjsProductionId = tjsProd?.id ?? null;
+    ownsTjs = !!tjsProd?.org_id && ownedOrgIds.includes(tjsProd.org_id);
   }
 
   // Get active production for room lock settings
@@ -74,6 +77,11 @@ export default async function SettingsPage() {
       activeProduction = data;
     }
   }
+
+  // The TJS one-time migration tools (reimport script, import blocking notes)
+  // only make sense while actually working inside TJS. Never show them under
+  // another org's production just because the caller owns BTE.
+  canSeedTjs = ownsTjs && !!activeProduction && activeProduction.id === tjsProductionId;
 
   // Fetch org details for org settings — for the org the owner is ACTING in
   // (cookie-driven), not just their first owned org. A multi-org owner must see

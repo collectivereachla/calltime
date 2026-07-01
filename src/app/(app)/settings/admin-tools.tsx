@@ -55,9 +55,10 @@ export function AdminTools({ activeProduction, canSeedTjs = false }: Props) {
   }
 
   async function handleInvite() {
+    if (!activeProduction) return;
     if (
       !confirm(
-        "This will create accounts and send invitation emails to all TJS members who have email addresses but no accounts. Continue?"
+        `This will create accounts and send invitation emails to all ${activeProduction.title} members who have email addresses but no accounts yet. Continue?`
       )
     )
       return;
@@ -70,7 +71,7 @@ export function AdminTools({ activeProduction, canSeedTjs = false }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productionId: "67757468-ebd4-475f-bf30-82709b69e1d8",
+          productionId: activeProduction.id,
         }),
       });
       const data = await res.json();
@@ -174,13 +175,13 @@ export function AdminTools({ activeProduction, canSeedTjs = false }: Props) {
           </button>
           )}
 
-{canSeedTjs && (
+{activeProduction && (
           <button
             onClick={handleInvite}
             disabled={loading}
             className="px-4 py-2 bg-card text-ink text-body-sm font-medium rounded-card border border-bone hover:border-ink transition-colors disabled:opacity-50"
           >
-            Invite TJS Members
+            Invite {activeProduction.title} Members
           </button>
           )}
 
